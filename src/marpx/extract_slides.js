@@ -166,8 +166,8 @@
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
         let node;
         while (node = walker.nextNode()) {
-            const text = node.textContent;
-            if (!text || text.trim() === '') continue;
+            const text = normalizeInlineText(node.textContent || '');
+            if (!text) continue;
 
             const parent = node.parentElement;
             const cs = window.getComputedStyle(parent);
@@ -189,7 +189,7 @@
                 linkUrl: linkUrl,
             });
         }
-        return runs;
+        return trimBoundaryWhitespace(runs);
     }
 
     function extractExactTextRuns(el) {
@@ -286,11 +286,11 @@
     }
 
     function extractTextRunsWithPseudo(el) {
-        return [
+        return trimBoundaryWhitespace([
             ...extractPseudoRuns(el, '::before'),
             ...extractTextRuns(el),
             ...extractPseudoRuns(el, '::after'),
-        ];
+        ]);
     }
 
     function _hiddenRunStyle(style) {
@@ -331,8 +331,8 @@
 
         function visit(node, styleEl, linkUrl = null) {
             if (node.nodeType === Node.TEXT_NODE) {
-                const text = node.textContent || '';
-                if (!text || text.trim() === '') return;
+                const text = normalizeInlineText(node.textContent || '');
+                if (!text) return;
                 runs.push({
                     text: text,
                     style: styleToRunStyle(window.getComputedStyle(styleEl), styleEl),
@@ -375,7 +375,7 @@
         }
 
         visit(el, el, null);
-        return runs;
+        return trimBoundaryWhitespace(runs);
     }
 
     function extractParagraphsFromLines(text, style, alignment) {

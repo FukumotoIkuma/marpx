@@ -364,6 +364,53 @@ class TestRenderedLayoutCapture:
         assert "paragraph extraction" in first_text
         assert "Default mode is Example. Optional mode is Alternate." in second_text
 
+    def test_heading_with_inline_spans_preserves_inter_run_space(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "heading-inline-space.md"
+        md_path.write_text(
+            """# Slide
+
+## <span style="color:#60a5fa;">marpx</span> <span style="color:#e2e8f0;">Kitchen Sink</span>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        heading = next(
+            e
+            for e in slide.elements
+            if e.element_type == ElementType.HEADING and e.heading_level == 2
+        )
+
+        assert "".join(run.text for run in heading.paragraphs[0].runs) == "marpx Kitchen Sink"
+
+    def test_paragraph_trims_html_indentation_whitespace(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "paragraph-indentation.md"
+        md_path.write_text(
+            """# Slide
+
+<p style="text-align:right; color:#94a3b8; font-size:0.62em;">
+  Header · Footer · Paginate · Speaker Notes · Background — all directives supported
+</p>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        paragraph = next(
+            e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
+        )
+
+        text = "".join(run.text for run in paragraph.paragraphs[0].runs)
+        assert text == "Header · Footer · Paginate · Speaker Notes · Background — all directives supported"
+
     def test_code_block_preserves_newlines_and_indentation(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:
