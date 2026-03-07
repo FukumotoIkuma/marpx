@@ -399,6 +399,34 @@ class TestShapeCount:
         slide = pptx.slides[0]
         assert len(slide.shapes) == 2
 
+    def test_shape_only_decorated_block_uses_css_radius_adjustment(
+        self, tmp_path: Path
+    ) -> None:
+        pres = Presentation(
+            slides=[
+                Slide(
+                    width_px=1280,
+                    height_px=720,
+                    elements=[
+                        SlideElement(
+                            element_type=ElementType.DECORATED_BLOCK,
+                            box=Box(x=50, y=100, width=200, height=100),
+                            paragraphs=[],
+                            decoration=BoxDecoration(
+                                background_color=RGBAColor(r=238, g=244, b=255),
+                                border_radius_px=16,
+                            ),
+                        )
+                    ],
+                )
+            ],
+        )
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        shape = next(shape for shape in slide.shapes if shape.text == "")
+        assert 'prst="roundRect"' in shape._element.xml
+        assert 'a:gd name="adj" fmla="val 16000"' in shape._element.xml
+
     def test_full_width_heading_does_not_merge_with_narrow_column_text(
         self, tmp_path: Path
     ) -> None:
@@ -1190,6 +1218,7 @@ class TestImageRendering:
         slide = pptx.slides[0]
         picture = next(shape for shape in slide.shapes if shape.shape_type == 13)
         assert 'prst="roundRect"' in picture._element.xml
+        assert 'a:gd name="adj" fmla="val 10169"' in picture._element.xml
 
     def test_file_uri_svg_is_rasterized_and_embedded(self, tmp_path: Path) -> None:
         svg_path = tmp_path / "diagram.svg"

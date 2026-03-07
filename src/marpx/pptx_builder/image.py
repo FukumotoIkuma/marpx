@@ -18,6 +18,7 @@ from marpx.svg_utils import (
 from marpx.utils import px_to_emu
 
 from .decoration import _add_decoration_shape
+from .decoration import _apply_round_rect_radius_to_geom
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,12 @@ def _add_image(slide, element: SlideElement) -> None:
             and element.decoration.border_radius_px > 0
         ):
             picture._element.spPr.prstGeom.set("prst", "roundRect")
+            _apply_round_rect_radius_to_geom(
+                picture._element.spPr.prstGeom,
+                int(width),
+                int(height),
+                px_to_emu(element.decoration.border_radius_px),
+            )
     except MissingDependencyError:
         raise
     except Exception as e:

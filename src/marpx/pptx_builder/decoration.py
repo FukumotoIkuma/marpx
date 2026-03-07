@@ -17,6 +17,30 @@ from ._helpers import _to_rgb, _with_opacity
 logger = logging.getLogger(__name__)
 
 
+def _round_rect_adjustment(width: int | float, height: int | float, radius: int | float) -> float:
+    """Return normalized roundRect adjustment matching CSS border-radius."""
+    min_dim = min(float(width), float(height))
+    if min_dim <= 0:
+        return 0.0
+    return max(0.0, min(float(radius) / min_dim, 0.5))
+
+
+def _apply_round_rect_radius(shape, width: int | float, height: int | float, radius: int | float) -> None:
+    """Apply a CSS-like corner radius to a rounded rectangle auto shape."""
+    if radius <= 0 or width <= 0 or height <= 0:
+        return
+    if getattr(shape, "adjustments", None) and len(shape.adjustments) > 0:
+        shape.adjustments[0] = _round_rect_adjustment(width, height, radius)
+
+
+def _apply_round_rect_radius_to_geom(prst_geom, width: int | float, height: int | float, radius: int | float) -> None:
+    """Apply a CSS-like corner radius to a preset geometry node."""
+    if radius <= 0 or width <= 0 or height <= 0:
+        return
+    adj = int(round(_round_rect_adjustment(width, height, radius) * 100000))
+    prst_geom.rewrite_guides([("adj", adj)])
+
+
 def _add_decoration_shape(slide, box: Box, decoration: BoxDecoration):
     """Render a generic decorated box and return it as the text container."""
     left = Emu(px_to_emu(box.x))
@@ -31,6 +55,13 @@ def _add_decoration_shape(slide, box: Box, decoration: BoxDecoration):
     )
     bg_shape = slide.shapes.add_shape(shape_type, left, top, width, height)
     _remove_theme_style(bg_shape)
+    if decoration.border_radius_px > 0:
+        _apply_round_rect_radius(
+            bg_shape,
+            px_to_emu(box.width),
+            px_to_emu(box.height),
+            px_to_emu(decoration.border_radius_px),
+        )
 
     fill = bg_shape.fill
     if decoration.background_color and decoration.opacity > 0:

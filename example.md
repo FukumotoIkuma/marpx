@@ -707,3 +707,59 @@ Regular English text remains below for comparison.
 <p class="tiny">If anything looks wrong, capture the slide number, what differs, and whether the issue is content loss or visual drift.</p>
 
 <!-- note: Final reminder note. Testers can write feedback directly against slide numbers from this deck. -->
+
+---
+
+<!-- _header: "" -->
+<!-- _footer: "" -->
+<!-- _paginate: false -->
+
+![bg](./images/chart-comparison.png)
+
+## <span style="color:#60a5fa;">marpx</span> <span style="color:#e2e8f0;">Kitchen Sink</span>
+
+<div class="grid-2">
+  <div>
+    <div style="background:rgba(15,23,42,0.92); border-radius:14px; padding:14px 18px;">
+      <p style="color:#94a3b8; font-size:0.82em;">
+        <strong style="color:#f1f5f9;">Heading · List · Table · Code · Image · Badge · Quote</strong><br/>
+        1 枚に全部載せ。これがネイティブ PowerPoint になります。
+      </p>
+      <ul style="color:#cbd5e1; font-size:0.78em;">
+        <li><strong style="color:#f1f5f9;">Bold</strong>, <em>italic</em>, <code style="background:#334155; color:#93c5fd;">inline code</code>, <a href="https://example.com" style="color:#60a5fa;">link</a></li>
+        <li>Nested list:
+          <ul>
+            <li>Sub-item A</li>
+            <li>Sub-item B</li>
+          </ul>
+        </li>
+        <li><span class="badge" style="background:#1e3a5f; color:#60a5fa;">Badge</span> inline element</li>
+      </ul>
+      <table style="font-size:0.68em;">
+        <tr><th>Feature</th><th>Status</th></tr>
+        <tr><td>Text & Lists</td><td style="color:#4ade80;">✓ Native</td></tr>
+        <tr><td>Tables</td><td style="color:#4ade80;">✓ Native</td></tr>
+        <tr><td>Images / SVG</td><td style="color:#4ade80;">✓ Native</td></tr>
+        <tr><td>Math / Inline SVG</td><td style="color:#facc15;">⚡ Fallback</td></tr>
+      </table>
+    </div>
+  </div>
+  <div>
+    <div style="background:rgba(15,23,42,0.92); border-radius:14px; padding:14px 18px;">
+      <img src="./images/diagram-network.svg" alt="SVG diagram" style="width:100%; height:140px; object-fit:contain; background:#1e293b; border-radius:12px; border:1px solid #334155;" />
+      <div style="background:#1e293b; border:1px solid #334155; border-radius:12px; padding:10px 14px; margin-top:10px;">
+        <pre style="margin:0;"><code style="font-size:0.65em; color:#93c5fd; background:transparent;">$ uv run marpx slide.md -o out.pptx
+Converting... ━━━━━━━━━━ 100%
+✓ Done: out.pptx (27 slides)</code></pre>
+      </div>
+      <blockquote style="border-left:4px solid #6366f1; margin:10px 0 0 0; padding:6px 14px; color:#a5b4fc; font-size:0.76em; background:#1e1b4b; border-radius:0 10px 10px 0;">
+        "Markdown で書いて、PowerPoint で提出。"
+      </blockquote>
+      <p style="color:#94a3b8; font-size:0.62em; text-align:right; margin-top:6px;">
+        Header · Footer · Paginate · Speaker Notes · Background — all directives supported
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- note: Kitchen sink slide — every major element type on a single slide. Use this to visually verify that marpx handles dense, mixed-content layouts correctly. -->
