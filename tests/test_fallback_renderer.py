@@ -1,4 +1,5 @@
 """Unit tests for fallback section selection."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -18,32 +19,44 @@ from marpx.models import (
 
 class TestIsContentSection:
     def test_excludes_advanced_background_section(self) -> None:
-        assert _is_content_section(
-            parent_tag="BODY",
-            parent_has_marpit=False,
-            advanced_background_role="background",
-        ) is False
+        assert (
+            _is_content_section(
+                parent_tag="BODY",
+                parent_has_marpit=False,
+                advanced_background_role="background",
+            )
+            is False
+        )
 
     def test_excludes_advanced_background_pseudo_section(self) -> None:
-        assert _is_content_section(
-            parent_tag="DIV",
-            parent_has_marpit=False,
-            advanced_background_role="pseudo",
-        ) is False
+        assert (
+            _is_content_section(
+                parent_tag="DIV",
+                parent_has_marpit=False,
+                advanced_background_role="pseudo",
+            )
+            is False
+        )
 
     def test_includes_content_section(self) -> None:
-        assert _is_content_section(
-            parent_tag="BODY",
-            parent_has_marpit=False,
-            advanced_background_role="content",
-        ) is True
+        assert (
+            _is_content_section(
+                parent_tag="BODY",
+                parent_has_marpit=False,
+                advanced_background_role="content",
+            )
+            is True
+        )
 
     def test_includes_marpit_parent_section(self) -> None:
-        assert _is_content_section(
-            parent_tag="SECTION",
-            parent_has_marpit=True,
-            advanced_background_role=None,
-        ) is True
+        assert (
+            _is_content_section(
+                parent_tag="SECTION",
+                parent_has_marpit=True,
+                advanced_background_role=None,
+            )
+            is True
+        )
 
 
 def test_render_fallbacks_rasterizes_inline_svg_without_screenshot(

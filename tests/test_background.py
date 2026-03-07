@@ -2,6 +2,7 @@
 
 These tests construct model objects directly -- NO Playwright or marp-cli needed.
 """
+
 from __future__ import annotations
 
 import base64
@@ -34,6 +35,7 @@ from marpx.utils import px_to_emu
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_heading(text: str) -> SlideElement:
     return SlideElement(
         element_type=ElementType.HEADING,
@@ -64,7 +66,9 @@ def _create_tiny_png() -> bytes:
     )
 
 
-def _create_png(width: int, height: int, color: tuple[int, int, int] = (255, 0, 0)) -> bytes:
+def _create_png(
+    width: int, height: int, color: tuple[int, int, int] = (255, 0, 0)
+) -> bytes:
     """Create a simple PNG of the requested size."""
     image = Image.new("RGB", (width, height), color)
     buffer = io.BytesIO()
@@ -75,6 +79,7 @@ def _create_png(width: int, height: int, color: tuple[int, int, int] = (255, 0, 
 # ---------------------------------------------------------------------------
 # BackgroundImage model tests
 # ---------------------------------------------------------------------------
+
 
 class TestBackgroundImageModel:
     """Tests for BackgroundImage model creation and defaults."""
@@ -113,6 +118,7 @@ class TestBackgroundImageModel:
 # Background model tests (with images list)
 # ---------------------------------------------------------------------------
 
+
 class TestBackgroundWithImages:
     """Tests for Background model with the images field."""
 
@@ -148,6 +154,7 @@ class TestBackgroundWithImages:
 # ---------------------------------------------------------------------------
 # _add_background_image tests (PPTX building)
 # ---------------------------------------------------------------------------
+
 
 class TestAddBackgroundImage:
     """Tests for _add_background_image building PPTX shapes."""
@@ -390,6 +397,7 @@ class TestAddBackgroundImage:
 # Integration: build_pptx with background images
 # ---------------------------------------------------------------------------
 
+
 class TestBuildPptxWithBackgroundImages:
     """End-to-end tests for build_pptx with background images."""
 
@@ -503,12 +511,13 @@ class TestBuildPptxWithBackgroundImages:
         # then shapes. The background picture should come before the textbox.
         sp_tree = slide.shapes._spTree
         shape_elements = [
-            child for child in sp_tree
-            if child.tag.endswith('}pic') or child.tag.endswith('}sp')
+            child
+            for child in sp_tree
+            if child.tag.endswith("}pic") or child.tag.endswith("}sp")
         ]
         # First shape element should be the picture (background)
         assert len(shape_elements) >= 2
-        assert shape_elements[0].tag.endswith('}pic')
+        assert shape_elements[0].tag.endswith("}pic")
 
     def test_split_left_bg_image_build(self, tmp_path: Path) -> None:
         """Split-left background image in full build pipeline."""

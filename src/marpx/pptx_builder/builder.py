@@ -1,4 +1,5 @@
 """Main build_pptx() function and slide background helper."""
+
 from __future__ import annotations
 
 import logging
@@ -92,7 +93,10 @@ def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
                 for bg_image in slide_data.background.images:
                     try:
                         _add_background_image(
-                            pptx_slide, bg_image, slide_w_emu, slide_h_emu,
+                            pptx_slide,
+                            bg_image,
+                            slide_w_emu,
+                            slide_h_emu,
                         )
                     except Exception as e:
                         logger.warning("Failed to add background image: %s", e)
@@ -100,7 +104,9 @@ def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
             # Add elements sorted by z-index, grouping adjacent plain text content
             sorted_elements = sorted(slide_data.elements, key=lambda e: e.z_index)
             for group in _group_adjacent_text_elements(sorted_elements):
-                if len(group) > 1 and all(_is_groupable_text_element(el) for el in group):
+                if len(group) > 1 and all(
+                    _is_groupable_text_element(el) for el in group
+                ):
                     _add_grouped_textbox(pptx_slide, group)
                     continue
 

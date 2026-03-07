@@ -1,4 +1,5 @@
 """Extract slide content from Marp-rendered HTML using Playwright."""
+
 from __future__ import annotations
 
 import asyncio
@@ -238,7 +239,9 @@ def _build_slide_element(raw: dict) -> SlideElement:
     return element
 
 
-def _should_merge_same_type_paragraphs(first: SlideElement, second: SlideElement) -> bool:
+def _should_merge_same_type_paragraphs(
+    first: SlideElement, second: SlideElement
+) -> bool:
     """Return True when adjacent extracted text elements should merge."""
     return (
         first.element_type == second.element_type

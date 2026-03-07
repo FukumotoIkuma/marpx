@@ -1,4 +1,5 @@
 """Tests for marpx.utils module."""
+
 from __future__ import annotations
 
 import pytest
@@ -347,4 +348,6 @@ class TestSafeFontFamily:
         assert safe_font_family('"Segoe UI", sans-serif') == "Segoe UI"
 
     def test_css_font_list_ui_monospace(self) -> None:
-        assert safe_font_family("ui-monospace, SFMono-Regular, monospace") == "Courier New"
+        assert (
+            safe_font_family("ui-monospace, SFMono-Regular, monospace") == "Courier New"
+        )

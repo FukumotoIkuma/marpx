@@ -1,4 +1,5 @@
 """Tests for marpx.models module."""
+
 from __future__ import annotations
 
 import pytest
@@ -137,10 +138,12 @@ class TestSlideElement:
             element_type=ElementType.TABLE,
             box=Box(x=0, y=0, width=400, height=200),
             table_rows=[
-                TableRow(cells=[
-                    TableCell(paragraphs=[Paragraph(runs=[TextRun(text="A")])]),
-                    TableCell(paragraphs=[Paragraph(runs=[TextRun(text="B")])]),
-                ]),
+                TableRow(
+                    cells=[
+                        TableCell(paragraphs=[Paragraph(runs=[TextRun(text="A")])]),
+                        TableCell(paragraphs=[Paragraph(runs=[TextRun(text="B")])]),
+                    ]
+                ),
             ],
         )
         assert len(el.table_rows) == 1
@@ -185,9 +188,17 @@ class TestSlideElement:
 
     def test_all_element_types_exist(self) -> None:
         expected = {
-            "heading", "paragraph", "blockquote", "decorated_block",
-            "unordered_list", "ordered_list", "code_block",
-            "image", "table", "math", "unsupported",
+            "heading",
+            "paragraph",
+            "blockquote",
+            "decorated_block",
+            "unordered_list",
+            "ordered_list",
+            "code_block",
+            "image",
+            "table",
+            "math",
+            "unsupported",
         }
         actual = {e.value for e in ElementType}
         assert actual == expected

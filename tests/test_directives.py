@@ -2,6 +2,7 @@
 
 These tests construct model objects directly -- NO Playwright or marp-cli needed.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -28,6 +29,7 @@ from marpx.utils import px_to_emu
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_heading(text: str, level: int = 1) -> SlideElement:
     return SlideElement(
@@ -74,6 +76,7 @@ def _make_blank_pptx_slide():
 # Tests: Slide model directive fields
 # ---------------------------------------------------------------------------
 
+
 class TestSlideModelDirectives:
     """Verify that the Slide model accepts directive fields."""
 
@@ -105,6 +108,7 @@ class TestSlideModelDirectives:
 # ---------------------------------------------------------------------------
 # Tests: _add_header
 # ---------------------------------------------------------------------------
+
 
 class TestAddHeader:
     """Verify _add_header creates a textbox at top of slide."""
@@ -145,6 +149,7 @@ class TestAddHeader:
 # Tests: _add_footer
 # ---------------------------------------------------------------------------
 
+
 class TestAddFooter:
     """Verify _add_footer creates a textbox at bottom of slide."""
 
@@ -184,6 +189,7 @@ class TestAddFooter:
 # ---------------------------------------------------------------------------
 # Tests: _add_page_number
 # ---------------------------------------------------------------------------
+
 
 class TestAddPageNumber:
     """Verify _add_page_number creates a textbox at bottom-right."""
@@ -243,6 +249,7 @@ class TestAddPageNumber:
 # Tests: No directives = no extra shapes
 # ---------------------------------------------------------------------------
 
+
 class TestNoDirectives:
     """Verify that slides without directives have no extra shapes."""
 
@@ -265,6 +272,7 @@ class TestNoDirectives:
 # ---------------------------------------------------------------------------
 # Tests: Full build with all directives
 # ---------------------------------------------------------------------------
+
 
 class TestFullBuildWithDirectives:
     """Verify full PPTX build with header + footer + paginate."""
@@ -378,6 +386,7 @@ class TestFullBuildWithDirectives:
 # Tests: Multi-slide with per-slide overrides
 # ---------------------------------------------------------------------------
 
+
 class TestPerSlideOverrides:
     """Verify that per-slide directive overrides work correctly."""
 
@@ -428,6 +437,7 @@ class TestPerSlideOverrides:
 # ---------------------------------------------------------------------------
 # Integration test (requires Playwright + marp-cli)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.integration
 class TestDirectivesIntegration:

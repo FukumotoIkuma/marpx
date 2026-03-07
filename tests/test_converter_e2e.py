@@ -2,6 +2,7 @@
 
 All tests require Playwright and marp-cli, so they are marked as integration tests.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

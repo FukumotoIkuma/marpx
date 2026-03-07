@@ -2,6 +2,7 @@
 
 These tests construct model objects directly -- NO Playwright or marp-cli needed.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -38,6 +39,7 @@ from marpx.utils import px_to_emu
 # Helpers to build test data
 # ---------------------------------------------------------------------------
 
+
 def _make_heading(text: str, level: int = 1) -> SlideElement:
     return SlideElement(
         element_type=ElementType.HEADING,
@@ -56,9 +58,7 @@ def _make_paragraph(text: str) -> SlideElement:
     return SlideElement(
         element_type=ElementType.PARAGRAPH,
         box=Box(x=50, y=100, width=600, height=40),
-        paragraphs=[
-            Paragraph(runs=[TextRun(text=text)], alignment="left")
-        ],
+        paragraphs=[Paragraph(runs=[TextRun(text=text)], alignment="left")],
     )
 
 
@@ -101,7 +101,9 @@ def _make_code_block(code: str, language: str = "python") -> SlideElement:
         element_type=ElementType.CODE_BLOCK,
         box=Box(x=50, y=100, width=600, height=150),
         paragraphs=[
-            Paragraph(runs=[TextRun(text=code, style=TextStyle(font_family="Courier New"))])
+            Paragraph(
+                runs=[TextRun(text=code, style=TextStyle(font_family="Courier New"))]
+            )
         ],
         code_language=language,
         code_background=RGBAColor(r=40, g=42, b=54),
@@ -159,12 +161,15 @@ def _build_and_read(presentation: Presentation, tmp_path: Path) -> PptxPresentat
 # Tests
 # ---------------------------------------------------------------------------
 
+
 class TestBuildSlideCount:
     """Verify correct number of slides."""
 
     def test_single_slide(self, tmp_path: Path) -> None:
         pres = Presentation(
-            slides=[Slide(width_px=1280, height_px=720, elements=[_make_heading("Slide 1")])],
+            slides=[
+                Slide(width_px=1280, height_px=720, elements=[_make_heading("Slide 1")])
+            ],
         )
         pptx = _build_and_read(pres, tmp_path)
         assert len(pptx.slides) == 1
@@ -420,7 +425,9 @@ class TestShapeCount:
                             box=Box(x=72, y=231, width=535, height=160),
                             list_items=[
                                 ListItem(runs=[TextRun(text="Left item")], level=0),
-                                ListItem(runs=[TextRun(text="Another left item")], level=0),
+                                ListItem(
+                                    runs=[TextRun(text="Another left item")], level=0
+                                ),
                             ],
                         ),
                     ],
@@ -434,7 +441,9 @@ class TestShapeCount:
         assert any(shape.text == "Split Layout" for shape in text_shapes)
         assert any("Text Region" in shape.text for shape in text_shapes)
 
-    def test_nested_list_preserves_marker_styles_and_spacing(self, tmp_path: Path) -> None:
+    def test_nested_list_preserves_marker_styles_and_spacing(
+        self, tmp_path: Path
+    ) -> None:
         list_element = SlideElement(
             element_type=ElementType.ORDERED_LIST,
             box=Box(x=50, y=160, width=600, height=260),
@@ -464,18 +473,36 @@ class TestShapeCount:
             box=Box(x=680, y=160, width=300, height=220),
             list_items=[
                 ListItem(runs=[TextRun(text="Disc")], level=0, list_style_type="disc"),
-                ListItem(runs=[TextRun(text="Circle")], level=1, list_style_type="circle"),
-                ListItem(runs=[TextRun(text="Square")], level=2, list_style_type="square"),
+                ListItem(
+                    runs=[TextRun(text="Circle")], level=1, list_style_type="circle"
+                ),
+                ListItem(
+                    runs=[TextRun(text="Square")], level=2, list_style_type="square"
+                ),
             ],
         )
         pres = Presentation(
-            slides=[Slide(width_px=1280, height_px=720, elements=[list_element, bullet_element])]
+            slides=[
+                Slide(
+                    width_px=1280,
+                    height_px=720,
+                    elements=[list_element, bullet_element],
+                )
+            ]
         )
 
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
-        ordered_shape = next(shape for shape in slide.shapes if shape.has_text_frame and "Nested i" in shape.text)
-        bullet_shape = next(shape for shape in slide.shapes if shape.has_text_frame and "Square" in shape.text)
+        ordered_shape = next(
+            shape
+            for shape in slide.shapes
+            if shape.has_text_frame and "Nested i" in shape.text
+        )
+        bullet_shape = next(
+            shape
+            for shape in slide.shapes
+            if shape.has_text_frame and "Square" in shape.text
+        )
 
         ordered_xml = "".join(p._p.xml for p in ordered_shape.text_frame.paragraphs)
         bullet_xml = "".join(p._p.xml for p in bullet_shape.text_frame.paragraphs)
@@ -541,14 +568,10 @@ class TestShapeCount:
         ]
         assert any("Quoted text" in text for text in texts)
 
-    def test_decorated_block_uses_shape_text_margins(
-        self, tmp_path: Path
-    ) -> None:
+    def test_decorated_block_uses_shape_text_margins(self, tmp_path: Path) -> None:
         element = _make_decorated_block("Quoted text")
         pres = Presentation(
-            slides=[
-                Slide(width_px=1280, height_px=720, elements=[element])
-            ],
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])],
         )
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
@@ -588,7 +611,9 @@ class TestShapeCount:
 
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
-        accent_shape = next(shape for shape in slide.shapes if shape.width == px_to_emu(6))
+        accent_shape = next(
+            shape for shape in slide.shapes if shape.width == px_to_emu(6)
+        )
 
         assert accent_shape.left == px_to_emu(50)
         assert accent_shape.top == px_to_emu(114)
@@ -607,7 +632,9 @@ class TestShapeCount:
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
         shape = next(
-            shape for shape in slide.shapes if shape.has_text_frame and "Lead" in shape.text
+            shape
+            for shape in slide.shapes
+            if shape.has_text_frame and "Lead" in shape.text
         )
         levels = [para.level for para in shape.text_frame.paragraphs]
         assert levels == [0, 0, 1]
@@ -655,7 +682,11 @@ class TestShapeCount:
 
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
-        shape = next(shape for shape in slide.shapes if shape.has_text_frame and "Nested" in shape.text)
+        shape = next(
+            shape
+            for shape in slide.shapes
+            if shape.has_text_frame and "Nested" in shape.text
+        )
         xml = "".join(p._p.xml for p in shape.text_frame.paragraphs)
 
         assert 'type="arabicPeriod"' in xml
@@ -663,7 +694,9 @@ class TestShapeCount:
         assert 'startAt="7"' in xml
         assert 'startAt="2"' in xml
 
-    def test_decoration_opacity_blends_fill_and_accent_colors(self, tmp_path: Path) -> None:
+    def test_decoration_opacity_blends_fill_and_accent_colors(
+        self, tmp_path: Path
+    ) -> None:
         element = SlideElement(
             element_type=ElementType.DECORATED_BLOCK,
             box=Box(x=50, y=100, width=400, height=160),
@@ -685,7 +718,9 @@ class TestShapeCount:
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
         bg_shape = next(shape for shape in slide.shapes if shape.has_text_frame)
-        accent_shape = next(shape for shape in slide.shapes if shape.width == px_to_emu(6))
+        accent_shape = next(
+            shape for shape in slide.shapes if shape.width == px_to_emu(6)
+        )
 
         assert bg_shape.fill.fore_color.rgb == RGBColor(255, 128, 128)
         assert accent_shape.fill.fore_color.rgb == RGBColor(128, 128, 255)
@@ -713,9 +748,13 @@ class TestShapeCount:
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
         text_shape = next(
-            shape for shape in slide.shapes if shape.has_text_frame and "Quoted text" in shape.text
+            shape
+            for shape in slide.shapes
+            if shape.has_text_frame and "Quoted text" in shape.text
         )
-        accent_shape = next(shape for shape in slide.shapes if shape.width == px_to_emu(4))
+        accent_shape = next(
+            shape for shape in slide.shapes if shape.width == px_to_emu(4)
+        )
 
         assert text_shape.text_frame.margin_left == px_to_emu(20)
         assert accent_shape.left == px_to_emu(80)
@@ -870,14 +909,25 @@ class TestTableBuilding:
                 ),
                 TableRow(
                     cells=[
-                        TableCell(paragraphs=[Paragraph(runs=[TextRun(text="1")])], width_px=100),
-                        TableCell(paragraphs=[Paragraph(runs=[TextRun(text="2")])], width_px=230),
-                        TableCell(paragraphs=[Paragraph(runs=[TextRun(text="3")])], width_px=110),
+                        TableCell(
+                            paragraphs=[Paragraph(runs=[TextRun(text="1")])],
+                            width_px=100,
+                        ),
+                        TableCell(
+                            paragraphs=[Paragraph(runs=[TextRun(text="2")])],
+                            width_px=230,
+                        ),
+                        TableCell(
+                            paragraphs=[Paragraph(runs=[TextRun(text="3")])],
+                            width_px=110,
+                        ),
                     ]
                 ),
             ],
         )
-        pres = Presentation(slides=[Slide(width_px=1280, height_px=720, elements=[element])])
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
 
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
@@ -1017,11 +1067,15 @@ class TestImageRendering:
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
         assert len(slide.shapes) == 2
-        background_shape = next(shape for shape in slide.shapes if not shape.has_text_frame)
+        background_shape = next(
+            shape for shape in slide.shapes if not shape.has_text_frame
+        )
         assert "p:style" not in background_shape._element.xml
         assert "effectRef" not in background_shape._element.xml
 
-    def test_standalone_decorated_text_uses_separate_textbox(self, tmp_path: Path) -> None:
+    def test_standalone_decorated_text_uses_separate_textbox(
+        self, tmp_path: Path
+    ) -> None:
         pres = Presentation(
             slides=[
                 Slide(
@@ -1035,7 +1089,9 @@ class TestImageRendering:
                             decoration=BoxDecoration(
                                 background_color=RGBAColor(r=232, g=237, b=245),
                                 border_radius_px=6,
-                                padding=BoxPadding(top_px=2, right_px=6, bottom_px=2, left_px=6),
+                                padding=BoxPadding(
+                                    top_px=2, right_px=6, bottom_px=2, left_px=6
+                                ),
                             ),
                         )
                     ],
@@ -1045,7 +1101,11 @@ class TestImageRendering:
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
         assert len(slide.shapes) == 2
-        text_shape = next(shape for shape in slide.shapes if shape.has_text_frame and shape.text == "inline code")
+        text_shape = next(
+            shape
+            for shape in slide.shapes
+            if shape.has_text_frame and shape.text == "inline code"
+        )
         assert text_shape.has_text_frame
         assert any(shape.has_text_frame and shape.text == "" for shape in slide.shapes)
 
@@ -1065,13 +1125,23 @@ class TestImageRendering:
             object_fit="contain",
             decoration=BoxDecoration(
                 background_color=RGBAColor(r=255, g=255, b=255),
-                border_top=BorderSide(width_px=2, style="solid", color=RGBAColor(r=0, g=0, b=0)),
-                border_right=BorderSide(width_px=2, style="solid", color=RGBAColor(r=0, g=0, b=0)),
-                border_bottom=BorderSide(width_px=2, style="solid", color=RGBAColor(r=0, g=0, b=0)),
-                border_left=BorderSide(width_px=2, style="solid", color=RGBAColor(r=0, g=0, b=0)),
+                border_top=BorderSide(
+                    width_px=2, style="solid", color=RGBAColor(r=0, g=0, b=0)
+                ),
+                border_right=BorderSide(
+                    width_px=2, style="solid", color=RGBAColor(r=0, g=0, b=0)
+                ),
+                border_bottom=BorderSide(
+                    width_px=2, style="solid", color=RGBAColor(r=0, g=0, b=0)
+                ),
+                border_left=BorderSide(
+                    width_px=2, style="solid", color=RGBAColor(r=0, g=0, b=0)
+                ),
             ),
         )
-        pres = Presentation(slides=[Slide(width_px=1280, height_px=720, elements=[element])])
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
 
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
@@ -1097,14 +1167,24 @@ class TestImageRendering:
             object_fit="contain",
             decoration=BoxDecoration(
                 background_color=RGBAColor(r=255, g=255, b=255),
-                border_top=BorderSide(width_px=1, style="solid", color=RGBAColor(r=0, g=0, b=0)),
-                border_right=BorderSide(width_px=1, style="solid", color=RGBAColor(r=0, g=0, b=0)),
-                border_bottom=BorderSide(width_px=1, style="solid", color=RGBAColor(r=0, g=0, b=0)),
-                border_left=BorderSide(width_px=1, style="solid", color=RGBAColor(r=0, g=0, b=0)),
+                border_top=BorderSide(
+                    width_px=1, style="solid", color=RGBAColor(r=0, g=0, b=0)
+                ),
+                border_right=BorderSide(
+                    width_px=1, style="solid", color=RGBAColor(r=0, g=0, b=0)
+                ),
+                border_bottom=BorderSide(
+                    width_px=1, style="solid", color=RGBAColor(r=0, g=0, b=0)
+                ),
+                border_left=BorderSide(
+                    width_px=1, style="solid", color=RGBAColor(r=0, g=0, b=0)
+                ),
                 border_radius_px=12,
             ),
         )
-        pres = Presentation(slides=[Slide(width_px=1280, height_px=720, elements=[element])])
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
 
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
@@ -1187,9 +1267,7 @@ class TestSolidBackground:
                     width_px=1280,
                     height_px=720,
                     elements=[_make_heading("Dark Slide")],
-                    background=Background(
-                        color=RGBAColor(r=30, g=30, b=30, a=1.0)
-                    ),
+                    background=Background(color=RGBAColor(r=30, g=30, b=30, a=1.0)),
                 )
             ],
         )
@@ -1218,6 +1296,7 @@ class TestOutputFile:
 # ---------------------------------------------------------------------------
 # Helpers for merged-table tests
 # ---------------------------------------------------------------------------
+
 
 def _make_merged_table(
     rows_data: list[list[tuple[str, int, int]]],
@@ -1258,13 +1337,14 @@ def _find_table(pptx_pres: PptxPresentation):
 # Tests for table merge (colspan / rowspan)
 # ---------------------------------------------------------------------------
 
+
 class TestTableMergeColspan:
     """Verify colspan merges produce correct grid dimensions and content."""
 
     def test_colspan_header(self, tmp_path: Path) -> None:
         """Header spans 2 columns; body has 2 separate cells."""
         rows = [
-            [("Header", 2, 1)],          # colspan=2
+            [("Header", 2, 1)],  # colspan=2
             [("A", 1, 1), ("B", 1, 1)],  # normal
         ]
         pres = Presentation(

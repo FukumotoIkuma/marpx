@@ -5,6 +5,7 @@ Classifies each slide element into one of three rendering capability levels:
 - subtree_fallback: Cannot be natively rendered; use element-level screenshot
 - slide_fallback: The entire slide must be a screenshot (last resort)
 """
+
 from __future__ import annotations
 
 from enum import Enum
@@ -27,7 +28,9 @@ class CapabilityDecision(NamedTuple):
 
     def __repr__(self) -> str:
         if self.reason:
-            return f"CapabilityDecision({self.capability.value!r}, reason={self.reason!r})"
+            return (
+                f"CapabilityDecision({self.capability.value!r}, reason={self.reason!r})"
+            )
         return f"CapabilityDecision({self.capability.value!r})"
 
 
@@ -61,7 +64,9 @@ def classify_element(element: SlideElement) -> CapabilityDecision:
         reason = ""
         if element.unsupported_info:
             reason = element.unsupported_info.reason
-        return CapabilityDecision(Capability.SUBTREE_FALLBACK, reason or "Math expression")
+        return CapabilityDecision(
+            Capability.SUBTREE_FALLBACK, reason or "Math expression"
+        )
 
     # Unsupported elements -> subtree fallback
     if element.element_type == ElementType.UNSUPPORTED:

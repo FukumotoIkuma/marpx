@@ -1,4 +1,5 @@
 """Tests for the capability classifier module."""
+
 from __future__ import annotations
 
 import pytest
@@ -22,6 +23,7 @@ from marpx.models import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_element(
     element_type: ElementType,
@@ -53,6 +55,7 @@ def _make_slide(
 # CapabilityDecision
 # ---------------------------------------------------------------------------
 
+
 class TestCapabilityDecision:
     def test_repr_without_reason(self) -> None:
         d = CapabilityDecision(Capability.NATIVE)
@@ -82,7 +85,9 @@ _NATIVE_TYPES = [
 
 
 class TestClassifyElementNative:
-    @pytest.mark.parametrize("etype", _NATIVE_TYPES, ids=[e.value for e in _NATIVE_TYPES])
+    @pytest.mark.parametrize(
+        "etype", _NATIVE_TYPES, ids=[e.value for e in _NATIVE_TYPES]
+    )
     def test_native_element_types(self, etype: ElementType) -> None:
         element = _make_element(etype)
         decision = classify_element(element)
@@ -93,6 +98,7 @@ class TestClassifyElementNative:
 # ---------------------------------------------------------------------------
 # classify_element - unsupported / subtree fallback
 # ---------------------------------------------------------------------------
+
 
 class TestClassifyElementUnsupported:
     def test_unsupported_without_info(self) -> None:
@@ -119,6 +125,7 @@ class TestClassifyElementUnsupported:
 # ---------------------------------------------------------------------------
 # classify_slide
 # ---------------------------------------------------------------------------
+
 
 class TestClassifySlide:
     def test_empty_slide(self) -> None:
@@ -175,6 +182,7 @@ class TestClassifySlide:
 # ---------------------------------------------------------------------------
 # should_fallback_slide
 # ---------------------------------------------------------------------------
+
 
 class TestShouldFallbackSlide:
     def test_empty_slide_no_fallback(self) -> None:

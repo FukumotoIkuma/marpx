@@ -1,4 +1,5 @@
 """Background image rendering for pptx_builder."""
+
 from __future__ import annotations
 
 import io
@@ -102,7 +103,7 @@ def _resolve_background_image_placement(
     box_top_emu: int,
     box_width_emu: int,
     box_height_emu: int,
- ) -> tuple[Emu, Emu, Emu, Emu, tuple[float, float, float, float]]:
+) -> tuple[Emu, Emu, Emu, Emu, tuple[float, float, float, float]]:
     """Resolve background image placement for contain/cover and position."""
     if image_width_px <= 0 or image_height_px <= 0:
         return (
@@ -198,10 +199,7 @@ def _parse_position(position: str | None) -> tuple[float, float]:
         parsed = parse_token(token, "x")
         return (parsed if parsed is not None else 0.5), 0.5
 
-    if (
-        tokens[0] in {"top", "bottom"}
-        and tokens[1] in {"left", "right"}
-    ):
+    if tokens[0] in {"top", "bottom"} and tokens[1] in {"left", "right"}:
         x_ratio = parse_token(tokens[1], "x")
         y_ratio = parse_token(tokens[0], "y")
         return (

@@ -1,4 +1,5 @@
 """Text grouping/merging logic for pptx_builder."""
+
 from __future__ import annotations
 
 from pptx.enum.text import MSO_VERTICAL_ANCHOR
@@ -18,10 +19,7 @@ from .text import GROUPABLE_TEXT_TYPES, _populate_text_frame
 
 def _is_groupable_text_element(element: SlideElement) -> bool:
     """Return True when the element should be grouped into a shared textbox."""
-    return (
-        element.element_type in GROUPABLE_TEXT_TYPES
-        and element.decoration is None
-    )
+    return element.element_type in GROUPABLE_TEXT_TYPES and element.decoration is None
 
 
 def _text_elements_should_merge(first: SlideElement, second: SlideElement) -> bool:
@@ -42,7 +40,9 @@ def _text_elements_should_merge(first: SlideElement, second: SlideElement) -> bo
     )
 
 
-def _group_adjacent_text_elements(elements: list[SlideElement]) -> list[list[SlideElement]]:
+def _group_adjacent_text_elements(
+    elements: list[SlideElement],
+) -> list[list[SlideElement]]:
     """Group adjacent text elements that should share one text frame."""
     groups: list[list[SlideElement]] = []
     current_group: list[SlideElement] = []

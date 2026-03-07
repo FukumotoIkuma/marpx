@@ -1,4 +1,5 @@
 """Image rendering functions for pptx_builder."""
+
 from __future__ import annotations
 
 import io
@@ -31,7 +32,6 @@ def _is_svg_source(src: str) -> bool:
     return Path(urllib.parse.unquote(candidate)).suffix.lower() == ".svg"
 
 
-
 def _resolve_image_placement(element: SlideElement) -> tuple[Emu, Emu, Emu, Emu]:
     """Convert CSS image box/object-fit metadata to PPTX placement."""
     left_px = element.box.x
@@ -39,8 +39,12 @@ def _resolve_image_placement(element: SlideElement) -> tuple[Emu, Emu, Emu, Emu]
     width_px = element.box.width
     height_px = element.box.height
     if element.decoration:
-        left_px += element.decoration.border_left.width_px + element.decoration.padding.left_px
-        top_px += element.decoration.border_top.width_px + element.decoration.padding.top_px
+        left_px += (
+            element.decoration.border_left.width_px + element.decoration.padding.left_px
+        )
+        top_px += (
+            element.decoration.border_top.width_px + element.decoration.padding.top_px
+        )
         width_px -= (
             element.decoration.border_left.width_px
             + element.decoration.border_right.width_px
@@ -111,14 +115,18 @@ def _add_image(slide, element: SlideElement) -> None:
         # SVG requires rasterization first
         if _is_svg_source(element.image_src):
             image_bytes = rasterize_svg_to_png(element.image_src or "")
-            picture = slide.shapes.add_picture(io.BytesIO(image_bytes), left, top, width, height)
+            picture = slide.shapes.add_picture(
+                io.BytesIO(image_bytes), left, top, width, height
+            )
         # Local file:// URLs: pass path directly to avoid loading bytes into memory
         elif element.image_src.startswith("file://"):
             image_path = Path(
                 urllib.parse.unquote(urllib.parse.urlparse(element.image_src).path)
             )
             if image_path.exists():
-                picture = slide.shapes.add_picture(str(image_path), left, top, width, height)
+                picture = slide.shapes.add_picture(
+                    str(image_path), left, top, width, height
+                )
             else:
                 logger.warning("Image file not found: %s", element.image_src)
         # Bare local paths (no scheme, not a data URI): pass path directly
@@ -129,18 +137,26 @@ def _add_image(slide, element: SlideElement) -> None:
         ):
             image_path = Path(element.image_src)
             if image_path.exists():
-                picture = slide.shapes.add_picture(str(image_path), left, top, width, height)
+                picture = slide.shapes.add_picture(
+                    str(image_path), left, top, width, height
+                )
             else:
                 logger.warning("Image file not found: %s", element.image_src)
         else:
             # Data URIs, HTTP/HTTPS URLs, pre-loaded bytes -> delegate to resolve_image_bytes
             image_bytes = resolve_image_bytes(element.image_src, element.image_data)
             if image_bytes:
-                picture = slide.shapes.add_picture(io.BytesIO(image_bytes), left, top, width, height)
+                picture = slide.shapes.add_picture(
+                    io.BytesIO(image_bytes), left, top, width, height
+                )
             else:
                 logger.warning("Failed to resolve image: %s", element.image_src)
 
-        if picture is not None and element.decoration and element.decoration.border_radius_px > 0:
+        if (
+            picture is not None
+            and element.decoration
+            and element.decoration.border_radius_px > 0
+        ):
             picture._element.spPr.prstGeom.set("prst", "roundRect")
     except MissingDependencyError:
         raise

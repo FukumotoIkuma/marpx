@@ -2,6 +2,7 @@
 
 All tests require Playwright, so they are marked as integration tests.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -60,9 +61,7 @@ def quote_box_list_html(quote_box_list_md: Path, tmp_output_dir: Path) -> Path:
 
 
 @pytest.fixture()
-def decorated_raw_text_html(
-    decorated_raw_text_md: Path, tmp_output_dir: Path
-) -> Path:
+def decorated_raw_text_html(decorated_raw_text_md: Path, tmp_output_dir: Path) -> Path:
     """Render decorated-raw-text.md to HTML."""
     return render_to_html(decorated_raw_text_md, output_dir=tmp_output_dir)
 
@@ -112,9 +111,7 @@ class TestExtractSimple:
         pres = extract_presentation_sync(simple_html)
         slide = pres.slides[0]
         list_elements = [
-            e
-            for e in slide.elements
-            if e.element_type == ElementType.UNORDERED_LIST
+            e for e in slide.elements if e.element_type == ElementType.UNORDERED_LIST
         ]
         assert len(list_elements) >= 1
         # Should have 3 bullet items
@@ -129,9 +126,7 @@ class TestExtractNestedList:
         pres = extract_presentation_sync(nested_list_html)
         slide = pres.slides[0]
         list_elements = [
-            e
-            for e in slide.elements
-            if e.element_type == ElementType.UNORDERED_LIST
+            e for e in slide.elements if e.element_type == ElementType.UNORDERED_LIST
         ]
         assert len(list_elements) >= 1
 
@@ -144,9 +139,7 @@ class TestExtractNestedList:
         pres = extract_presentation_sync(nested_list_html)
         slide = pres.slides[0]
         list_elements = [
-            e
-            for e in slide.elements
-            if e.element_type == ElementType.UNORDERED_LIST
+            e for e in slide.elements if e.element_type == ElementType.UNORDERED_LIST
         ]
         items = list_elements[0].list_items
         level_0 = [i for i in items if i.level == 0]
@@ -179,7 +172,10 @@ class TestExtractNestedList:
             item.level == 1 and item.list_style_type == "lower-roman"
             for item in list_element.list_items
         )
-        assert all(item.line_height_px and item.line_height_px > 0 for item in list_element.list_items)
+        assert all(
+            item.line_height_px and item.line_height_px > 0
+            for item in list_element.list_items
+        )
         assert any(item.space_before_px > 0 for item in list_element.list_items[1:])
 
     def test_inline_emphasis_in_list_item_preserves_surrounding_spaces(
@@ -250,9 +246,7 @@ class TestExtractComplex:
         unsupported = []
         for slide in pres.slides:
             unsupported.extend(
-                e
-                for e in slide.elements
-                if e.element_type == ElementType.UNSUPPORTED
+                e for e in slide.elements if e.element_type == ElementType.UNSUPPORTED
             )
         assert len(unsupported) >= 1
 
@@ -287,8 +281,13 @@ class TestRenderedLayoutCapture:
             e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
         ]
         assert len(decorated) >= 3
-        assert any(e.decoration and e.decoration.border_left.width_px > 0 for e in decorated)
-        assert any(e.decoration and e.decoration.background_color is not None for e in decorated)
+        assert any(
+            e.decoration and e.decoration.border_left.width_px > 0 for e in decorated
+        )
+        assert any(
+            e.decoration and e.decoration.background_color is not None
+            for e in decorated
+        )
         quote_block = next(
             e for e in decorated if any(p.list_level == 0 for p in e.paragraphs)
         )
@@ -337,7 +336,9 @@ class TestRenderedLayoutCapture:
         assert quote_block.paragraphs[0].runs[0].style.bold is True
         assert quote_block.paragraphs[-1].runs[0].style.bold is True
         assert [p.list_style_type for p in quote_block.paragraphs[1:]] == [
-            "disc", "disc", "disc"
+            "disc",
+            "disc",
+            "disc",
         ]
 
     def test_decorated_raw_text_container_keeps_leading_paragraph(
@@ -574,9 +575,7 @@ style: |
         paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
         )
-        table = next(
-            e for e in slide.elements if e.element_type == ElementType.TABLE
-        )
+        table = next(e for e in slide.elements if e.element_type == ElementType.TABLE)
 
         assert card.box.width >= table.box.width
         assert heading.paragraphs[0].runs[0].text == "Left Stack"
@@ -627,9 +626,7 @@ style: |
         paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
         )
-        image = next(
-            e for e in slide.elements if e.element_type == ElementType.IMAGE
-        )
+        image = next(e for e in slide.elements if e.element_type == ElementType.IMAGE)
 
         assert paragraph.paragraphs[0].runs[0].text == "Chart preview"
         assert card.box.width >= image.box.width
@@ -678,7 +675,9 @@ style: |
         slide = pres.slides[0]
 
         images = [e for e in slide.elements if e.element_type == ElementType.IMAGE]
-        paragraphs = [e for e in slide.elements if e.element_type == ElementType.PARAGRAPH]
+        paragraphs = [
+            e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
+        ]
 
         assert len(images) == 1
         assert images[0].decoration is not None
@@ -737,9 +736,7 @@ style: |
         html_path = render_to_html(md_path, output_dir=tmp_output_dir)
         pres = extract_presentation_sync(html_path)
         slide = pres.slides[0]
-        quotes = [
-            e for e in slide.elements if e.element_type == ElementType.BLOCKQUOTE
-        ]
+        quotes = [e for e in slide.elements if e.element_type == ElementType.BLOCKQUOTE]
 
         assert len(quotes) == 1
         quote = quotes[0]
@@ -764,7 +761,9 @@ style: |
         )
         pres = extract_presentation_sync(html_path)
         slide = pres.slides[0]
-        paragraphs = [e for e in slide.elements if e.element_type == ElementType.PARAGRAPH]
+        paragraphs = [
+            e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
+        ]
 
         assert [e.z_index for e in paragraphs] == [1, 9]
 
@@ -789,7 +788,9 @@ style: |
         slide = pres.slides[0]
 
         images = [e for e in slide.elements if e.element_type == ElementType.IMAGE]
-        paragraphs = [e for e in slide.elements if e.element_type == ElementType.PARAGRAPH]
+        paragraphs = [
+            e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
+        ]
         assert len(images) == 1
         assert not paragraphs
 

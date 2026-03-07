@@ -1,4 +1,5 @@
 """Utilities for loading image bytes from various source types."""
+
 from __future__ import annotations
 
 import base64

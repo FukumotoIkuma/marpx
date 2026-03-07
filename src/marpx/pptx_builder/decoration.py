@@ -1,4 +1,5 @@
 """Decoration shape rendering for pptx_builder."""
+
 from __future__ import annotations
 
 import logging
@@ -92,18 +93,22 @@ def _detect_uniform_border(decoration: BoxDecoration):
         decoration.border_left,
     ]
     visible = [
-        side for side in sides
+        side
+        for side in sides
         if side.width_px > 0 and side.style and side.style != "none" and side.color
     ]
     if not visible:
         return None
     first = visible[0]
-    if all(
-        side.width_px == first.width_px
-        and side.style == first.style
-        and side.color == first.color
-        for side in visible
-    ) and len(visible) == 4:
+    if (
+        all(
+            side.width_px == first.width_px
+            and side.style == first.style
+            and side.color == first.color
+            for side in visible
+        )
+        and len(visible) == 4
+    ):
         return first
     return None
 

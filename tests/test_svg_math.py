@@ -2,6 +2,7 @@
 
 Unit tests for MATH element type, capability classification, and extractor handling.
 """
+
 from __future__ import annotations
 
 from marpx.capabilities import (
@@ -22,6 +23,7 @@ from marpx.models import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_element(
     element_type: ElementType,
@@ -53,6 +55,7 @@ def _make_slide(
 # ElementType - MATH existence
 # ---------------------------------------------------------------------------
 
+
 class TestMathElementType:
     """Verify MATH enum member exists in ElementType."""
 
@@ -73,11 +76,14 @@ class TestMathElementType:
 # classify_element - MATH type
 # ---------------------------------------------------------------------------
 
+
 class TestClassifyMathElement:
     """Verify that MATH elements are classified as SUBTREE_FALLBACK."""
 
     def test_math_returns_subtree_fallback(self) -> None:
-        info = UnsupportedInfo(reason="Math expression (MathJax)", tag_name="mjx-container")
+        info = UnsupportedInfo(
+            reason="Math expression (MathJax)", tag_name="mjx-container"
+        )
         element = _make_element(ElementType.MATH, unsupported_info=info)
         decision = classify_element(element)
         assert decision.capability == Capability.SUBTREE_FALLBACK
@@ -100,13 +106,16 @@ class TestClassifyMathElement:
 # Slide with MATH elements
 # ---------------------------------------------------------------------------
 
+
 class TestSlideWithMath:
     """Verify slides with MATH elements behave correctly."""
 
     def test_slide_with_math_element(self) -> None:
         math_el = _make_element(
             ElementType.MATH,
-            UnsupportedInfo(reason="Math expression (MathJax)", tag_name="mjx-container"),
+            UnsupportedInfo(
+                reason="Math expression (MathJax)", tag_name="mjx-container"
+            ),
         )
         slide = _make_slide([math_el])
         assert len(slide.elements) == 1
@@ -152,6 +161,7 @@ class TestSlideWithMath:
 # ---------------------------------------------------------------------------
 # _build_slide_element - MATH type handling
 # ---------------------------------------------------------------------------
+
 
 class TestBuildSlideElementMath:
     """Verify _build_slide_element handles MATH type correctly."""

@@ -1,4 +1,5 @@
 """Shared SVG rasterization helpers."""
+
 from __future__ import annotations
 
 import base64

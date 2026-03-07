@@ -1,4 +1,5 @@
 """Render Marp Markdown to HTML using marp-cli."""
+
 from __future__ import annotations
 
 import logging
@@ -22,9 +23,7 @@ def find_npx() -> str:
     """Find npx executable."""
     npx = shutil.which("npx")
     if npx is None:
-        raise MarpRenderError(
-            "npx not found. Please install Node.js (>=18) and npm."
-        )
+        raise MarpRenderError("npx not found. Please install Node.js (>=18) and npm.")
     return npx
 
 
@@ -129,14 +128,10 @@ def render_to_html(
 
     if result.returncode != 0:
         stderr = result.stderr.strip()
-        raise MarpRenderError(
-            f"marp-cli failed (exit {result.returncode}): {stderr}"
-        )
+        raise MarpRenderError(f"marp-cli failed (exit {result.returncode}): {stderr}")
 
     if not html_path.exists():
-        raise MarpRenderError(
-            f"marp-cli did not produce expected output: {html_path}"
-        )
+        raise MarpRenderError(f"marp-cli did not produce expected output: {html_path}")
 
     html_content = html_path.read_text(encoding="utf-8")
     html_path.write_text(

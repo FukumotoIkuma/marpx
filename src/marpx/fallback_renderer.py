@@ -1,4 +1,5 @@
 """Render fallback images for unsupported content using Playwright screenshots."""
+
 from __future__ import annotations
 
 import asyncio
@@ -37,7 +38,9 @@ def _write_inline_svg_fallback(
 ) -> Path:
     """Rasterize inline SVG markup directly instead of screenshotting the page."""
     output_path = output_dir / f"slide_{slide_index}_el_{element_index}_fallback.png"
-    svg_markup = (element.unsupported_info.svg_markup if element.unsupported_info else "") or ""
+    svg_markup = (
+        element.unsupported_info.svg_markup if element.unsupported_info else ""
+    ) or ""
     output_path.write_bytes(rasterize_svg_to_png(svg_markup.encode("utf-8")))
     logger.info("Element fallback rasterized from inline SVG: %s", output_path)
     return output_path
@@ -183,7 +186,9 @@ async def render_fallbacks(
 
     async with async_playwright() as p:
         browser = await p.chromium.launch()
-        page = await browser.new_page(device_scale_factor=2)  # 2x DPI for crisp rendering
+        page = await browser.new_page(
+            device_scale_factor=2
+        )  # 2x DPI for crisp rendering
         await page.goto(file_url, wait_until="networkidle")
         await page.wait_for_selector("section", timeout=10000)
 
@@ -206,7 +211,10 @@ async def render_fallbacks(
             else:
                 # subtree mode: screenshot individual unsupported elements
                 for el_idx, element in enumerate(slide.elements):
-                    if element.element_type in (ElementType.UNSUPPORTED, ElementType.MATH):
+                    if element.element_type in (
+                        ElementType.UNSUPPORTED,
+                        ElementType.MATH,
+                    ):
                         if _is_inline_svg_element(element):
                             img_path = _write_inline_svg_fallback(
                                 slide_idx, el_idx, element, output_dir
@@ -244,4 +252,6 @@ def render_fallbacks_sync(
     fallback_mode: str = "subtree",
 ) -> Presentation:
     """Synchronous wrapper for render_fallbacks."""
-    return asyncio.run(render_fallbacks(html_path, presentation, output_dir, fallback_mode))
+    return asyncio.run(
+        render_fallbacks(html_path, presentation, output_dir, fallback_mode)
+    )

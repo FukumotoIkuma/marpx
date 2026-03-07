@@ -1,4 +1,5 @@
 """Shared fixtures and markers for marpx tests."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,9 +8,7 @@ import pytest
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    config.addinivalue_line(
-        "markers", "integration: requires Playwright and marp-cli"
-    )
+    config.addinivalue_line("markers", "integration: requires Playwright and marp-cli")
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"

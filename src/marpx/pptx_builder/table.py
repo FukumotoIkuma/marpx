@@ -1,4 +1,5 @@
 """Table rendering functions for pptx_builder."""
+
 from __future__ import annotations
 
 from pptx.util import Emu
@@ -54,9 +55,7 @@ def _add_table(slide, element: SlideElement) -> None:
     column_widths_px = [0.0] * num_cols
 
     # Step 3: Build occupancy map and place cells
-    occupied: list[list[bool]] = [
-        [False] * num_cols for _ in range(num_rows)
-    ]
+    occupied: list[list[bool]] = [[False] * num_cols for _ in range(num_rows)]
 
     # Track merge operations to apply after placement
     merges: list[tuple[int, int, int, int, TableCell]] = []

@@ -1,4 +1,5 @@
 """CLI for marpx converter."""
+
 from __future__ import annotations
 
 import logging

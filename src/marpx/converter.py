@@ -1,4 +1,5 @@
 """Orchestrate Marp Markdown to PPTX conversion pipeline."""
+
 from __future__ import annotations
 
 import logging
@@ -82,9 +83,7 @@ def convert(
         for slide in presentation.slides:
             decisions = classify_slide(slide)
             native_count = sum(
-                1
-                for d in decisions.values()
-                if d.capability == Capability.NATIVE
+                1 for d in decisions.values() if d.capability == Capability.NATIVE
             )
             fallback_count = len(decisions) - native_count
             logger.info(

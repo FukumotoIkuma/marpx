@@ -1,4 +1,5 @@
 """Text rendering functions for pptx_builder."""
+
 from __future__ import annotations
 
 from lxml import etree

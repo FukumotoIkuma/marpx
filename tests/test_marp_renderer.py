@@ -2,6 +2,7 @@
 
 All tests require marp-cli and Node.js, so they are marked as integration tests.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -25,7 +26,7 @@ class TestInjectBaseHref:
         result = _inject_base_href(html, markdown_path)
 
         assert '<base href="' in result
-        assert f'{tmp_path.as_uri()}/' in result
+        assert f"{tmp_path.as_uri()}/" in result
 
     def test_replaces_existing_base_tag(self, tmp_path: Path) -> None:
         markdown_path = tmp_path / "deck.md"
@@ -37,8 +38,8 @@ class TestInjectBaseHref:
         result = _inject_base_href(html, markdown_path)
 
         assert result.count("<base ") == 1
-        assert 'file:///wrong/' not in result
-        assert f'{tmp_path.as_uri()}/' in result
+        assert "file:///wrong/" not in result
+        assert f"{tmp_path.as_uri()}/" in result
 
 
 @pytest.mark.integration
@@ -64,9 +65,7 @@ class TestRenderToHtml:
         with pytest.raises(MarpRenderError, match="not found"):
             render_to_html("/nonexistent/path/no.md", output_dir=tmp_output_dir)
 
-    def test_table_md_produces_html(
-        self, table_md: Path, tmp_output_dir: Path
-    ) -> None:
+    def test_table_md_produces_html(self, table_md: Path, tmp_output_dir: Path) -> None:
         html_path = render_to_html(table_md, output_dir=tmp_output_dir)
         assert html_path.exists()
         content = html_path.read_text(encoding="utf-8")

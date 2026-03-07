@@ -1,4 +1,5 @@
 """Shared helpers for pptx_builder sub-modules."""
+
 from __future__ import annotations
 
 from pptx.dml.color import RGBColor

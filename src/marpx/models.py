@@ -3,6 +3,7 @@
 All coordinates are slide-relative in px.
 Unit conversion to EMU happens in the PPTX builder.
 """
+
 from __future__ import annotations
 from enum import Enum
 from pydantic import BaseModel, Field
@@ -31,6 +32,7 @@ class RGBAColor(BaseModel):
 
 class Box(BaseModel):
     """Bounding box in slide-relative px."""
+
     x: float
     y: float
     width: float
@@ -49,6 +51,7 @@ class TextStyle(BaseModel):
 
 class TextRun(BaseModel):
     """A run of text with uniform style."""
+
     text: str
     style: TextStyle = Field(default_factory=TextStyle)
     link_url: str | None = None
@@ -68,6 +71,7 @@ class Paragraph(BaseModel):
 
 class ListItem(BaseModel):
     """A list item with nesting level."""
+
     runs: list[TextRun] = Field(default_factory=list)
     level: int = 0  # 0-based nesting depth
     order_number: int | None = None  # for ordered lists
@@ -93,6 +97,7 @@ class TableRow(BaseModel):
 
 class BackgroundImage(BaseModel):
     """Background image information extracted from Marp's advanced background structure."""
+
     url: str
     size: str = "cover"  # cover, contain
     position: str = "center"  # center, left, right, top, bottom
@@ -132,6 +137,7 @@ class BoxDecoration(BaseModel):
 
 class UnsupportedInfo(BaseModel):
     """Metadata about why an element is unsupported."""
+
     reason: str
     tag_name: str = ""
     fallback_image_path: str | None = None
