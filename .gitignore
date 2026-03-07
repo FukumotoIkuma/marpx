@@ -8,6 +8,11 @@ build/
 *.egg
 .venv/
 out/
+output/
 *.pptx
 .ruff_cache/
 .pytest_cache/
+.DS_Store
+.claude/
+tmp-*
+.env
