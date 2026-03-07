@@ -16,3 +16,4 @@ output/
 .claude/
 tmp-*
 .env
+input.md
