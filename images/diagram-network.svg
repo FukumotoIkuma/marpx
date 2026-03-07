@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 380" width="1040" height="380">
+  <rect width="1040" height="380" fill="#f8fafc"/>
+  <g font-family="Helvetica, Arial, sans-serif" fill="#0f172a">
+    <text x="60" y="54" font-size="26" font-weight="700">Synthetic Wide SVG Flow</text>
+  </g>
+  <g stroke="#64748b" stroke-width="6" fill="none">
+    <line x1="160" y1="200" x2="360" y2="200"/>
+    <line x1="460" y1="200" x2="660" y2="200"/>
+    <line x1="760" y1="200" x2="920" y2="200"/>
+  </g>
+  <g fill="#dbeafe" stroke="#2563eb" stroke-width="4" font-family="Helvetica, Arial, sans-serif">
+    <rect x="60" y="140" width="180" height="120" rx="18"/>
+    <rect x="340" y="140" width="180" height="120" rx="18"/>
+    <rect x="620" y="140" width="180" height="120" rx="18"/>
+    <rect x="860" y="140" width="120" height="120" rx="18"/>
+    <text x="150" y="205" text-anchor="middle" font-size="24" fill="#0f172a">Input</text>
+    <text x="430" y="205" text-anchor="middle" font-size="24" fill="#0f172a">Filter</text>
+    <text x="710" y="205" text-anchor="middle" font-size="24" fill="#0f172a">Score</text>
+    <text x="920" y="205" text-anchor="middle" font-size="24" fill="#0f172a">Export</text>
+  </g>
+</svg>

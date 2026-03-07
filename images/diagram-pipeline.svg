@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 920" width="460" height="920">
+  <rect width="460" height="920" fill="#f8fafc"/>
+  <text x="40" y="52" font-family="Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#0f172a">Synthetic Tall SVG</text>
+  <g font-family="Helvetica, Arial, sans-serif" font-size="18" fill="#0f172a" stroke="#64748b" stroke-width="4">
+    <rect x="80" y="100" width="300" height="70" rx="16" fill="#dcfce7" stroke="#16a34a"/>
+    <rect x="80" y="260" width="300" height="70" rx="16" fill="#dbeafe" stroke="#2563eb"/>
+    <rect x="80" y="420" width="300" height="70" rx="16" fill="#fef3c7" stroke="#d97706"/>
+    <rect x="80" y="580" width="300" height="70" rx="16" fill="#fee2e2" stroke="#dc2626"/>
+    <rect x="80" y="740" width="300" height="70" rx="16" fill="#ede9fe" stroke="#7c3aed"/>
+    <line x1="230" y1="170" x2="230" y2="260"/>
+    <line x1="230" y1="330" x2="230" y2="420"/>
+    <line x1="230" y1="490" x2="230" y2="580"/>
+    <line x1="230" y1="650" x2="230" y2="740"/>
+    <text x="230" y="143" text-anchor="middle">Collect</text>
+    <text x="230" y="303" text-anchor="middle">Normalize</text>
+    <text x="230" y="463" text-anchor="middle">Aggregate</text>
+    <text x="230" y="623" text-anchor="middle">Review</text>
+    <text x="230" y="783" text-anchor="middle">Publish</text>
+  </g>
+</svg>

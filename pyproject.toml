@@ -1,0 +1,32 @@
+[project]
+name = "marpx"
+version = "0.1.0"
+description = "Convert Marp Markdown presentations to PPTX format"
+readme = "README.md"
+authors = [
+    { name = "I.F.", email = "131729144+FukumotoIkuma@users.noreply.github.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "python-pptx",
+    "playwright",
+    "click",
+    "pydantic>=2",
+    "Pillow",
+    "rich",
+]
+
+[project.scripts]
+marpx = "marpx.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-timeout>=2.4.0",
+    "ruff",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
