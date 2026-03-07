@@ -4,7 +4,7 @@ from __future__ import annotations
 from pptx.enum.text import MSO_VERTICAL_ANCHOR
 from pptx.util import Emu
 
-from marpx.models import ElementType, SlideElement
+from marpx.models import SlideElement
 from marpx.utils import (
     boxes_have_horizontal_overlap,
     boxes_have_mergeable_vertical_gap,
