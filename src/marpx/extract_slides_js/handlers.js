@@ -32,6 +32,32 @@ import {
     _findSingleImageChild,
 } from './blocks.js';
 
+function _normalizeCssColorValue(value) {
+    return (value || '').replace(/\s+/g, '').toLowerCase();
+}
+
+function _stripContainerBackgroundFromParagraphs(paragraphs, decoration) {
+    if (!decoration || !decoration.backgroundColor) return paragraphs;
+    const containerBg = _normalizeCssColorValue(decoration.backgroundColor);
+    if (!containerBg || containerBg === 'transparent' || containerBg === 'rgba(0,0,0,0)') {
+        return paragraphs;
+    }
+    return paragraphs.map((paragraph) => ({
+        ...paragraph,
+        runs: paragraph.runs.map((run) => {
+            const runBg = _normalizeCssColorValue(run.style?.backgroundColor);
+            if (runBg !== containerBg) return run;
+            return {
+                ...run,
+                style: {
+                    ...run.style,
+                    backgroundColor: null,
+                },
+            };
+        }),
+    }));
+}
+
 function _isInlineStandaloneUnsupported(el) {
     const tag = (el.localName || el.tagName).toLowerCase();
     if (
@@ -98,11 +124,15 @@ export function handleMath(el, slideRect, slideData, tag) {
 
 export function handleDecoratedStandalone(el, slideRect, slideData, decoration, renderContext) {
     const cs = window.getComputedStyle(el);
+    const paragraphs = _stripContainerBackgroundFromParagraphs(
+        extractParagraphsFromContainer(el, renderContext),
+        decoration,
+    );
     slideData.elements.push({
         type: 'decorated_block',
         box: getBox(el, slideRect, renderContext),
         zIndex: getZIndex(el),
-        paragraphs: extractParagraphsFromContainer(el, renderContext),
+        paragraphs,
         decoration: decoration,
         verticalAlign: resolveVerticalAlign(cs),
         rotationDeg: renderContext.effectiveRotationDeg,
@@ -147,12 +177,18 @@ export function handleImageWithDecoration(
 export function handleDecoratedBlock(el, slideRect, slideData, decoration, renderContext) {
     const cs = window.getComputedStyle(el);
     const decomposeDecoratedBlock = shouldDecomposeDecoratedBlock(el);
+    const paragraphs = decomposeDecoratedBlock
+        ? []
+        : _stripContainerBackgroundFromParagraphs(
+            extractParagraphsFromContainer(el, renderContext),
+            decoration,
+        );
     slideData.elements.push({
         type: 'decorated_block',
         box: getBox(el, slideRect, renderContext),
         contentBox: getContentBox(el, slideRect, renderContext),
         zIndex: getZIndex(el),
-        paragraphs: decomposeDecoratedBlock ? [] : extractParagraphsFromContainer(el, renderContext),
+        paragraphs,
         decoration: decoration,
         verticalAlign: resolveVerticalAlign(cs),
         rotationDeg: renderContext.effectiveRotationDeg,
@@ -251,18 +287,38 @@ function _isLeafTextBlock(el) {
 function _isPresentationalList(el) {
     const cs = window.getComputedStyle(el);
     const listStyleType = (cs.listStyleType || '').toLowerCase();
-    return listStyleType === 'none';
+    if (listStyleType !== 'none') return false;
+    const items = Array.from(el.children).filter(
+        (child) => (child.localName || child.tagName).toLowerCase() === 'li'
+    );
+    const hasPseudoMarkers = items.some((item) => {
+        const before = window.getComputedStyle(item, '::before').content;
+        const after = window.getComputedStyle(item, '::after').content;
+        return [before, after].some(
+            (content) =>
+                content &&
+                content !== 'none' &&
+                content !== 'normal' &&
+                content !== '""' &&
+                content !== "''"
+        );
+    });
+    return !hasPseudoMarkers;
 }
 
 export function handleBlockquote(el, slideRect, slideData, decoration, renderContext) {
     const hasDecoration = hasMeaningfulDecoration(decoration);
     const cs = window.getComputedStyle(el);
+    const paragraphs = _stripContainerBackgroundFromParagraphs(
+        extractParagraphsFromContainer(el, renderContext),
+        decoration,
+    );
     slideData.elements.push({
         type: 'blockquote',
         box: getBox(el, slideRect, renderContext),
         contentBox: hasDecoration ? getContentBox(el, slideRect, renderContext) : null,
         zIndex: getZIndex(el),
-        paragraphs: extractParagraphsFromContainer(el, renderContext),
+        paragraphs,
         decoration: hasDecoration ? decoration : null,
         verticalAlign: resolveVerticalAlign(cs),
         rotationDeg: renderContext.effectiveRotationDeg,

@@ -800,6 +800,33 @@ class TestShapeCount:
         assert (x_deg, y_deg, z_deg) != (4.0, 8.0, 0.0)
         assert max(abs(x_deg), abs(y_deg), abs(z_deg)) >= 8.0
 
+    def test_projected_corners_without_3d_rotation_do_not_emit_scene3d(
+        self, tmp_path: Path
+    ) -> None:
+        element = _make_decorated_block("Professional")
+        element.projected_corners = [
+            Point(x=element.box.x, y=element.box.y),
+            Point(x=element.box.x + element.box.width, y=element.box.y),
+            Point(
+                x=element.box.x + element.box.width,
+                y=element.box.y + element.box.height,
+            ),
+            Point(x=element.box.x, y=element.box.y + element.box.height),
+        ]
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])],
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        text_shapes = [
+            shape
+            for shape in slide.shapes
+            if shape.has_text_frame and "Professional" in shape.text
+        ]
+        assert len(text_shapes) == 1
+        assert "a:scene3d" not in text_shapes[0]._element.xml
+
     def test_decorated_block_left_accent_respects_rounded_corners(
         self, tmp_path: Path
     ) -> None:

@@ -65,7 +65,12 @@ def _apply_scene3d(
 
 def _resolve_scene3d_rotations(element: SlideElement) -> tuple[float, float, float]:
     """Return fitted scene3d angles when projected corners are available."""
-    if element.projected_corners:
+    has_explicit_3d_rotation = (
+        abs(element.rotation_3d_x_deg) > 0.01
+        or abs(element.rotation_3d_y_deg) > 0.01
+        or abs(element.rotation_3d_z_deg) > 0.01
+    )
+    if has_explicit_3d_rotation and element.projected_corners:
         return fit_scene3d_rotations(
             element.projected_corners,
             element.box,
@@ -135,9 +140,21 @@ def _add_decoration_shape(
         if shadow.inset or shadow.color.a <= 0:
             continue
         if _is_spread_outline_shadow(shadow):
-            _add_spread_outline_shape(slide, box, decoration, shape_type, shadow)
+            _add_spread_outline_shape(
+                slide,
+                box,
+                decoration,
+                shape_type,
+                shadow,
+            )
         else:
-            _add_shadow_shape(slide, box, decoration, shape_type, shadow)
+            _add_shadow_shape(
+                slide,
+                box,
+                decoration,
+                shape_type,
+                shadow,
+            )
 
     bg_shape = slide.shapes.add_shape(shape_type, left, top, width, height)
     _remove_theme_style(bg_shape)
@@ -225,13 +242,33 @@ def _add_decoration_shape(
         accent_color = _with_opacity(accent_border.color, decoration.opacity)
         _set_fill_color(accent_shape.fill, accent_color)
         accent_shape.line.fill.background()
+        _apply_scene3d(
+            accent_shape._element.spPr,
+            rotation_3d_x_deg=rotation_3d_x_deg,
+            rotation_3d_y_deg=rotation_3d_y_deg,
+            rotation_3d_z_deg=rotation_3d_z_deg,
+        )
     elif not uniform_border:
-        _add_side_border_shapes(slide, box, decoration)
+        _add_side_border_shapes(
+            slide,
+            box,
+            decoration,
+            rotation_3d_x_deg=rotation_3d_x_deg,
+            rotation_3d_y_deg=rotation_3d_y_deg,
+            rotation_3d_z_deg=rotation_3d_z_deg,
+        )
 
     for shadow in decoration.box_shadows:
         if not shadow.inset or shadow.color.a <= 0:
             continue
-        _add_shadow_shape(slide, box, decoration, shape_type, shadow, inset=True)
+        _add_shadow_shape(
+            slide,
+            box,
+            decoration,
+            shape_type,
+            shadow,
+            inset=True,
+        )
 
     return bg_shape
 
@@ -315,7 +352,11 @@ def _is_spread_outline_shadow(shadow: BoxShadow) -> bool:
 
 
 def _add_spread_outline_shape(
-    slide, box: Box, decoration: BoxDecoration, shape_type, shadow: BoxShadow
+    slide,
+    box: Box,
+    decoration: BoxDecoration,
+    shape_type,
+    shadow: BoxShadow,
 ):
     """Render a spread-only outer shadow as an expanded outline shape."""
     spread = shadow.spread_px
@@ -393,7 +434,15 @@ def _is_left_accent_only(decoration: BoxDecoration) -> bool:
     )
 
 
-def _add_side_border_shapes(slide, box: Box, decoration: BoxDecoration) -> None:
+def _add_side_border_shapes(
+    slide,
+    box: Box,
+    decoration: BoxDecoration,
+    *,
+    rotation_3d_x_deg: float = 0.0,
+    rotation_3d_y_deg: float = 0.0,
+    rotation_3d_z_deg: float = 0.0,
+) -> None:
     """Render visible non-uniform borders as separate thin rectangle shapes."""
     sides = [
         (
@@ -448,6 +497,12 @@ def _add_side_border_shapes(slide, box: Box, decoration: BoxDecoration) -> None:
             _with_opacity(border.color, decoration.opacity),
         )
         border_shape.line.fill.background()
+        _apply_scene3d(
+            border_shape._element.spPr,
+            rotation_3d_x_deg=rotation_3d_x_deg,
+            rotation_3d_y_deg=rotation_3d_y_deg,
+            rotation_3d_z_deg=rotation_3d_z_deg,
+        )
 
 
 def _resolve_left_accent_geometry(
