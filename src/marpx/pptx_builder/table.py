@@ -7,7 +7,7 @@ from pptx.util import Emu
 from marpx.models import SlideElement, TableCell
 from marpx.utils import px_to_emu
 
-from ._helpers import _to_rgb
+from ._helpers import _set_fill_color
 from .text import _add_paragraph_runs
 
 
@@ -23,8 +23,7 @@ def _set_cell_content(pptx_cell, cell: TableCell) -> None:
 
     if cell.background:
         fill = pptx_cell.fill
-        fill.solid()
-        fill.fore_color.rgb = _to_rgb(cell.background)
+        _set_fill_color(fill, cell.background)
 
 
 def _add_table(slide, element: SlideElement) -> None:

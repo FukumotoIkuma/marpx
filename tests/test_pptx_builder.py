@@ -9,8 +9,6 @@ from pathlib import Path
 
 import pytest
 from pptx import Presentation as PptxPresentation
-from pptx.dml.color import RGBColor
-
 from marpx.models import (
     Background,
     BorderSide,
@@ -754,7 +752,7 @@ class TestShapeCount:
         assert 'startAt="7"' in xml
         assert 'startAt="2"' in xml
 
-    def test_decoration_opacity_blends_fill_and_accent_colors(
+    def test_decoration_opacity_emits_fill_and_accent_alpha(
         self, tmp_path: Path
     ) -> None:
         box = Box(x=50, y=100, width=400, height=160)
@@ -785,8 +783,10 @@ class TestShapeCount:
             shape for shape in slide.shapes if shape.width == px_to_emu(6)
         )
 
-        assert bg_shape.fill.fore_color.rgb == RGBColor(255, 128, 128)
-        assert accent_shape.fill.fore_color.rgb == RGBColor(128, 128, 255)
+        assert 'a:srgbClr val="FF0000"' in bg_shape._element.xml
+        assert 'a:alpha val="50000"' in bg_shape._element.xml
+        assert 'a:srgbClr val="0000FF"' in accent_shape._element.xml
+        assert 'a:alpha val="50000"' in accent_shape._element.xml
 
     def test_blockquote_uses_extracted_padding_and_left_accent(
         self, tmp_path: Path

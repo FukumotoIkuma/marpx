@@ -12,7 +12,7 @@ from pptx.util import Emu
 from marpx.models import Box, BoxDecoration, SlideElement
 from marpx.utils import px_to_emu
 
-from ._helpers import _to_rgb, _with_opacity
+from ._helpers import _set_fill_color, _set_line_color, _with_opacity
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +66,7 @@ def _add_decoration_shape(slide, box: Box, decoration: BoxDecoration):
     fill = bg_shape.fill
     if decoration.background_color and decoration.opacity > 0:
         fill_color = _with_opacity(decoration.background_color, decoration.opacity)
-        fill.solid()
-        fill.fore_color.rgb = _to_rgb(fill_color)
+        _set_fill_color(fill, fill_color)
     else:
         fill.background()
 
@@ -75,7 +74,7 @@ def _add_decoration_shape(slide, box: Box, decoration: BoxDecoration):
     if uniform_border:
         border_color = _with_opacity(uniform_border.color, decoration.opacity)
         if border_color.a > 0:
-            bg_shape.line.color.rgb = _to_rgb(border_color)
+            _set_line_color(bg_shape.line, border_color)
             bg_shape.line.width = Emu(px_to_emu(uniform_border.width_px))
         else:
             bg_shape.line.fill.background()
@@ -101,8 +100,7 @@ def _add_decoration_shape(slide, box: Box, decoration: BoxDecoration):
         )
         _remove_theme_style(accent_shape)
         accent_color = _with_opacity(accent_border.color, decoration.opacity)
-        accent_shape.fill.solid()
-        accent_shape.fill.fore_color.rgb = _to_rgb(accent_color)
+        _set_fill_color(accent_shape.fill, accent_color)
         accent_shape.line.fill.background()
 
     return bg_shape
@@ -191,8 +189,7 @@ def _add_code_block(slide, element: SlideElement) -> None:
     # Set background color
     if element.code_background:
         fill = txbox.fill
-        fill.solid()
-        fill.fore_color.rgb = _to_rgb(element.code_background)
+        _set_fill_color(fill, element.code_background)
 
     # Add code text with monospace font
     for i, para in enumerate(element.paragraphs):

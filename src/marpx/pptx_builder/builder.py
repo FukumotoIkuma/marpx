@@ -11,7 +11,7 @@ from pptx.util import Emu
 from marpx.models import Background, ElementType, Presentation
 from marpx.utils import px_to_emu
 
-from ._helpers import _to_rgb
+from ._helpers import _set_fill_color
 from .background import _add_background_image
 from .decoration import _add_code_block, _add_fallback_image
 from .directives import _add_footer, _add_header, _add_page_number
@@ -32,8 +32,7 @@ def _set_slide_background(pptx_slide, background: Background) -> None:
     if background.color and background.color.a > 0:
         bg = pptx_slide.background
         fill = bg.fill
-        fill.solid()
-        fill.fore_color.rgb = _to_rgb(background.color)
+        _set_fill_color(fill, background.color)
 
 
 def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
