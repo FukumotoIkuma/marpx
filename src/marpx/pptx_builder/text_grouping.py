@@ -23,7 +23,14 @@ from .text import (
 
 def _is_groupable_text_element(element: SlideElement) -> bool:
     """Return True when the element should be grouped into a shared textbox."""
-    return element.element_type in GROUPABLE_TEXT_TYPES and element.decoration is None
+    return (
+        element.element_type in GROUPABLE_TEXT_TYPES
+        and element.decoration is None
+        and abs(element.rotation_deg) <= 0.01
+        and abs(element.rotation_3d_x_deg) <= 0.01
+        and abs(element.rotation_3d_y_deg) <= 0.01
+        and abs(element.rotation_3d_z_deg) <= 0.01
+    )
 
 
 def _text_elements_should_merge(first: SlideElement, second: SlideElement) -> bool:

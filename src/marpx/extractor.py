@@ -19,6 +19,7 @@ from marpx.models import (
     ElementType,
     ListItem,
     Paragraph,
+    Point,
     Presentation,
     Slide,
     SlideElement,
@@ -166,6 +167,13 @@ def _build_slide_element(raw: dict) -> SlideElement:
     element = SlideElement(element_type=etype, box=box, content_box=content_box)
     element.z_index = raw.get("zIndex", 0) or 0
     element.vertical_align = raw.get("verticalAlign", "top")
+    element.rotation_deg = raw.get("rotationDeg", 0.0) or 0.0
+    element.rotation_3d_x_deg = raw.get("rotation3dXDeg", 0.0) or 0.0
+    element.rotation_3d_y_deg = raw.get("rotation3dYDeg", 0.0) or 0.0
+    element.rotation_3d_z_deg = raw.get("rotation3dZDeg", 0.0) or 0.0
+    element.projected_corners = [
+        Point(**corner) for corner in raw.get("projectedCorners", [])
+    ]
 
     if etype in (
         ElementType.HEADING,

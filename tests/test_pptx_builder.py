@@ -21,6 +21,7 @@ from marpx.models import (
     ListItem,
     Paragraph,
     Presentation,
+    Point,
     RGBAColor,
     Slide,
     SlideElement,
@@ -32,6 +33,7 @@ from marpx.models import (
 )
 from marpx.pptx_builder.builder import build_pptx
 from marpx.pptx_builder.image import MissingDependencyError, _resolve_image_placement
+from marpx.pptx_builder.scene3d import fit_scene3d_rotations
 from marpx.utils import px_to_emu
 
 
@@ -749,6 +751,54 @@ class TestShapeCount:
         assert shape.height == px_to_emu(116)
         assert shape.text_frame.margin_left == 0
         assert shape.text_frame.margin_top == 0
+
+    def test_decorated_block_with_3d_rotation_uses_scene3d_on_shape(
+        self, tmp_path: Path
+    ) -> None:
+        element = _make_decorated_block("AI Engine v3")
+        element.rotation_3d_x_deg = 20
+        element.rotation_3d_y_deg = 40
+        element.rotation_3d_z_deg = 60
+        element.vertical_align = "middle"
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])],
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        text_shapes = [
+            shape
+            for shape in slide.shapes
+            if shape.has_text_frame and "AI Engine v3" in shape.text
+        ]
+        assert len(text_shapes) == 1
+        shape = text_shapes[0]
+        xml = shape._element.xml
+        assert "a:scene3d" in xml
+        assert 'prst="orthographicFront"' in xml
+        assert 'lat="2400000"' in xml
+        assert 'lon="1200000"' in xml
+        assert 'rev="3600000"' in xml
+        assert shape.text_frame.margin_left == px_to_emu(21)
+        assert shape.text_frame.margin_top == px_to_emu(12)
+
+    def test_fit_scene3d_rotations_from_projected_quad(self) -> None:
+        box = Box(x=0, y=0, width=282, height=202)
+        projected = [
+            Point(x=5.0, y=4.0),
+            Point(x=282.0, y=0.0),
+            Point(x=282.0, y=206.0),
+            Point(x=0.0, y=201.0),
+        ]
+        x_deg, y_deg, z_deg = fit_scene3d_rotations(
+            projected,
+            box,
+            fallback_x_deg=4.0,
+            fallback_y_deg=8.0,
+            fallback_z_deg=0.0,
+        )
+        assert (x_deg, y_deg, z_deg) != (4.0, 8.0, 0.0)
+        assert max(abs(x_deg), abs(y_deg), abs(z_deg)) >= 8.0
 
     def test_decorated_block_left_accent_respects_rounded_corners(
         self, tmp_path: Path

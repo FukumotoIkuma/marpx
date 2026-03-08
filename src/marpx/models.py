@@ -39,6 +39,11 @@ class Box(BaseModel):
     height: float
 
 
+class Point(BaseModel):
+    x: float
+    y: float
+
+
 class TextStyle(BaseModel):
     font_family: str = "Arial"
     font_size_px: float = 16.0
@@ -172,6 +177,11 @@ class SlideElement(BaseModel):
     content_box: Box | None = None
     z_index: int = 0
     vertical_align: str = "top"
+    rotation_deg: float = 0.0
+    rotation_3d_x_deg: float = 0.0
+    rotation_3d_y_deg: float = 0.0
+    rotation_3d_z_deg: float = 0.0
+    projected_corners: list[Point] = Field(default_factory=list)
 
     # Text content (for heading, paragraph, blockquote, code_block)
     paragraphs: list[Paragraph] = Field(default_factory=list)

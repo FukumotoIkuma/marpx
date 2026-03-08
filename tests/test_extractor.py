@@ -1119,6 +1119,9 @@ style: |
         )
         assert floating.decoration is not None
         assert floating.box.width > 0
+        assert floating.rotation_3d_x_deg == pytest.approx(4.0, abs=1.0)
+        assert floating.rotation_3d_y_deg == pytest.approx(8.0, abs=1.0)
+        assert len(floating.projected_corners) == 4
 
     def test_rounded_overflow_container_becomes_unsupported(
         self, tmp_path: Path, tmp_output_dir: Path

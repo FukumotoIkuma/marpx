@@ -23,6 +23,7 @@ from marpx.utils import (
 
 from ._helpers import _to_rgb
 from .decoration import _add_decoration_shape
+from .decoration import _resolve_scene3d_rotations
 
 ALIGNMENT_MAP: dict[str, PP_ALIGN] = {
     "left": PP_ALIGN.LEFT,
@@ -377,6 +378,26 @@ def _set_text_frame_margins_zero(text_frame) -> None:
     text_frame.margin_left = zero
 
 
+def _set_text_frame_margins_from_element(text_frame, element: SlideElement) -> None:
+    """Apply content-box insets as text-frame margins on the element's outer box."""
+    if element.content_box is not None:
+        content_box = element.content_box
+    elif element.decoration is not None:
+        content_box = _derive_content_box_from_decoration(element)
+    else:
+        _set_text_frame_margins_zero(text_frame)
+        return
+
+    left = max(content_box.x - element.box.x, 0)
+    top = max(content_box.y - element.box.y, 0)
+    right = max((element.box.x + element.box.width) - (content_box.x + content_box.width), 0)
+    bottom = max((element.box.y + element.box.height) - (content_box.y + content_box.height), 0)
+    text_frame.margin_left = Emu(px_to_emu(left))
+    text_frame.margin_top = Emu(px_to_emu(top))
+    text_frame.margin_right = Emu(px_to_emu(right))
+    text_frame.margin_bottom = Emu(px_to_emu(bottom))
+
+
 def _apply_paragraph_layout(
     pptx_para, para, *, suppress_line_spacing: bool = False
 ) -> None:
@@ -407,13 +428,31 @@ def _apply_spacing(
 def _add_textbox(slide, element: SlideElement) -> None:
     """Add a textbox or decorated text container."""
     if element.decoration:
-        _add_decoration_shape(slide, element.box, element.decoration)
+        use_shape_text_frame = (
+            abs(element.rotation_3d_x_deg) > 0.01
+            or abs(element.rotation_3d_y_deg) > 0.01
+            or abs(element.rotation_3d_z_deg) > 0.01
+        )
+        scene3d_x_deg, scene3d_y_deg, scene3d_z_deg = _resolve_scene3d_rotations(
+            element
+        )
+        bg_shape = _add_decoration_shape(
+            slide,
+            element.box,
+            element.decoration,
+            rotation_3d_x_deg=scene3d_x_deg,
+            rotation_3d_y_deg=scene3d_y_deg,
+            rotation_3d_z_deg=scene3d_z_deg,
+        )
         if not element.paragraphs and not element.list_items:
             return
-        left, top, width, height = _resolve_textbox_geometry(element)
-        text_container = slide.shapes.add_textbox(left, top, width, height)
-        text_container.fill.background()
-        text_container.line.fill.background()
+        if use_shape_text_frame:
+            text_container = bg_shape
+        else:
+            left, top, width, height = _resolve_textbox_geometry(element)
+            text_container = slide.shapes.add_textbox(left, top, width, height)
+            text_container.fill.background()
+            text_container.line.fill.background()
     else:
         left, top, width, height = _resolve_textbox_geometry(element)
         text_container = slide.shapes.add_textbox(left, top, width, height)
@@ -424,5 +463,12 @@ def _add_textbox(slide, element: SlideElement) -> None:
         element.vertical_align,
         MSO_VERTICAL_ANCHOR.TOP,
     )
-    _set_text_frame_margins_zero(tf)
+    if element.decoration and (
+        abs(element.rotation_3d_x_deg) > 0.01
+        or abs(element.rotation_3d_y_deg) > 0.01
+        or abs(element.rotation_3d_z_deg) > 0.01
+    ):
+        _set_text_frame_margins_from_element(tf, element)
+    else:
+        _set_text_frame_margins_zero(tf)
     _populate_text_frame(tf, [element])

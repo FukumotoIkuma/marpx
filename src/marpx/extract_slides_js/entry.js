@@ -120,10 +120,15 @@ export function buildTextElement(el, sectionRect, type, extra = {}) {
     const ctx = renderContext || deriveRenderContext(el);
         return {
             type: type,
-            box: getBox(el, sectionRect),
+            box: getBox(el, sectionRect, ctx),
             zIndex: getZIndex(el),
             alignment: resolveHorizontalAlign(styles) || 'left',
             verticalAlign: resolveVerticalAlign(styles),
+            rotationDeg: ctx.effectiveRotationDeg,
+            rotation3dXDeg: ctx.effectiveRotation3dXDeg,
+            rotation3dYDeg: ctx.effectiveRotation3dYDeg,
+            rotation3dZDeg: ctx.effectiveRotation3dZDeg,
+            projectedCorners: getProjectedCorners(el, sectionRect, ctx),
             lineHeightPx: parseFloat(styles.lineHeight) ? _scaleY(parseFloat(styles.lineHeight), ctx) : null,
             spaceBeforePx: _scaleY(parseFloat(styles.marginTop) || 0, ctx),
             spaceAfterPx: _scaleY(parseFloat(styles.marginBottom) || 0, ctx),
@@ -137,8 +142,34 @@ export function buildTextElement(el, sectionRect, type, extra = {}) {
         return Number.isFinite(parsed) ? parsed : 0;
     }
 
-    export function getBox(el, sectionRect) {
+    export function getBox(el, sectionRect, renderContext = null) {
         const rect = el.getBoundingClientRect();
+        const cs = window.getComputedStyle(el);
+        const ctx = renderContext || deriveRenderContext(el, null, cs);
+        const hasRotation = Math.abs(ctx.effectiveRotationDeg) > 0.01;
+        const has3dRotation = (
+            Math.abs(ctx.effectiveRotation3dXDeg) > 0.01 ||
+            Math.abs(ctx.effectiveRotation3dYDeg) > 0.01 ||
+            Math.abs(ctx.effectiveRotation3dZDeg) > 0.01
+        );
+        if (hasRotation || has3dRotation) {
+            const width = Math.max(
+                (el.offsetWidth || parseFloat(cs.width) || rect.width) * ctx.effectiveScaleX,
+                1,
+            );
+            const height = Math.max(
+                (el.offsetHeight || parseFloat(cs.height) || rect.height) * ctx.effectiveScaleY,
+                1,
+            );
+            const centerX = rect.left + (rect.width / 2);
+            const centerY = rect.top + (rect.height / 2);
+            return {
+                x: centerX - (width / 2) - sectionRect.left,
+                y: centerY - (height / 2) - sectionRect.top,
+                width,
+                height,
+            };
+        }
         return {
             x: rect.left - sectionRect.left,
             y: rect.top - sectionRect.top,
@@ -148,19 +179,85 @@ export function buildTextElement(el, sectionRect, type, extra = {}) {
     }
 
     export function getContentBox(el, sectionRect, renderContext = null) {
-        const rect = el.getBoundingClientRect();
         const cs = window.getComputedStyle(el);
         const ctx = renderContext || deriveRenderContext(el, null, cs);
+        const box = getBox(el, sectionRect, ctx);
         const leftInset = _scaleX((parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0), ctx);
         const topInset = _scaleY((parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0), ctx);
         const rightInset = _scaleX((parseFloat(cs.borderRightWidth) || 0) + (parseFloat(cs.paddingRight) || 0), ctx);
         const bottomInset = _scaleY((parseFloat(cs.borderBottomWidth) || 0) + (parseFloat(cs.paddingBottom) || 0), ctx);
         return {
-            x: rect.left - sectionRect.left + leftInset,
-            y: rect.top - sectionRect.top + topInset,
-            width: Math.max(rect.width - leftInset - rightInset, 1),
-            height: Math.max(rect.height - topInset - bottomInset, 1),
+            x: box.x + leftInset,
+            y: box.y + topInset,
+            width: Math.max(box.width - leftInset - rightInset, 1),
+            height: Math.max(box.height - topInset - bottomInset, 1),
         };
+    }
+
+    export function getProjectedCorners(el, sectionRect, renderContext = null) {
+        const cs = window.getComputedStyle(el);
+        const transform = cs.transform;
+        if (!transform || transform === 'none') return [];
+
+        let matrix;
+        try {
+            matrix = new DOMMatrixReadOnly(transform);
+        } catch {
+            return [];
+        }
+
+        const rect = el.getBoundingClientRect();
+        const ctx = renderContext || deriveRenderContext(el, null, cs);
+        const width = Math.max(
+            (el.offsetWidth || parseFloat(cs.width) || rect.width) * ctx.effectiveScaleX,
+            1,
+        );
+        const height = Math.max(
+            (el.offsetHeight || parseFloat(cs.height) || rect.height) * ctx.effectiveScaleY,
+            1,
+        );
+
+        const originParts = (cs.transformOrigin || '50% 50%')
+            .split(/\s+/)
+            .slice(0, 2)
+            .map((value, index) => {
+                if (!value) return index === 0 ? width / 2 : height / 2;
+                if (value.endsWith('%')) {
+                    const pct = parseFloat(value);
+                    if (!Number.isFinite(pct)) return index === 0 ? width / 2 : height / 2;
+                    return (index === 0 ? width : height) * pct / 100;
+                }
+                const parsed = parseFloat(value);
+                return Number.isFinite(parsed) ? parsed : (index === 0 ? width / 2 : height / 2);
+            });
+        const originX = originParts[0];
+        const originY = originParts[1];
+
+        const relCorners = [
+            { x: 0, y: 0 },
+            { x: width, y: 0 },
+            { x: width, y: height },
+            { x: 0, y: height },
+        ].map((corner) => {
+            const point = matrix.transformPoint(
+                new DOMPoint(corner.x - originX, corner.y - originY, 0, 1),
+            );
+            const w = point.w && Math.abs(point.w) > 1e-6 ? point.w : 1;
+            return {
+                x: (point.x / w) + originX,
+                y: (point.y / w) + originY,
+            };
+        });
+
+        const minX = Math.min(...relCorners.map((corner) => corner.x));
+        const minY = Math.min(...relCorners.map((corner) => corner.y));
+        const pageOriginX = rect.left - minX;
+        const pageOriginY = rect.top - minY;
+
+        return relCorners.map((corner) => ({
+            x: pageOriginX + corner.x - sectionRect.left,
+            y: pageOriginY + corner.y - sectionRect.top,
+        }));
     }
 
     export function normalizeInlineText(text) {

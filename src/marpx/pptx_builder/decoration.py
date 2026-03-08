@@ -13,6 +13,7 @@ from pptx.util import Emu
 from marpx.gradient_utils import css_angle_to_ooxml_angle, parse_linear_gradient
 from marpx.models import Box, BoxDecoration, BoxShadow, RGBAColor, SlideElement
 from marpx.utils import px_to_emu
+from .scene3d import fit_scene3d_rotations
 
 from ._helpers import (
     _set_fill_color,
@@ -23,6 +24,60 @@ from ._helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_positive_fixed_angle(angle_deg: float) -> int:
+    """Convert degrees to a positive OOXML fixed-angle value."""
+    normalized = angle_deg % 360.0
+    normalized = (normalized + 360.0) % 360.0  # Ensure positive
+    return int(round(normalized * 60000))
+
+
+def _apply_scene3d(
+    sp_pr,
+    rotation_3d_x_deg: float = 0.0,
+    rotation_3d_y_deg: float = 0.0,
+    rotation_3d_z_deg: float = 0.0,
+) -> None:
+    """Apply PowerPoint 3D scene rotation to a shape properties node."""
+    if (
+        abs(rotation_3d_x_deg) <= 0.01
+        and abs(rotation_3d_y_deg) <= 0.01
+        and abs(rotation_3d_z_deg) <= 0.01
+    ):
+        return
+
+    scene3d = sp_pr.find(qn("a:scene3d"))
+    if scene3d is not None:
+        sp_pr.remove(scene3d)
+
+    scene3d = etree.SubElement(sp_pr, qn("a:scene3d"))
+    camera = etree.SubElement(scene3d, qn("a:camera"))
+    camera.set("prst", "orthographicFront")
+    rot = etree.SubElement(camera, qn("a:rot"))
+    rot.set("lat", str(_normalize_positive_fixed_angle(rotation_3d_y_deg)))
+    rot.set("lon", str(_normalize_positive_fixed_angle(rotation_3d_x_deg)))
+    rot.set("rev", str(_normalize_positive_fixed_angle(rotation_3d_z_deg)))
+    light_rig = etree.SubElement(scene3d, qn("a:lightRig"))
+    light_rig.set("rig", "threePt")
+    light_rig.set("dir", "t")
+
+
+def _resolve_scene3d_rotations(element: SlideElement) -> tuple[float, float, float]:
+    """Return fitted scene3d angles when projected corners are available."""
+    if element.projected_corners:
+        return fit_scene3d_rotations(
+            element.projected_corners,
+            element.box,
+            fallback_x_deg=element.rotation_3d_x_deg,
+            fallback_y_deg=element.rotation_3d_y_deg,
+            fallback_z_deg=element.rotation_3d_z_deg,
+        )
+    return (
+        element.rotation_3d_x_deg,
+        element.rotation_3d_y_deg,
+        element.rotation_3d_z_deg,
+    )
 
 
 def _round_rect_adjustment(
@@ -55,7 +110,15 @@ def _apply_round_rect_radius_to_geom(
     prst_geom.rewrite_guides([("adj", adj)])
 
 
-def _add_decoration_shape(slide, box: Box, decoration: BoxDecoration):
+def _add_decoration_shape(
+    slide,
+    box: Box,
+    decoration: BoxDecoration,
+    *,
+    rotation_3d_x_deg: float = 0.0,
+    rotation_3d_y_deg: float = 0.0,
+    rotation_3d_z_deg: float = 0.0,
+):
     """Render a generic decorated box and return it as the text container."""
     left = Emu(px_to_emu(box.x))
     top = Emu(px_to_emu(box.y))
@@ -133,6 +196,13 @@ def _add_decoration_shape(slide, box: Box, decoration: BoxDecoration):
                 bg_shape.line.fill.background()
     elif hasattr(bg_shape, "line"):
         bg_shape.line.fill.background()
+
+    _apply_scene3d(
+        bg_shape._element.spPr,
+        rotation_3d_x_deg=rotation_3d_x_deg,
+        rotation_3d_y_deg=rotation_3d_y_deg,
+        rotation_3d_z_deg=rotation_3d_z_deg,
+    )
 
     accent_border = decoration.border_left
     if (
