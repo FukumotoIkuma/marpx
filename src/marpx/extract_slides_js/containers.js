@@ -1,17 +1,27 @@
-    import { styleToRunStyle, extractPseudoRuns, extractDecoration } from './entry.js';
+    import {
+        styleToRunStyle,
+        extractPseudoRuns,
+        extractDecoration,
+        deriveRenderContext,
+    } from './entry.js';
     import { _buildTextRun, extractInlineRuns, extractTextRunsWithPseudo } from './runs.js';
     import { _buildParagraph, extractParagraphsFromLines, getParagraphMetrics } from './paragraphs.js';
     import { shouldExtractStandaloneDecoratedText } from './classify.js';
 
-    export function extractListItemContent(item, listEl, level, currentOrder) {
+    export function extractListItemContent(item, listEl, level, currentOrder, renderContext = null) {
         const itemCs = window.getComputedStyle(item);
+        const itemContext = renderContext
+            ? deriveRenderContext(item, renderContext, itemCs)
+            : deriveRenderContext(item, null, itemCs);
         const metrics = getParagraphMetrics(item, itemCs);
         const runs = [];
         const nestedLists = [];
 
         for (const node of item.childNodes) {
             if (node.nodeType === Node.TEXT_NODE) {
-                const run = _buildTextRun(node.textContent || '', item, null);
+                const run = _buildTextRun(node.textContent || '', item, null, {
+                    renderContext: itemContext,
+                });
                 if (run && run.text.trim()) runs.push(run);
                 continue;
             }
@@ -20,14 +30,18 @@
                 nestedLists.push(node);
                 continue;
             }
-            runs.push(...extractInlineRuns(node, { includeRootPseudo: true }));
+            const childContext = deriveRenderContext(node, itemContext);
+            runs.push(...extractInlineRuns(node, {
+                includeRootPseudo: true,
+                renderContext: childContext,
+            }));
         }
 
         const paragraph = _buildParagraph(
             [
-                ...extractPseudoRuns(item, '::before'),
+                ...extractPseudoRuns(item, '::before', itemContext),
                 ...runs,
-                ...extractPseudoRuns(item, '::after'),
+                ...extractPseudoRuns(item, '::after', itemContext),
             ],
             itemCs.textAlign || window.getComputedStyle(listEl).textAlign || 'left',
             metrics,
@@ -42,8 +56,9 @@
         return { paragraph, nestedLists };
     }
 
-    export function extractParagraphsFromContainer(el) {
+    export function extractParagraphsFromContainer(el, renderContext = null) {
         const cs = window.getComputedStyle(el);
+        const containerContext = renderContext || deriveRenderContext(el, null, cs);
         const alignment = cs.textAlign;
         const paragraphs = [];
         const containerMetrics = {
@@ -58,7 +73,11 @@
         }
 
         function pushParagraphFromNode(child) {
-            const childRuns = extractInlineRuns(child, { includeRootPseudo: true });
+            const childContext = deriveRenderContext(child, containerContext);
+            const childRuns = extractInlineRuns(child, {
+                includeRootPseudo: true,
+                renderContext: childContext,
+            });
             if (childRuns.length === 0) return;
             const metrics = getParagraphMetrics(child);
             pushParagraph(
@@ -69,7 +88,9 @@
         }
 
         function buildTextRunFromNode(node, styleEl) {
-            const run = _buildTextRun(node.textContent || '', styleEl);
+            const run = _buildTextRun(node.textContent || '', styleEl, null, {
+                renderContext: containerContext,
+            });
             if (!run || !run.text.trim()) return null;
             return run;
         }
@@ -87,7 +108,7 @@
             return !!child.querySelector('table, img, pre, marp-pre, blockquote');
         }
 
-        function pushListParagraphs(listEl, level) {
+        function pushListParagraphs(listEl, level, listContext) {
             const listItems = Array.from(listEl.children).filter((child) => child.tagName === 'LI');
             let orderedIndex = listEl.tagName === 'OL' ? (listEl.start || 1) : 1;
             for (const item of listItems) {
@@ -102,10 +123,15 @@
                     listEl,
                     level,
                     currentOrder,
+                    listContext,
                 );
                 if (paragraph) paragraphs.push(paragraph);
                 for (const nested of nestedLists) {
-                    pushListParagraphs(nested, level + 1);
+                    pushListParagraphs(
+                        nested,
+                        level + 1,
+                        deriveRenderContext(nested, listContext),
+                    );
                 }
             }
         }
@@ -129,17 +155,22 @@
             if (child.nodeType !== Node.ELEMENT_NODE) continue;
 
             const tag = child.tagName.toLowerCase();
-            const childDecoration = extractDecoration(child);
+            const childContext = deriveRenderContext(child, containerContext);
+            const childDecoration = extractDecoration(child, childContext);
             if (tag === 'ul' || tag === 'ol') {
                 flushInlineParagraph();
-                pushListParagraphs(child, 0);
+                pushListParagraphs(child, 0, childContext);
             } else if (shouldExtractStandaloneDecoratedText(child, childDecoration)) {
                 flushInlineParagraph();
             } else if (isInlineLikeElement(child)) {
                 if (tag === 'br') {
                     flushInlineParagraph();
                 } else {
-                    inlineRuns.push(...extractInlineRuns(child, { includeRootPseudo: true }));
+                    const inlineChildContext = deriveRenderContext(child, containerContext);
+                    inlineRuns.push(...extractInlineRuns(child, {
+                        includeRootPseudo: true,
+                        renderContext: inlineChildContext,
+                    }));
                 }
             } else if (!hasUnsupportedBlockDescendants(child)) {
                 flushInlineParagraph();
@@ -149,8 +180,8 @@
         flushInlineParagraph();
 
         if (paragraphs.length > 0) {
-            const beforeRuns = extractPseudoRuns(el, '::before');
-            const afterRuns = extractPseudoRuns(el, '::after');
+            const beforeRuns = extractPseudoRuns(el, '::before', containerContext);
+            const afterRuns = extractPseudoRuns(el, '::after', containerContext);
             if (beforeRuns.length > 0) {
                 paragraphs[0].runs = [...beforeRuns, ...paragraphs[0].runs];
             }
@@ -164,10 +195,14 @@
         }
 
         if (cs.whiteSpace.includes('pre') || el.querySelector('br')) {
-            return extractParagraphsFromLines(el.innerText, styleToRunStyle(cs), alignment);
+            return extractParagraphsFromLines(
+                el.innerText,
+                styleToRunStyle(cs, el, containerContext),
+                alignment,
+            );
         }
 
-        const runs = extractTextRunsWithPseudo(el);
+        const runs = extractTextRunsWithPseudo(el, containerContext);
         if (runs.length === 0) return [];
         const metrics = getParagraphMetrics(el, cs);
         const paragraph = _buildParagraph(runs, alignment, metrics);

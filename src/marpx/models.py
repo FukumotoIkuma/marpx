@@ -164,6 +164,7 @@ class SlideElement(BaseModel):
     image_natural_height_px: float | None = None
     object_fit: str | None = None
     object_position: str | None = None
+    image_opacity: float = 1.0
 
     # Table content
     table_rows: list[TableRow] = Field(default_factory=list)

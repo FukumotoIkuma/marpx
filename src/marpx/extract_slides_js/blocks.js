@@ -1,4 +1,4 @@
-    import { extractDecoration, hasMeaningfulDecoration } from './entry.js';
+    import { extractDecoration, hasMeaningfulDecoration, deriveRenderContext, applyOpacityToColor } from './entry.js';
     import { extractTextRuns } from './runs.js';
     import { extractListItemContent, extractParagraphsFromContainer } from './containers.js';
     import { shouldExtractStandaloneDecoratedText } from './classify.js';
@@ -18,10 +18,10 @@
         return !display.startsWith('inline');
     }
 
-    export function shouldExtractDecoratedBlock(el, decoration) {
+    export function shouldExtractDecoratedBlock(el, decoration, renderContext = null) {
         if (!hasMeaningfulDecoration(decoration)) return false;
         if (!isDecoratedBlockContainer(el)) return false;
-        const paragraphs = extractParagraphsFromContainer(el);
+        const paragraphs = extractParagraphsFromContainer(el, renderContext);
         return paragraphs.length > 0 || shouldDecomposeDecoratedBlock(el);
     }
 
@@ -35,8 +35,9 @@
         );
     }
 
-    export function extractListItems(listEl, level) {
+    export function extractListItems(listEl, level, renderContext = null) {
         const items = [];
+        const listContext = renderContext || deriveRenderContext(listEl);
         let orderedIndex = listEl.tagName === 'OL' ? (listEl.start || 1) : 1;
         for (const child of listEl.children) {
             if (child.tagName === 'LI') {
@@ -51,6 +52,7 @@
                     listEl,
                     level,
                     currentOrder,
+                    listContext,
                 );
                 if (paragraph) {
                     items.push({
@@ -66,14 +68,15 @@
                     });
                 }
                 for (const nested of nestedLists) {
-                    items.push(...extractListItems(nested, level + 1));
+                    const nestedListContext = deriveRenderContext(nested, listContext);
+                    items.push(...extractListItems(nested, level + 1, nestedListContext));
                 }
             }
         }
         return items;
     }
 
-    export function extractTable(tableEl, sectionRect) {
+    export function extractTable(tableEl, sectionRect, renderContext = null) {
         const rows = [];
         const trs = tableEl.querySelectorAll('tr');
         for (const tr of trs) {
@@ -81,14 +84,15 @@
             const tds = tr.querySelectorAll('th, td');
             for (const td of tds) {
                 const cs = window.getComputedStyle(td);
+                const cellContext = deriveRenderContext(td, null, cs);
                 const rect = td.getBoundingClientRect();
                 cells.push({
                     text: td.textContent.trim(),
-                    runs: extractTextRuns(td),
+                    runs: extractTextRuns(td, cellContext),
                     isHeader: td.tagName === 'TH',
                     colspan: td.colSpan || 1,
                     rowspan: td.rowSpan || 1,
-                    backgroundColor: cs.backgroundColor,
+                    backgroundColor: applyOpacityToColor(cs.backgroundColor, cellContext.effectiveOpacity),
                     widthPx: rect.width,
                 });
             }

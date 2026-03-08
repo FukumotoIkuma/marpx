@@ -194,6 +194,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
         element.image_natural_height_px = raw.get("imageNaturalHeightPx")
         element.object_fit = raw.get("objectFit")
         element.object_position = raw.get("objectPosition")
+        element.image_opacity = raw.get("imageOpacity", 1.0)
         element.decoration = _build_decoration(raw.get("decoration"))
 
     elif etype == ElementType.TABLE:

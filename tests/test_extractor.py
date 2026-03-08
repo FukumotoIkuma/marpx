@@ -235,6 +235,52 @@ class TestExtractTable:
         for row in table.table_rows:
             assert len(row.cells) == 3
 
+    def test_parent_opacity_propagates_to_text_decoration_image_and_table(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "opacity-propagation.md"
+        md_path.write_text(
+            """---
+marp: true
+---
+
+<div style="opacity: 0.6">
+  <p style="color: rgb(10, 20, 30)">Alpha text</p>
+  <div style="background: rgba(255, 0, 0, 0.5); padding: 12px">Panel</div>
+  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP4z8AAAwEBAMn+ku8AAAAASUVORK5CYII=" />
+  <table>
+    <tr><td style="background: rgba(0, 128, 0, 0.5)">Cell</td></tr>
+  </table>
+</div>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        paragraph = next(
+            e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
+        )
+        panel = next(
+            e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
+        )
+        image = next(
+            e for e in slide.elements if e.element_type == ElementType.IMAGE
+        )
+        table = next(
+            e for e in slide.elements if e.element_type == ElementType.TABLE
+        )
+
+        assert paragraph.paragraphs[0].runs[0].style.color.a == pytest.approx(0.6)
+        assert panel.decoration is not None
+        assert panel.decoration.background_color is not None
+        assert panel.decoration.background_color.a == pytest.approx(0.3)
+        assert image.image_opacity == pytest.approx(0.6)
+        assert table.table_rows[0].cells[0].background is not None
+        assert table.table_rows[0].cells[0].background.a == pytest.approx(0.3)
+
 
 @pytest.mark.integration
 class TestExtractComplex:

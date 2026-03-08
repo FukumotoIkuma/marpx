@@ -21,8 +21,9 @@
         return extractParagraphsFromContainer(el).length > 0;
     }
 
-    export function extractTextRunsWithHiddenDecorated(el) {
+    export function extractTextRunsWithHiddenDecorated(el, renderContext = null) {
         return extractInlineRuns(el, {
+            renderContext,
             isStandaloneDecoratedFn: (node, decoration) =>
                 shouldExtractStandaloneDecoratedText(node, decoration),
         });

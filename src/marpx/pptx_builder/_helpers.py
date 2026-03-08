@@ -58,3 +58,15 @@ def _set_srgb_alpha(solid_fill, alpha: float) -> None:
         return
     alpha_node = etree.SubElement(srgb, qn("a:alpha"))
     alpha_node.set("val", str(int(round(bounded_alpha * 100000))))
+
+
+def _set_blip_alpha(blip, alpha: float) -> None:
+    """Write alpha to an a:blip node for picture transparency."""
+    for child in list(blip):
+        if child.tag == qn("a:alphaModFix"):
+            blip.remove(child)
+    bounded_alpha = max(0.0, min(alpha, 1.0))
+    if bounded_alpha >= 1.0:
+        return
+    alpha_node = etree.SubElement(blip, qn("a:alphaModFix"))
+    alpha_node.set("amt", str(int(round(bounded_alpha * 100000))))

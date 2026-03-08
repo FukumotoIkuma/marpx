@@ -1260,6 +1260,29 @@ class TestImageRendering:
         assert 'prst="roundRect"' in picture._element.xml
         assert 'a:gd name="adj" fmla="val 10169"' in picture._element.xml
 
+    def test_image_opacity_emits_blip_alpha(self, tmp_path: Path) -> None:
+        image_path = tmp_path / "sample image.png"
+        image_path.write_bytes(
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0"
+            b"\x00\x00\x03\x01\x01\x00\xc9\xfe\x92\xef\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        element = SlideElement(
+            element_type=ElementType.IMAGE,
+            box=Box(x=10, y=20, width=240, height=120),
+            image_src=image_path.as_uri(),
+            image_opacity=0.4,
+        )
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        picture = next(shape for shape in slide.shapes if shape.shape_type == 13)
+
+        assert 'a:alphaModFix amt="40000"' in picture._element.xml
+
     def test_file_uri_svg_is_rasterized_and_embedded(self, tmp_path: Path) -> None:
         svg_path = tmp_path / "diagram.svg"
         svg_path.write_text(

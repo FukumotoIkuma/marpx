@@ -1,5 +1,6 @@
 import { extractBackgroundImages, extractDirectives } from './backgrounds.js';
 import { processElement } from './handlers.js';
+import { createRenderContext } from './entry.js';
 
 export function extractSlides() {
     const sections = document.querySelectorAll('section[id]');
@@ -57,8 +58,9 @@ export function extractSlides() {
         };
 
         // Process direct children and nested content
+        const rootContext = createRenderContext();
         for (const child of section.children) {
-            processElement(child, slideRect, slideData);
+            processElement(child, slideRect, slideData, rootContext);
         }
 
         slides.push(slideData);

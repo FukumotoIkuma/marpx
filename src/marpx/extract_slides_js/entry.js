@@ -1,6 +1,6 @@
-    export function getComputedStyles(el) {
-        const cs = window.getComputedStyle(el);
-        return {
+export function getComputedStyles(el) {
+    const cs = window.getComputedStyle(el);
+    return {
             fontFamily: cs.fontFamily,
             fontSize: cs.fontSize,
             fontWeight: cs.fontWeight,
@@ -12,11 +12,67 @@
             lineHeight: cs.lineHeight,
             marginTop: cs.marginTop,
             marginBottom: cs.marginBottom,
-        };
+    };
+}
+
+function _parseOpacity(raw) {
+    const parsed = parseFloat(raw || '1');
+    if (!Number.isFinite(parsed)) return 1;
+    return Math.max(0, Math.min(parsed, 1));
+}
+
+export function createRenderContext(effectiveOpacity = 1) {
+    return {
+        effectiveOpacity: Math.max(0, Math.min(effectiveOpacity, 1)),
+    };
+}
+
+export function deriveRenderContext(el, parentCtx = null, computedStyle = null) {
+    if (!el) return parentCtx || createRenderContext();
+    const cs = computedStyle || window.getComputedStyle(el);
+    const ownOpacity = _parseOpacity(cs.opacity);
+    if (parentCtx) {
+        return createRenderContext(parentCtx.effectiveOpacity * ownOpacity);
     }
 
-    export function buildTextElement(el, sectionRect, type, extra = {}) {
-        const styles = getComputedStyles(el);
+    let effectiveOpacity = ownOpacity;
+    let current = el.parentElement;
+    while (current) {
+        effectiveOpacity *= _parseOpacity(window.getComputedStyle(current).opacity);
+        current = current.parentElement;
+    }
+    return createRenderContext(effectiveOpacity);
+}
+
+function _parseCssColor(color) {
+    if (!color) return null;
+    const normalized = color.trim().toLowerCase();
+    if (!normalized || normalized === 'transparent') {
+        return { r: 0, g: 0, b: 0, a: 0 };
+    }
+
+    const match = normalized.match(
+        /^rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)(?:\s*[,/]\s*([0-9.]+))?\s*\)$/
+    );
+    if (!match) return null;
+
+    return {
+        r: Math.max(0, Math.min(parseFloat(match[1]), 255)),
+        g: Math.max(0, Math.min(parseFloat(match[2]), 255)),
+        b: Math.max(0, Math.min(parseFloat(match[3]), 255)),
+        a: match[4] === undefined ? 1 : Math.max(0, Math.min(parseFloat(match[4]), 1)),
+    };
+}
+
+export function applyOpacityToColor(color, opacity) {
+    const parsed = _parseCssColor(color);
+    if (!parsed) return color;
+    const alpha = Math.max(0, Math.min(parsed.a * opacity, 1));
+    return `rgba(${parsed.r}, ${parsed.g}, ${parsed.b}, ${alpha})`;
+}
+
+export function buildTextElement(el, sectionRect, type, extra = {}) {
+    const styles = getComputedStyles(el);
         return {
             type: type,
             box: getBox(el, sectionRect),
@@ -50,7 +106,7 @@
         return content;
     }
 
-    function _runBackgroundColor(el, cs) {
+function _runBackgroundColor(el, cs) {
         if (!el) return 'transparent';
         const tag = (el.localName || el.tagName || '').toLowerCase();
         const display = cs.display || '';
@@ -59,59 +115,64 @@
             ['code', 'mark', 'kbd', 'samp'].includes(tag)
         ) {
             return cs.backgroundColor;
-        }
-        return 'transparent';
     }
+    return 'transparent';
+}
 
-    export function styleToRunStyle(cs, el = null) {
+export function styleToRunStyle(cs, el = null, renderContext = null) {
+    const ctx = renderContext || deriveRenderContext(el, null, cs);
+    return {
+        fontFamily: cs.fontFamily,
+        fontSizePx: parseFloat(cs.fontSize),
+        bold: parseInt(cs.fontWeight) >= 600 || cs.fontWeight === 'bold',
+        italic: cs.fontStyle === 'italic',
+        underline: (cs.textDecorationLine || cs.textDecoration || '').includes('underline'),
+        color: applyOpacityToColor(cs.color, ctx.effectiveOpacity),
+        backgroundColor: applyOpacityToColor(_runBackgroundColor(el, cs), ctx.effectiveOpacity),
+    };
+}
+
+export function extractPseudoRuns(el, pseudo, renderContext = null) {
+    const cs = window.getComputedStyle(el, pseudo);
+    const content = normalizeContentValue(cs.content);
+    if (!content) return [];
+    const ctx = renderContext || deriveRenderContext(el);
+    return [{
+        text: content,
+        style: styleToRunStyle(cs, el, ctx),
+        linkUrl: null,
+    }];
+}
+
+export function extractDecoration(el, renderContext = null) {
+    const cs = window.getComputedStyle(el);
+    const ctx = renderContext || deriveRenderContext(el, null, cs);
+    const borderSide = (side) => {
+        const width = parseFloat(cs[`border${side}Width`]) || 0;
         return {
-            fontFamily: cs.fontFamily,
-            fontSizePx: parseFloat(cs.fontSize),
-            bold: parseInt(cs.fontWeight) >= 600 || cs.fontWeight === 'bold',
-            italic: cs.fontStyle === 'italic',
-            underline: (cs.textDecorationLine || cs.textDecoration || '').includes('underline'),
-            color: cs.color,
-            backgroundColor: _runBackgroundColor(el, cs),
+            widthPx: width,
+            style: cs[`border${side}Style`] || 'none',
+            color: width > 0
+                ? applyOpacityToColor(cs[`border${side}Color`], ctx.effectiveOpacity)
+                : null,
         };
-    }
-
-    export function extractPseudoRuns(el, pseudo) {
-        const cs = window.getComputedStyle(el, pseudo);
-        const content = normalizeContentValue(cs.content);
-        if (!content) return [];
-        return [{
-            text: content,
-            style: styleToRunStyle(cs, el),
-            linkUrl: null,
-        }];
-    }
-
-    export function extractDecoration(el) {
-        const cs = window.getComputedStyle(el);
-        const borderSide = (side) => {
-            const width = parseFloat(cs[`border${side}Width`]) || 0;
-            return {
-                widthPx: width,
-                style: cs[`border${side}Style`] || 'none',
-                color: width > 0 ? cs[`border${side}Color`] : null,
-            };
-        };
-        return {
-            backgroundColor: cs.backgroundColor,
-            borderTop: borderSide('Top'),
-            borderRight: borderSide('Right'),
-            borderBottom: borderSide('Bottom'),
+    };
+    return {
+        backgroundColor: applyOpacityToColor(cs.backgroundColor, ctx.effectiveOpacity),
+        borderTop: borderSide('Top'),
+        borderRight: borderSide('Right'),
+        borderBottom: borderSide('Bottom'),
             borderLeft: borderSide('Left'),
             borderRadiusPx: parseFloat(cs.borderTopLeftRadius) || 0,
             padding: {
                 topPx: parseFloat(cs.paddingTop) || 0,
                 rightPx: parseFloat(cs.paddingRight) || 0,
-                bottomPx: parseFloat(cs.paddingBottom) || 0,
-                leftPx: parseFloat(cs.paddingLeft) || 0,
-            },
-            opacity: parseFloat(cs.opacity || '1') || 1,
-        };
-    }
+            bottomPx: parseFloat(cs.paddingBottom) || 0,
+            leftPx: parseFloat(cs.paddingLeft) || 0,
+        },
+        opacity: 1,
+    };
+}
 
     export function hasMeaningfulDecoration(decoration) {
         const normalizedBg = decoration.backgroundColor

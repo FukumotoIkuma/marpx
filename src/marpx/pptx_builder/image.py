@@ -19,6 +19,7 @@ from marpx.utils import px_to_emu
 
 from .decoration import _add_decoration_shape
 from .decoration import _apply_round_rect_radius_to_geom
+from ._helpers import _set_blip_alpha
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +153,13 @@ def _add_image(slide, element: SlideElement) -> None:
                 )
             else:
                 logger.warning("Failed to resolve image: %s", element.image_src)
+
+        if (
+            picture is not None
+            and element.image_opacity < 1.0
+        ):
+            blip = picture._element.blipFill.blip
+            _set_blip_alpha(blip, element.image_opacity)
 
         if (
             picture is not None
