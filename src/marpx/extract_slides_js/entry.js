@@ -171,6 +171,37 @@ export function applyOpacityToColor(color, opacity) {
     return `rgba(${parsed.r}, ${parsed.g}, ${parsed.b}, ${alpha})`;
 }
 
+function _isTransparentTextFill(cs) {
+    const textFill = _parseCssColor(cs.webkitTextFillColor || '');
+    if (textFill) return textFill.a === 0;
+    const color = _parseCssColor(cs.color || '');
+    return !!color && color.a === 0;
+}
+
+export function getUnsupportedStyleReason(cs) {
+    const backgroundClip = (cs.webkitBackgroundClip || cs.backgroundClip || '').toLowerCase();
+    if (
+        backgroundClip.includes('text') &&
+        cs.backgroundImage &&
+        cs.backgroundImage.includes('gradient(') &&
+        _isTransparentTextFill(cs)
+    ) {
+        return 'Gradient text';
+    }
+
+    const backdropFilter = cs.backdropFilter || cs.webkitBackdropFilter || '';
+    if (backdropFilter && backdropFilter !== 'none') {
+        return 'Backdrop filter';
+    }
+
+    const filter = cs.filter || '';
+    if (filter && filter !== 'none') {
+        return 'CSS filter';
+    }
+
+    return null;
+}
+
 function _splitTopLevelCommas(value) {
     const parts = [];
     let current = '';
@@ -642,13 +673,27 @@ export function extractBlockPseudoElements(el, sectionRect, renderContext = null
     for (const pseudo of ['::before', '::after']) {
         const cs = window.getComputedStyle(el, pseudo);
         const content = normalizeContentValue(cs.content) || '';
+        const unsupportedReason = getUnsupportedStyleReason(cs);
         if (!['absolute', 'fixed'].includes(cs.position)) continue;
         const decoration = _extractDecorationFromComputedStyle(cs, ctx);
         const hasText = content.length > 0;
-        if (!hasText && !hasMeaningfulDecoration(decoration)) continue;
+        if (!hasText && !hasMeaningfulDecoration(decoration) && !unsupportedReason) continue;
 
         const rect = _measurePseudoRect(el, pseudo, content);
         if (rect.width <= 0 || rect.height <= 0) continue;
+
+        if (unsupportedReason) {
+            results.push({
+                type: 'unsupported',
+                box: _boxFromRect(rect, sectionRect),
+                zIndex: _parsePseudoZIndex(cs, parentZ),
+                unsupportedInfo: {
+                    reason: unsupportedReason,
+                    tagName: 'pseudo',
+                },
+            });
+            continue;
+        }
 
         results.push({
             type: 'decorated_block',

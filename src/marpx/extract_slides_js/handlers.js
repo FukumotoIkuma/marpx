@@ -33,6 +33,35 @@ import {
     _findSingleImageChild,
 } from './blocks.js';
 
+function _isInlineStandaloneUnsupported(el) {
+    const tag = (el.localName || el.tagName).toLowerCase();
+    if (
+        [
+            'section', 'blockquote', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td',
+            'th', 'img', 'pre', 'marp-pre', 'script', 'style', 'link', 'meta',
+            'header', 'footer'
+        ].includes(tag)
+    ) {
+        return false;
+    }
+    const display = window.getComputedStyle(el).display;
+    if (!display.startsWith('inline')) return false;
+    if (el.querySelector('table, img, pre, marp-pre, blockquote, ul, ol')) return false;
+    return !!isUnsupported(el);
+}
+
+function _collectTopLevelInlineUnsupported(root) {
+    const matches = Array.from(root.querySelectorAll('*')).filter((node) =>
+        _isInlineStandaloneUnsupported(node)
+    );
+    return matches.filter(
+        (node) =>
+            !matches.some(
+                (other) => other !== node && other.contains(node)
+            )
+    );
+}
+
 export function handleUnsupported(el, slideRect, slideData, unsup) {
     slideData.elements.push({
         type: 'unsupported',
@@ -151,11 +180,24 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
             extractDecoration(child, deriveRenderContext(child, renderContext)),
         )
     );
+    const unsupportedInlineChildren = _collectTopLevelInlineUnsupported(el);
 
     slideData.elements.push(
         buildTextElement(el, slideRect, 'paragraph', {
             runs: decoratedChildren.length > 0
-                ? extractTextRunsWithHiddenDecorated(el, renderContext, mathContainers.length > 0)
+                ? extractTextRunsWithHiddenDecorated(
+                    el,
+                    renderContext,
+                    mathContainers.length > 0,
+                    _isInlineStandaloneUnsupported,
+                )
+                : unsupportedInlineChildren.length > 0
+                ? extractTextRunsWithHiddenDecorated(
+                    el,
+                    renderContext,
+                    mathContainers.length > 0,
+                    _isInlineStandaloneUnsupported,
+                )
                 : extractTextRunsWithPseudo(el, renderContext, mathContainers.length > 0),
             renderContext,
         })
@@ -164,6 +206,9 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
         handleMath(mathEl, slideRect, slideData, 'mjx-container');
     }
     for (const child of decoratedChildren) {
+        processElement(child, slideRect, slideData, renderContext);
+    }
+    for (const child of unsupportedInlineChildren) {
         processElement(child, slideRect, slideData, renderContext);
     }
 }

@@ -3,6 +3,7 @@
         hasMeaningfulDecoration,
         deriveRenderContext,
         deriveSubtreeRenderContext,
+        getUnsupportedStyleReason,
         isComplexTransform,
     } from './entry.js';
     import { extractTextRuns } from './runs.js';
@@ -94,6 +95,43 @@
         );
     }
 
+    function _hasOverflowClipping(cs) {
+        const overflowX = (cs.overflowX || cs.overflow || 'visible').toLowerCase();
+        const overflowY = (cs.overflowY || cs.overflow || 'visible').toLowerCase();
+        const clipped = new Set(['hidden', 'clip']);
+        return clipped.has(overflowX) || clipped.has(overflowY);
+    }
+
+    function _descendantNeedsClipping(el, rootContext) {
+        const descendants = el.querySelectorAll('*');
+        for (const child of descendants) {
+            const childTag = (child.localName || child.tagName).toLowerCase();
+            if (['script', 'style', 'link', 'meta'].includes(childTag)) continue;
+            const childContext = deriveSubtreeRenderContext(child, el, rootContext);
+            const childDecoration = extractDecoration(child, childContext);
+            if (
+                _hasVisibleBackground(
+                    childDecoration.backgroundColor,
+                    childDecoration.backgroundGradient,
+                ) ||
+                hasMeaningfulDecoration(childDecoration) ||
+                ['img', 'table', 'svg', 'canvas', 'video', 'iframe'].includes(childTag)
+            ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function _requiresOverflowClipFallback(el, cs) {
+        if (!_hasOverflowClipping(cs)) return false;
+        const radius = parseFloat(cs.borderTopLeftRadius) || 0;
+        if (radius <= 0) return false;
+        if (!el.children || el.children.length === 0) return false;
+        const rootContext = deriveRenderContext(el, null, cs);
+        return _descendantNeedsClipping(el, rootContext);
+    }
+
     function _resolveTableCellBackground(td, tableEl, tableContext) {
         let current = td;
         while (current && tableEl.contains(current)) {
@@ -173,6 +211,10 @@
             };
         }
         const cs = window.getComputedStyle(el);
+        const unsupportedStyleReason = getUnsupportedStyleReason(cs);
+        if (unsupportedStyleReason) {
+            return { reason: unsupportedStyleReason, tagName: tag };
+        }
         if (
             cs.backgroundImage &&
             cs.backgroundImage !== 'none' &&
@@ -184,6 +226,9 @@
         const transform = cs.transform;
         if (isComplexTransform(transform)) {
             return { reason: 'Complex CSS transform', tagName: tag };
+        }
+        if (_requiresOverflowClipFallback(el, cs)) {
+            return { reason: 'Overflow clipping container', tagName: tag };
         }
         return null;
     }

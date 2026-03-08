@@ -25,11 +25,13 @@ export function extractTextRunsWithHiddenDecorated(
     el,
     renderContext = null,
     includeMathPlaceholders = false,
+    extraStandaloneFn = null,
 ) {
     return extractInlineRuns(el, {
         renderContext,
         includeMathPlaceholders,
         isStandaloneDecoratedFn: (node, decoration) =>
-            shouldExtractStandaloneDecoratedText(node, decoration),
+            shouldExtractStandaloneDecoratedText(node, decoration) ||
+            (extraStandaloneFn ? extraStandaloneFn(node) : false),
     });
 }
