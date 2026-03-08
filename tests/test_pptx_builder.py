@@ -1033,6 +1033,42 @@ class TestTableBuilding:
         assert widths[1] == px_to_emu(230)
         assert widths[2] == px_to_emu(110)
 
+    def test_table_cell_emits_gradient_fill_padding_and_border(self, tmp_path: Path) -> None:
+        element = SlideElement(
+            element_type=ElementType.TABLE,
+            box=Box(x=72, y=100, width=400, height=120),
+            table_rows=[
+                TableRow(
+                    cells=[
+                        TableCell(
+                            paragraphs=[Paragraph(runs=[TextRun(text="Header")])],
+                            is_header=True,
+                            background_gradient="linear-gradient(135deg, #3b82f6, #2563eb)",
+                            padding=BoxPadding(top_px=14, right_px=16, bottom_px=14, left_px=16),
+                            border_bottom=BorderSide(
+                                width_px=1,
+                                style="solid",
+                                color=RGBAColor(r=226, g=232, b=240),
+                            ),
+                        )
+                    ]
+                )
+            ],
+        )
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        table_shape = next(shape for shape in slide.shapes if shape.has_table)
+        cell = table_shape.table.cell(0, 0)
+
+        assert cell.text_frame.margin_left == px_to_emu(16)
+        assert cell.text_frame.margin_top == px_to_emu(14)
+        assert 'a:gradFill' in cell._tc.xml
+        assert 'a:lnB' in cell._tc.xml
+
 
 class TestCodeBlock:
     """Verify code block has background fill."""

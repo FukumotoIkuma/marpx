@@ -48,6 +48,28 @@ export function deriveRenderContext(el, parentCtx = null, computedStyle = null) 
     return createRenderContext(effectiveOpacity);
 }
 
+export function deriveSubtreeRenderContext(target, rootEl, rootContext = null) {
+    if (target === rootEl) {
+        return rootContext || deriveRenderContext(rootEl);
+    }
+
+    const chain = [];
+    let current = target;
+    while (current && current !== rootEl) {
+        chain.push(current);
+        current = current.parentElement;
+    }
+    if (current !== rootEl) {
+        return deriveRenderContext(target);
+    }
+
+    let context = rootContext || deriveRenderContext(rootEl);
+    for (let index = chain.length - 1; index >= 0; index--) {
+        context = deriveRenderContext(chain[index], context);
+    }
+    return context;
+}
+
 function _parseCssColor(color) {
     if (!color) return null;
     const normalized = color.trim().toLowerCase();

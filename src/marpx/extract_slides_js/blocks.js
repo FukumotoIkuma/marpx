@@ -1,4 +1,9 @@
-    import { extractDecoration, hasMeaningfulDecoration, deriveRenderContext, applyOpacityToColor } from './entry.js';
+    import {
+        extractDecoration,
+        hasMeaningfulDecoration,
+        deriveRenderContext,
+        deriveSubtreeRenderContext,
+    } from './entry.js';
     import { extractTextRuns } from './runs.js';
     import { extractListItemContent, extractParagraphsFromContainer } from './containers.js';
     import { shouldExtractStandaloneDecoratedText } from './classify.js';
@@ -76,23 +81,65 @@
         return items;
     }
 
+    function _hasVisibleBackground(backgroundColor, backgroundGradient) {
+        if (backgroundGradient && backgroundGradient !== 'none') return true;
+        const normalized = backgroundColor
+            ? backgroundColor.replace(/\s+/g, '').toLowerCase()
+            : '';
+        return !!(
+            normalized &&
+            normalized !== 'transparent' &&
+            normalized !== 'rgba(0,0,0,0)'
+        );
+    }
+
+    function _resolveTableCellBackground(td, tableEl, tableContext) {
+        let current = td;
+        while (current && tableEl.contains(current)) {
+            const currentContext = deriveSubtreeRenderContext(current, tableEl, tableContext);
+            const decoration = extractDecoration(current, currentContext);
+            if (_hasVisibleBackground(decoration.backgroundColor, decoration.backgroundGradient)) {
+                return decoration;
+            }
+            if (current === tableEl) {
+                break;
+            }
+            current = current.parentElement;
+        }
+        return null;
+    }
+
     export function extractTable(tableEl, sectionRect, renderContext = null) {
         const rows = [];
+        const tableContext = renderContext || deriveRenderContext(tableEl);
         const trs = tableEl.querySelectorAll('tr');
         for (const tr of trs) {
+            const rowContext = deriveSubtreeRenderContext(tr, tableEl, tableContext);
             const cells = [];
             const tds = tr.querySelectorAll('th, td');
             for (const td of tds) {
                 const cs = window.getComputedStyle(td);
-                const cellContext = deriveRenderContext(td, null, cs);
+                const cellContext = deriveRenderContext(td, rowContext, cs);
                 const rect = td.getBoundingClientRect();
+                const cellDecoration = extractDecoration(td, cellContext);
+                const effectiveBackground = _resolveTableCellBackground(
+                    td,
+                    tableEl,
+                    tableContext,
+                );
                 cells.push({
                     text: td.textContent.trim(),
                     runs: extractTextRuns(td, cellContext),
                     isHeader: td.tagName === 'TH',
                     colspan: td.colSpan || 1,
                     rowspan: td.rowSpan || 1,
-                    backgroundColor: applyOpacityToColor(cs.backgroundColor, cellContext.effectiveOpacity),
+                    backgroundColor: effectiveBackground ? effectiveBackground.backgroundColor : 'transparent',
+                    backgroundGradient: effectiveBackground ? effectiveBackground.backgroundGradient : null,
+                    padding: cellDecoration.padding,
+                    borderTop: cellDecoration.borderTop,
+                    borderRight: cellDecoration.borderRight,
+                    borderBottom: cellDecoration.borderBottom,
+                    borderLeft: cellDecoration.borderLeft,
                     widthPx: rect.width,
                 });
             }

@@ -208,7 +208,10 @@ def _build_slide_element(raw: dict) -> SlideElement:
                 cell_runs = _build_text_runs(cell_raw.get("runs", []))
                 bg = None
                 if cell_raw.get("backgroundColor"):
-                    bg = parse_css_color(cell_raw["backgroundColor"])
+                    parsed_bg = parse_css_color(cell_raw["backgroundColor"])
+                    if parsed_bg.a > 0:
+                        bg = parsed_bg
+                raw_padding = cell_raw.get("padding", {})
 
                 cells.append(
                     TableCell(
@@ -217,6 +220,17 @@ def _build_slide_element(raw: dict) -> SlideElement:
                         rowspan=rowspan,
                         is_header=cell_raw.get("isHeader", False),
                         background=bg,
+                        background_gradient=cell_raw.get("backgroundGradient"),
+                        padding=BoxPadding(
+                            top_px=raw_padding.get("topPx", 0.0),
+                            right_px=raw_padding.get("rightPx", 0.0),
+                            bottom_px=raw_padding.get("bottomPx", 0.0),
+                            left_px=raw_padding.get("leftPx", 0.0),
+                        ),
+                        border_top=_build_border_side(cell_raw.get("borderTop")),
+                        border_right=_build_border_side(cell_raw.get("borderRight")),
+                        border_bottom=_build_border_side(cell_raw.get("borderBottom")),
+                        border_left=_build_border_side(cell_raw.get("borderLeft")),
                         width_px=cell_raw.get("widthPx"),
                     )
                 )

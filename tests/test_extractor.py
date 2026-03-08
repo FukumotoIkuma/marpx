@@ -235,6 +235,106 @@ class TestExtractTable:
         for row in table.table_rows:
             assert len(row.cells) == 3
 
+    def test_transparent_table_cell_background_does_not_become_alpha_zero(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "transparent-table-cell.md"
+        md_path.write_text(
+            """---
+marp: true
+---
+
+<style scoped>
+table { color: white; }
+</style>
+
+| A | B |
+|---|---|
+| 1 | 2 |
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        table = next(
+            e for e in slide.elements if e.element_type == ElementType.TABLE
+        )
+
+        background = table.table_rows[0].cells[0].background
+        assert background is None or background.a > 0
+
+    def test_table_text_does_not_inherit_hidden_svg_opacity(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "table-text-opacity.md"
+        md_path.write_text(
+            """---
+marp: true
+---
+
+<style scoped>
+th { color: white; background: linear-gradient(135deg, #3b82f6, #2563eb); }
+</style>
+
+| Feature | Free |
+|---------|:----:|
+| Users | 5 |
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        table = next(
+            e for e in slide.elements if e.element_type == ElementType.TABLE
+        )
+
+        header_run = table.table_rows[0].cells[0].paragraphs[0].runs[0]
+        assert header_run.style.color.a == pytest.approx(1.0)
+
+    def test_table_cell_resolves_gradient_and_row_background_styles(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "table-cell-style-resolution.md"
+        md_path.write_text(
+            """---
+marp: true
+---
+
+<style scoped>
+th { color: white; background: linear-gradient(135deg, #3b82f6, #2563eb); padding: 14px 16px; }
+td { padding: 12px 16px; border-bottom: 1px solid #e2e8f0; }
+tbody tr:nth-child(odd) { background: #f1f5f9; }
+</style>
+
+| Feature | Free |
+|---------|:----:|
+| Users | 5 |
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        table = next(
+            e for e in slide.elements if e.element_type == ElementType.TABLE
+        )
+
+        header = table.table_rows[0].cells[0]
+        body = table.table_rows[1].cells[0]
+
+        assert header.background_gradient is not None
+        assert header.padding.left_px == pytest.approx(16.0)
+        assert body.background is not None
+        assert body.background.r == 241
+        assert body.background.g == 245
+        assert body.background.b == 249
+        assert body.border_bottom.width_px == pytest.approx(1.0)
+
     def test_parent_opacity_propagates_to_text_decoration_image_and_table(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:

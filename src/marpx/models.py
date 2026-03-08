@@ -88,6 +88,12 @@ class TableCell(BaseModel):
     rowspan: int = 1
     is_header: bool = False
     background: RGBAColor | None = None
+    background_gradient: str | None = None
+    padding: BoxPadding = Field(default_factory=lambda: BoxPadding())
+    border_top: BorderSide = Field(default_factory=lambda: BorderSide())
+    border_right: BorderSide = Field(default_factory=lambda: BorderSide())
+    border_bottom: BorderSide = Field(default_factory=lambda: BorderSide())
+    border_left: BorderSide = Field(default_factory=lambda: BorderSide())
     width_px: float | None = None
 
 
