@@ -240,6 +240,39 @@ function _runBackgroundColor(el, cs) {
     return 'transparent';
 }
 
+function _extractDecorationFromComputedStyle(cs, ctx) {
+    const backgroundClip = (cs.webkitBackgroundClip || cs.backgroundClip || '').toLowerCase();
+    const hasTextClippedGradient = backgroundClip.includes('text');
+    const borderSide = (side) => {
+        const width = parseFloat(cs[`border${side}Width`]) || 0;
+        return {
+            widthPx: width,
+            style: cs[`border${side}Style`] || 'none',
+            color: width > 0
+                ? applyOpacityToColor(cs[`border${side}Color`], ctx.effectiveOpacity)
+                : null,
+        };
+    };
+    return {
+        backgroundColor: applyOpacityToColor(cs.backgroundColor, ctx.effectiveOpacity),
+        backgroundGradient: !hasTextClippedGradient && cs.backgroundImage && cs.backgroundImage.includes('gradient(')
+            ? _applyOpacityToGradient(cs.backgroundImage, ctx.effectiveOpacity)
+            : null,
+        borderTop: borderSide('Top'),
+        borderRight: borderSide('Right'),
+        borderBottom: borderSide('Bottom'),
+        borderLeft: borderSide('Left'),
+        borderRadiusPx: parseFloat(cs.borderTopLeftRadius) || 0,
+        padding: {
+            topPx: parseFloat(cs.paddingTop) || 0,
+            rightPx: parseFloat(cs.paddingRight) || 0,
+            bottomPx: parseFloat(cs.paddingBottom) || 0,
+            leftPx: parseFloat(cs.paddingLeft) || 0,
+        },
+        opacity: 1,
+    };
+}
+
 export function styleToRunStyle(cs, el = null, renderContext = null) {
     const textDecoration = _resolveEffectiveTextDecoration(el, cs);
     const ctx = renderContext || deriveRenderContext(el, null, cs);
@@ -270,36 +303,7 @@ export function extractPseudoRuns(el, pseudo, renderContext = null) {
 export function extractDecoration(el, renderContext = null) {
     const cs = window.getComputedStyle(el);
     const ctx = renderContext || deriveRenderContext(el, null, cs);
-    const backgroundClip = (cs.webkitBackgroundClip || cs.backgroundClip || '').toLowerCase();
-    const hasTextClippedGradient = backgroundClip.includes('text');
-    const borderSide = (side) => {
-        const width = parseFloat(cs[`border${side}Width`]) || 0;
-        return {
-            widthPx: width,
-            style: cs[`border${side}Style`] || 'none',
-            color: width > 0
-                ? applyOpacityToColor(cs[`border${side}Color`], ctx.effectiveOpacity)
-                : null,
-        };
-    };
-    return {
-        backgroundColor: applyOpacityToColor(cs.backgroundColor, ctx.effectiveOpacity),
-        backgroundGradient: !hasTextClippedGradient && cs.backgroundImage && cs.backgroundImage.includes('gradient(')
-            ? _applyOpacityToGradient(cs.backgroundImage, ctx.effectiveOpacity)
-            : null,
-        borderTop: borderSide('Top'),
-        borderRight: borderSide('Right'),
-        borderBottom: borderSide('Bottom'),
-            borderLeft: borderSide('Left'),
-            borderRadiusPx: parseFloat(cs.borderTopLeftRadius) || 0,
-            padding: {
-                topPx: parseFloat(cs.paddingTop) || 0,
-                rightPx: parseFloat(cs.paddingRight) || 0,
-            bottomPx: parseFloat(cs.paddingBottom) || 0,
-            leftPx: parseFloat(cs.paddingLeft) || 0,
-        },
-        opacity: 1,
-    };
+    return _extractDecorationFromComputedStyle(cs, ctx);
 }
 
 export function hasMeaningfulDecoration(decoration) {
@@ -354,3 +358,134 @@ export function hasMeaningfulDecoration(decoration) {
     export function normalizeInlineText(text) {
         return text.replace(/\s+/g, ' ');
     }
+
+function _boxFromRect(rect, sectionRect) {
+    return {
+        x: rect.left - sectionRect.left,
+        y: rect.top - sectionRect.top,
+        width: rect.width,
+        height: rect.height,
+    };
+}
+
+function _contentBoxFromRectAndStyle(rect, cs, sectionRect) {
+    const leftInset = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0);
+    const topInset = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0);
+    const rightInset = (parseFloat(cs.borderRightWidth) || 0) + (parseFloat(cs.paddingRight) || 0);
+    const bottomInset = (parseFloat(cs.borderBottomWidth) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    return {
+        x: rect.left - sectionRect.left + leftInset,
+        y: rect.top - sectionRect.top + topInset,
+        width: Math.max(rect.width - leftInset - rightInset, 1),
+        height: Math.max(rect.height - topInset - bottomInset, 1),
+    };
+}
+
+function _parsePseudoZIndex(cs, fallbackZ) {
+    const parsed = parseInt(cs.zIndex, 10);
+    return Number.isFinite(parsed) ? parsed : fallbackZ;
+}
+
+function _buildPseudoParagraph(content, cs, el, ctx) {
+    return [{
+        runs: [{
+            text: content,
+            style: styleToRunStyle(cs, el, ctx),
+            linkUrl: null,
+        }],
+        alignment: cs.textAlign || 'left',
+        lineHeightPx: parseFloat(cs.lineHeight) || null,
+        spaceBeforePx: 0,
+        spaceAfterPx: 0,
+    }];
+}
+
+function _measurePseudoRect(el, pseudo, content) {
+    const pseudoCs = window.getComputedStyle(el, pseudo);
+    const probe = document.createElement(content ? 'span' : 'div');
+    probe.textContent = content || '';
+    probe.setAttribute('aria-hidden', 'true');
+    probe.style.position = pseudoCs.position;
+    probe.style.display = content ? 'inline-block' : 'block';
+    probe.style.visibility = 'hidden';
+    probe.style.pointerEvents = 'none';
+    probe.style.margin = '0';
+    probe.style.left = pseudoCs.left;
+    probe.style.right = pseudoCs.right;
+    probe.style.top = pseudoCs.top;
+    probe.style.bottom = pseudoCs.bottom;
+    probe.style.width = pseudoCs.width;
+    probe.style.height = pseudoCs.height;
+    probe.style.minWidth = pseudoCs.minWidth;
+    probe.style.minHeight = pseudoCs.minHeight;
+    probe.style.maxWidth = pseudoCs.maxWidth;
+    probe.style.maxHeight = pseudoCs.maxHeight;
+    probe.style.boxSizing = pseudoCs.boxSizing;
+    probe.style.paddingTop = pseudoCs.paddingTop;
+    probe.style.paddingRight = pseudoCs.paddingRight;
+    probe.style.paddingBottom = pseudoCs.paddingBottom;
+    probe.style.paddingLeft = pseudoCs.paddingLeft;
+    probe.style.borderTopWidth = pseudoCs.borderTopWidth;
+    probe.style.borderRightWidth = pseudoCs.borderRightWidth;
+    probe.style.borderBottomWidth = pseudoCs.borderBottomWidth;
+    probe.style.borderLeftWidth = pseudoCs.borderLeftWidth;
+    probe.style.borderTopStyle = pseudoCs.borderTopStyle;
+    probe.style.borderRightStyle = pseudoCs.borderRightStyle;
+    probe.style.borderBottomStyle = pseudoCs.borderBottomStyle;
+    probe.style.borderLeftStyle = pseudoCs.borderLeftStyle;
+    probe.style.borderTopColor = pseudoCs.borderTopColor;
+    probe.style.borderRightColor = pseudoCs.borderRightColor;
+    probe.style.borderBottomColor = pseudoCs.borderBottomColor;
+    probe.style.borderLeftColor = pseudoCs.borderLeftColor;
+    probe.style.borderTopLeftRadius = pseudoCs.borderTopLeftRadius;
+    probe.style.borderTopRightRadius = pseudoCs.borderTopRightRadius;
+    probe.style.borderBottomRightRadius = pseudoCs.borderBottomRightRadius;
+    probe.style.borderBottomLeftRadius = pseudoCs.borderBottomLeftRadius;
+    probe.style.backgroundColor = pseudoCs.backgroundColor;
+    probe.style.backgroundImage = pseudoCs.backgroundImage;
+    probe.style.color = pseudoCs.color;
+    probe.style.fontFamily = pseudoCs.fontFamily;
+    probe.style.fontSize = pseudoCs.fontSize;
+    probe.style.fontWeight = pseudoCs.fontWeight;
+    probe.style.fontStyle = pseudoCs.fontStyle;
+    probe.style.lineHeight = pseudoCs.lineHeight;
+    probe.style.letterSpacing = pseudoCs.letterSpacing;
+    probe.style.whiteSpace = pseudoCs.whiteSpace;
+    probe.style.textAlign = pseudoCs.textAlign;
+    probe.style.transform = pseudoCs.transform;
+    probe.style.transformOrigin = pseudoCs.transformOrigin;
+    probe.style.opacity = pseudoCs.opacity;
+    el.appendChild(probe);
+    const rect = probe.getBoundingClientRect();
+    probe.remove();
+    return rect;
+}
+
+export function extractBlockPseudoElements(el, sectionRect, renderContext = null) {
+    const results = [];
+    const parentZ = getZIndex(el);
+    const ctx = renderContext || deriveRenderContext(el);
+    for (const pseudo of ['::before', '::after']) {
+        const cs = window.getComputedStyle(el, pseudo);
+        const content = normalizeContentValue(cs.content) || '';
+        if (!['absolute', 'fixed'].includes(cs.position)) continue;
+        const decoration = _extractDecorationFromComputedStyle(cs, ctx);
+        const hasText = content.length > 0;
+        if (!hasText && !hasMeaningfulDecoration(decoration)) continue;
+
+        const rect = _measurePseudoRect(el, pseudo, content);
+        if (rect.width <= 0 || rect.height <= 0) continue;
+
+        results.push({
+            type: 'decorated_block',
+            box: _boxFromRect(rect, sectionRect),
+            contentBox: hasMeaningfulDecoration(decoration)
+                ? _contentBoxFromRectAndStyle(rect, cs, sectionRect)
+                : null,
+            zIndex: _parsePseudoZIndex(cs, parentZ),
+            paragraphs: hasText ? _buildPseudoParagraph(content, cs, el, ctx) : [],
+            decoration: hasMeaningfulDecoration(decoration) ? decoration : null,
+        });
+    }
+    return results;
+}

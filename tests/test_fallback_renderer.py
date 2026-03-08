@@ -129,15 +129,17 @@ def test_render_fallbacks_rasterizes_inline_svg_without_screenshot(
     )
     monkeypatch.setattr(
         "marpx.fallback_renderer.rasterize_svg_to_png",
-        lambda data, width_px=None, height_px=None, scale=1.0: captured.update(
-            {
-                "svg": data,
-                "width_px": width_px,
-                "height_px": height_px,
-                "scale": scale,
-            }
-        )
-        or b"PNG",
+        lambda data, width_px=None, height_px=None, scale=1.0: (
+            captured.update(
+                {
+                    "svg": data,
+                    "width_px": width_px,
+                    "height_px": height_px,
+                    "scale": scale,
+                }
+            )
+            or b"PNG"
+        ),
     )
 
     async def _unexpected_screenshot(*_args, **_kwargs):
@@ -237,6 +239,7 @@ def test_render_fallbacks_navigates_to_target_slide_before_screenshot(
         "marpx.fallback_renderer._screenshot_element",
         _fake_screenshot_element,
     )
+
     async def _fake_navigate(_page, slide_index: int) -> None:
         navigate_calls.append(slide_index)
 

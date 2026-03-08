@@ -833,7 +833,9 @@ beta</code></pre>
             for e in slide.elements
         )
 
-    def test_mark_stays_in_paragraph_runs(self, tmp_path: Path, tmp_output_dir: Path) -> None:
+    def test_mark_stays_in_paragraph_runs(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
         md_path = tmp_path / "inline-mark.md"
         md_path.write_text(
             "# Slide\n\n<mark>This text is highlighted</mark> and continues normally.\n",
@@ -848,7 +850,9 @@ beta</code></pre>
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
         )
         marked_run = next(
-            run for run in paragraph.paragraphs[0].runs if run.text == "This text is highlighted"
+            run
+            for run in paragraph.paragraphs[0].runs
+            if run.text == "This text is highlighted"
         )
 
         assert marked_run.style.background_color is not None
@@ -902,7 +906,9 @@ Inline: $E = mc^2$ and $\\sum_{i=1}^{n} i$
         pres = extract_presentation_sync(html_path)
         slide = pres.slides[0]
 
-        math_elements = [e for e in slide.elements if e.element_type == ElementType.MATH]
+        math_elements = [
+            e for e in slide.elements if e.element_type == ElementType.MATH
+        ]
         assert len(math_elements) == 2
         assert all(
             e.unsupported_info and e.unsupported_info.tag_name == "mjx-container"
@@ -917,6 +923,57 @@ Inline: $E = mc^2$ and $\\sum_{i=1}^{n} i$
         ]
         assert len(placeholder_runs) == 2
         assert all(run.text for run in placeholder_runs)
+
+    def test_absolute_block_pseudo_elements_are_extracted(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "block-pseudo.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  section { background: white; color: #111827; }
+  .timeline { position: relative; height: 40px; margin-top: 24px; }
+  .timeline::before { content: ''; position: absolute; top: 18px; left: 5%; right: 5%; height: 3px; background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899); }
+  .quote { position: relative; margin-top: 24px; }
+  .quote::before { content: '"'; position: absolute; top: -20px; left: -30px; font-size: 64px; color: rgba(59,130,246,0.5); }
+  .plan { position: relative; width: 220px; height: 120px; margin-top: 24px; background: #eff6ff; border-radius: 16px; }
+  .plan::before { content: 'POPULAR'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #3b82f6; color: white; padding: 4px 16px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+---
+
+# Slide
+
+<div class="timeline"></div>
+<div class="quote">Quoted text</div>
+<div class="plan"></div>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        pseudo_blocks = [
+            e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
+        ]
+
+        assert any(
+            e.decoration
+            and e.decoration.background_gradient is not None
+            and not e.paragraphs
+            for e in pseudo_blocks
+        )
+        assert any(
+            "".join(run.text for p in e.paragraphs for run in p.runs) == '"'
+            for e in pseudo_blocks
+        )
+        badge = next(
+            e
+            for e in pseudo_blocks
+            if "".join(run.text for p in e.paragraphs for run in p.runs) == "POPULAR"
+        )
+        assert badge.decoration is not None
+        assert badge.decoration.background_color is not None
 
     def test_decorated_badge_is_extracted_as_separate_element(
         self, tmp_path: Path, tmp_output_dir: Path

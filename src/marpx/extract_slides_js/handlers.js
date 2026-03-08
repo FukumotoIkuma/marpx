@@ -9,6 +9,7 @@ import {
     getContentBox,
     deriveRenderContext,
     applyOpacityToColor,
+    extractBlockPseudoElements,
 } from './entry.js';
 import {
     extractTextRuns,
@@ -281,6 +282,7 @@ export function processElement(el, slideRect, slideData, parentContext = null) {
     }
 
     const renderContext = deriveRenderContext(el, parentContext);
+    slideData.elements.push(...extractBlockPseudoElements(el, slideRect, renderContext));
     const decoration = extractDecoration(el, renderContext);
 
     if (shouldExtractStandaloneDecoratedText(el, decoration)) {
