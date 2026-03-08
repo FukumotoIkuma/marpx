@@ -1,7 +1,6 @@
     import {
         deriveRenderContext,
         deriveSubtreeRenderContext,
-        isComplexTransform,
     } from './render-context.js';
     import { getUnsupportedStyleReason } from './style.js';
     import { extractDecoration, hasMeaningfulDecoration } from './decoration.js';
@@ -280,10 +279,6 @@ export function shouldDecomposeDecoratedBlock(el) {
             !cs.backgroundImage.includes('linear-gradient(')
         ) {
             return { reason: 'Unsupported gradient background', tagName: tag };
-        }
-        const transform = cs.transform;
-        if (isComplexTransform(transform)) {
-            return { reason: 'Complex CSS transform', tagName: tag };
         }
         if (_requiresOverflowClipFallback(el, cs)) {
             return { reason: 'Overflow clipping container', tagName: tag };

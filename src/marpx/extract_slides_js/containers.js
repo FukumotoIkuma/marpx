@@ -4,6 +4,7 @@
     import { _buildTextRun, extractInlineRuns, extractTextRunsWithPseudo } from './runs.js';
     import { _buildParagraph, extractParagraphsFromLines, getParagraphMetrics } from './paragraphs.js';
     import { shouldExtractStandaloneDecoratedText } from './classify.js';
+    import { resolveHorizontalAlign } from './entry.js';
 
     export function extractListItemContent(item, listEl, level, currentOrder, renderContext = null) {
         const itemCs = window.getComputedStyle(item);
@@ -40,7 +41,7 @@
                 ...runs,
                 ...extractPseudoRuns(item, '::after', itemContext),
             ],
-            itemCs.textAlign || window.getComputedStyle(listEl).textAlign || 'left',
+            resolveHorizontalAlign(itemCs) || resolveHorizontalAlign(window.getComputedStyle(listEl)) || 'left',
             metrics,
             {
                 listLevel: level,
@@ -56,7 +57,7 @@
     export function extractParagraphsFromContainer(el, renderContext = null) {
         const cs = window.getComputedStyle(el);
         const containerContext = renderContext || deriveRenderContext(el, null, cs);
-        const alignment = cs.textAlign;
+        const alignment = resolveHorizontalAlign(cs) || 'left';
         const paragraphs = [];
         const containerMetrics = {
             lineHeightPx: getParagraphMetrics(el, cs, containerContext).lineHeightPx,
@@ -80,7 +81,7 @@
             pushParagraph(
                 childRuns,
                 metrics,
-                window.getComputedStyle(child).textAlign || alignment,
+                resolveHorizontalAlign(window.getComputedStyle(child)) || alignment,
             );
         }
 

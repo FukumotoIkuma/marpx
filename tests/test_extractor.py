@@ -1087,7 +1087,7 @@ style: |
         assert run.style.font_size_px == pytest.approx(25.0)
         assert card.paragraphs[0].line_height_px == pytest.approx(30.0)
 
-    def test_complex_3d_transform_stays_unsupported(
+    def test_complex_3d_transform_is_kept_on_native_route(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:
         md_path = tmp_path / "complex-transform.md"
@@ -1113,7 +1113,12 @@ style: |
         html_path = render_to_html(md_path, output_dir=tmp_output_dir)
         pres = extract_presentation_sync(html_path)
         slide = pres.slides[0]
-        assert any(e.element_type == ElementType.UNSUPPORTED for e in slide.elements)
+        assert all(e.element_type != ElementType.UNSUPPORTED for e in slide.elements)
+        floating = next(
+            e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
+        )
+        assert floating.decoration is not None
+        assert floating.box.width > 0
 
     def test_rounded_overflow_container_becomes_unsupported(
         self, tmp_path: Path, tmp_output_dir: Path
@@ -1393,6 +1398,47 @@ style: |
 
         num = next(e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK)
         assert num.vertical_align == "middle"
+        assert num.paragraphs[0].alignment == "center"
+
+    def test_flex_column_centered_child_blocks_inherit_center_alignment(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "floating-center.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  .floating {
+    width: 280px;
+    height: 200px;
+    background: rgba(99,102,241,0.2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+---
+
+# Slide
+
+<div class="floating"><div>🤖</div><div>AI Engine v3</div></div>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        floating = next(
+            e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
+        )
+        assert floating.vertical_align == "middle"
+        assert ["".join(r.text for r in p.runs) for p in floating.paragraphs] == [
+            "🤖",
+            "AI Engine v3",
+        ]
+        assert all(paragraph.alignment == "center" for paragraph in floating.paragraphs)
 
     def test_decoration_only_leaf_block_is_extracted(self, tmp_path: Path, tmp_output_dir: Path) -> None:
         md_path = tmp_path / "decoration-only-bar.md"

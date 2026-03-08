@@ -82,6 +82,38 @@ export function resolveVerticalAlign(cs) {
     return 'top';
 }
 
+export function resolveHorizontalAlign(cs) {
+    const textAlign = (cs.textAlign || '').toLowerCase();
+    if (
+        textAlign &&
+        !['start', 'initial', 'auto', 'normal', 'unset'].includes(textAlign)
+    ) {
+        return textAlign;
+    }
+
+    const display = (cs.display || '').toLowerCase();
+    if (display.includes('flex')) {
+        const flexDirection = (cs.flexDirection || 'row').toLowerCase();
+        const crossAxisAlign = (cs.alignItems || '').toLowerCase();
+        const mainAxisJustify = (cs.justifyContent || '').toLowerCase();
+        const relevant = flexDirection.startsWith('column')
+            ? crossAxisAlign
+            : mainAxisJustify;
+        if (relevant.includes('center')) return 'center';
+        if (relevant.includes('end') || relevant.includes('right')) return 'right';
+        if (relevant.includes('start') || relevant.includes('left')) return 'left';
+    }
+    if (display.includes('grid')) {
+        const justifyItems = (cs.justifyItems || '').toLowerCase();
+        const justifyContent = (cs.justifyContent || '').toLowerCase();
+        const relevant = justifyItems || justifyContent;
+        if (relevant.includes('center')) return 'center';
+        if (relevant.includes('end') || relevant.includes('right')) return 'right';
+        if (relevant.includes('start') || relevant.includes('left')) return 'left';
+    }
+    return null;
+}
+
 export function buildTextElement(el, sectionRect, type, extra = {}) {
     const styles = getComputedStyles(el);
     const { renderContext = null, ...restExtra } = extra;
@@ -90,7 +122,7 @@ export function buildTextElement(el, sectionRect, type, extra = {}) {
             type: type,
             box: getBox(el, sectionRect),
             zIndex: getZIndex(el),
-            alignment: styles.textAlign,
+            alignment: resolveHorizontalAlign(styles) || 'left',
             verticalAlign: resolveVerticalAlign(styles),
             lineHeightPx: parseFloat(styles.lineHeight) ? _scaleY(parseFloat(styles.lineHeight), ctx) : null,
             spaceBeforePx: _scaleY(parseFloat(styles.marginTop) || 0, ctx),
