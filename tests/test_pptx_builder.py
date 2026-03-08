@@ -371,7 +371,9 @@ class TestTextboxContent:
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
         textbox = next(
-            shape for shape in slide.shapes if shape.has_text_frame and shape.text == "1"
+            shape
+            for shape in slide.shapes
+            if shape.has_text_frame and shape.text == "1"
         )
         assert textbox.text_frame.vertical_anchor == MSO_VERTICAL_ANCHOR.MIDDLE
         assert "<a:lnSpc>" not in textbox.text_frame.paragraphs[0]._p.xml
@@ -1549,9 +1551,7 @@ class TestDecorationRendering:
 
         assert len(slide.shapes) == 2
         border_shape = next(
-            shape
-            for shape in slide.shapes
-            if 'val="334155"' in shape._element.xml
+            shape for shape in slide.shapes if 'val="334155"' in shape._element.xml
         )
         assert border_shape.height == px_to_emu(1)
         assert border_shape.width == px_to_emu(300)

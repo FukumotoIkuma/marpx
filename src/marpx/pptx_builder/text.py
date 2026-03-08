@@ -390,8 +390,12 @@ def _set_text_frame_margins_from_element(text_frame, element: SlideElement) -> N
 
     left = max(content_box.x - element.box.x, 0)
     top = max(content_box.y - element.box.y, 0)
-    right = max((element.box.x + element.box.width) - (content_box.x + content_box.width), 0)
-    bottom = max((element.box.y + element.box.height) - (content_box.y + content_box.height), 0)
+    right = max(
+        (element.box.x + element.box.width) - (content_box.x + content_box.width), 0
+    )
+    bottom = max(
+        (element.box.y + element.box.height) - (content_box.y + content_box.height), 0
+    )
     text_frame.margin_left = Emu(px_to_emu(left))
     text_frame.margin_top = Emu(px_to_emu(top))
     text_frame.margin_right = Emu(px_to_emu(right))

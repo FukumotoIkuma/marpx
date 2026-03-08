@@ -15,6 +15,7 @@ from marpx.models import ElementType
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
+
 @pytest.fixture(scope="module")
 def simple_html(session_output_dir: Path) -> Path:
     """Render simple.md to HTML for extraction tests."""
@@ -24,7 +25,9 @@ def simple_html(session_output_dir: Path) -> Path:
 @pytest.fixture(scope="module")
 def nested_list_html(session_output_dir: Path) -> Path:
     """Render nested-list.md to HTML."""
-    return render_to_html(FIXTURES_DIR / "nested-list.md", output_dir=session_output_dir)
+    return render_to_html(
+        FIXTURES_DIR / "nested-list.md", output_dir=session_output_dir
+    )
 
 
 @pytest.fixture(scope="module")
@@ -608,9 +611,7 @@ class TestRenderedLayoutCapture:
         first_item_text = "".join(run.text for run in lists[0].list_items[0].runs)
         assert "☐ " in first_item_text
 
-    def test_extracts_object_fit_metadata(
-        self, rendered_layout_images_pres
-    ) -> None:
+    def test_extracts_object_fit_metadata(self, rendered_layout_images_pres) -> None:
         pres = rendered_layout_images_pres
         slide = pres.slides[0]
         images = [e for e in slide.elements if e.element_type == ElementType.IMAGE]
@@ -1019,9 +1020,10 @@ style: |
         quote_paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
         )
-        assert "".join(
-            run.text for p in quote_paragraph.paragraphs for run in p.runs
-        ) == "Quoted text"
+        assert (
+            "".join(run.text for p in quote_paragraph.paragraphs for run in p.runs)
+            == "Quoted text"
+        )
         badge = next(
             e
             for e in pseudo_blocks
@@ -1460,7 +1462,10 @@ marp: true
         paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
         )
-        assert "".join(run.text for p in paragraph.paragraphs for run in p.runs) == "Upload"
+        assert (
+            "".join(run.text for p in paragraph.paragraphs for run in p.runs)
+            == "Upload"
+        )
 
     def test_flex_centered_decorated_text_sets_middle_vertical_align(
         self, tmp_path: Path, tmp_output_dir: Path
@@ -1494,7 +1499,9 @@ style: |
         pres = extract_presentation_sync(html_path)
         slide = pres.slides[0]
 
-        num = next(e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK)
+        num = next(
+            e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
+        )
         assert num.vertical_align == "middle"
         assert num.paragraphs[0].alignment == "center"
 
@@ -1538,7 +1545,9 @@ style: |
         ]
         assert all(paragraph.alignment == "center" for paragraph in floating.paragraphs)
 
-    def test_decoration_only_leaf_block_is_extracted(self, tmp_path: Path, tmp_output_dir: Path) -> None:
+    def test_decoration_only_leaf_block_is_extracted(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
         md_path = tmp_path / "decoration-only-bar.md"
         md_path.write_text(
             """---
@@ -1562,7 +1571,9 @@ style: |
         html_path = render_to_html(md_path, output_dir=tmp_output_dir)
         pres = extract_presentation_sync(html_path)
         slide = pres.slides[0]
-        bar = next(e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK)
+        bar = next(
+            e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
+        )
         assert bar.decoration is not None
         assert bar.decoration.background_gradient is not None
         assert bar.paragraphs == []
@@ -1619,7 +1630,8 @@ style: |
         assert len(decorated) >= 3
         panel = max(decorated, key=lambda e: e.box.width * e.box.height)
         bars = [
-            e for e in decorated
+            e
+            for e in decorated
             if e is not panel and e.decoration and e.decoration.background_gradient
         ]
         assert panel.paragraphs == []
@@ -1629,12 +1641,18 @@ style: |
             e.element_type == ElementType.HEADING
             or (
                 e.element_type == ElementType.PARAGRAPH
-                and any("Revenue by Month" in run.text for p in e.paragraphs for run in p.runs)
+                and any(
+                    "Revenue by Month" in run.text
+                    for p in e.paragraphs
+                    for run in p.runs
+                )
             )
             for e in slide.elements
         )
 
-    def test_presentational_list_recurses_into_children(self, tmp_path: Path, tmp_output_dir: Path) -> None:
+    def test_presentational_list_recurses_into_children(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
         md_path = tmp_path / "presentational-list.md"
         md_path.write_text(
             """---
@@ -1711,8 +1729,11 @@ style: |
         ]
         panel = max(decorated, key=lambda e: e.box.width * e.box.height)
         rows = [
-            e for e in decorated
-            if e is not panel and e.decoration and e.decoration.border_bottom.width_px > 0
+            e
+            for e in decorated
+            if e is not panel
+            and e.decoration
+            and e.decoration.border_bottom.width_px > 0
         ]
 
         assert panel.paragraphs == []

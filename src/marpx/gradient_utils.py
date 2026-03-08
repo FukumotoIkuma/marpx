@@ -136,7 +136,9 @@ def render_linear_gradient_png(
 def parse_radial_gradient(css_gradient: str) -> ParsedRadialGradient | None:
     """Parse a simple CSS radial-gradient() string."""
     gradient = css_gradient.strip()
-    if not gradient.lower().startswith("radial-gradient(") or not gradient.endswith(")"):
+    if not gradient.lower().startswith("radial-gradient(") or not gradient.endswith(
+        ")"
+    ):
         return None
 
     inner = gradient[len("radial-gradient(") : -1]
