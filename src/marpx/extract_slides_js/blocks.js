@@ -32,8 +32,13 @@
     }
 
     export function shouldDecomposeDecoratedBlock(el) {
+        const hasUnsupportedDescendant = Array.from(el.querySelectorAll('*')).some(
+            (node) => !!isUnsupported(node)
+        );
+        if (hasUnsupportedDescendant) return true;
         return Array.from(el.children).some((child) =>
             shouldExtractStandaloneDecoratedText(child, extractDecoration(child)) ||
+            !!isUnsupported(child) ||
             ['table', 'img', 'pre', 'marp-pre'].includes(
                 (child.localName || child.tagName).toLowerCase()
             ) ||

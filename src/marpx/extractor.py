@@ -65,6 +65,7 @@ def _build_text_style(raw_style: dict) -> TextStyle:
         strike=raw_style.get("strike", False),
         color=color,
         background_color=background_color,
+        text_gradient=raw_style.get("textGradient"),
     )
 
 

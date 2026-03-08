@@ -34,7 +34,7 @@ function _isTransparentTextFill(cs) {
     return !!color && color.a === 0;
 }
 
-export function getUnsupportedStyleReason(cs) {
+function _extractTextGradient(cs, ctx) {
     const backgroundClip = (cs.webkitBackgroundClip || cs.backgroundClip || '').toLowerCase();
     if (
         backgroundClip.includes('text') &&
@@ -42,9 +42,12 @@ export function getUnsupportedStyleReason(cs) {
         cs.backgroundImage.includes('gradient(') &&
         _isTransparentTextFill(cs)
     ) {
-        return 'Gradient text';
+        return _applyOpacityToGradient(cs.backgroundImage, ctx.effectiveOpacity);
     }
+    return null;
+}
 
+export function getUnsupportedStyleReason(cs) {
     const filter = cs.filter || '';
     if (filter && filter !== 'none') {
         return 'CSS filter';
@@ -239,6 +242,7 @@ function _runBackgroundColor(el, cs) {
 export function styleToRunStyle(cs, el = null, renderContext = null) {
     const textDecoration = _resolveEffectiveTextDecoration(el, cs);
     const ctx = renderContext || deriveRenderContext(el, null, cs);
+    const textGradient = _extractTextGradient(cs, ctx);
     return {
         fontFamily: cs.fontFamily,
         fontSizePx: _scaleText(parseFloat(cs.fontSize), ctx),
@@ -248,6 +252,7 @@ export function styleToRunStyle(cs, el = null, renderContext = null) {
         strike: textDecoration.has('line-through'),
         color: _resolveRunTextColor(cs, ctx),
         backgroundColor: applyOpacityToColor(_runBackgroundColor(el, cs), ctx.effectiveOpacity),
+        textGradient,
     };
 }
 

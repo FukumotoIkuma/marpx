@@ -14,6 +14,7 @@ from marpx.models import (
     TextRun,
     TextStyle,
 )
+from marpx.gradient_utils import css_angle_to_ooxml_angle, parse_linear_gradient
 from marpx.utils import (
     blend_alpha,
     px_to_emu,
@@ -69,6 +70,8 @@ def _apply_text_style(run, style: TextStyle) -> None:
         alpha.set("val", str(int(style.color.a * 100000)))
     else:
         run.font.color.rgb = _to_rgb(style.color)
+    if style.text_gradient:
+        _set_run_gradient_fill(r_pr, style.text_gradient)
     if style.background_color and style.background_color.a > 0:
         r_pr = run._r.get_or_add_rPr()
         existing = r_pr.find(qn("a:highlight"))
@@ -94,6 +97,58 @@ def _apply_text_style(run, style: TextStyle) -> None:
             r_pr.append(highlight)
         else:
             insert_before.addprevious(highlight)
+
+
+def _set_run_gradient_fill(r_pr, css_gradient: str) -> None:
+    """Apply a linear gradient fill directly to a run properties node."""
+    parsed = parse_linear_gradient(css_gradient)
+    if parsed is None:
+        return
+
+    for child in list(r_pr):
+        if child.tag in {
+            qn("a:solidFill"),
+            qn("a:gradFill"),
+            qn("a:noFill"),
+            qn("a:blipFill"),
+        }:
+            r_pr.remove(child)
+
+    grad_fill = etree.Element(qn("a:gradFill"))
+    grad_fill.set("flip", "none")
+    grad_fill.set("rotWithShape", "1")
+    gs_lst = etree.SubElement(grad_fill, qn("a:gsLst"))
+    for stop in parsed.stops:
+        gs = etree.SubElement(gs_lst, qn("a:gs"))
+        gs.set("pos", str(int(round(stop.position * 100000))))
+        srgb = etree.SubElement(gs, qn("a:srgbClr"))
+        srgb.set("val", f"{stop.color.r:02X}{stop.color.g:02X}{stop.color.b:02X}")
+        if stop.color.a < 1.0:
+            etree.SubElement(srgb, qn("a:alpha")).set(
+                "val", str(int(round(stop.color.a * 100000)))
+            )
+
+    lin = etree.SubElement(grad_fill, qn("a:lin"))
+    lin.set("ang", str(css_angle_to_ooxml_angle(parsed.angle_deg)))
+    lin.set("scaled", "0")
+    etree.SubElement(grad_fill, qn("a:tileRect"))
+
+    insert_before = None
+    for child in r_pr:
+        if child.tag in {
+            qn("a:latin"),
+            qn("a:ea"),
+            qn("a:cs"),
+            qn("a:sym"),
+            qn("a:hlinkClick"),
+            qn("a:hlinkMouseOver"),
+        }:
+            insert_before = child
+            break
+    if insert_before is None:
+        r_pr.append(grad_fill)
+    else:
+        insert_before.addprevious(grad_fill)
 
 
 def _add_paragraph_runs(pptx_para, runs: list[TextRun]) -> None:

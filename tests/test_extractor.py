@@ -504,17 +504,18 @@ marp: true
             for element in slide.elements
             if element.element_type == ElementType.DECORATED_BLOCK
         )
-        unsupported = next(
-            element
-            for element in slide.elements
-            if element.element_type == ElementType.UNSUPPORTED
-        )
-
         assert dot.decoration is not None
         assert dot.decoration.background_gradient is not None
         assert "".join(run.text for p in dot.paragraphs for run in p.runs) == "Q1"
-        assert unsupported.unsupported_info is not None
-        assert unsupported.unsupported_info.reason == "Gradient text"
+        heading = next(
+            element
+            for element in slide.elements
+            if element.element_type == ElementType.HEADING
+        )
+        gradient_run = heading.paragraphs[0].runs[0]
+        assert gradient_run.text == "Gradient Heading"
+        assert gradient_run.style.text_gradient is not None
+        assert "linear-gradient(" in gradient_run.style.text_gradient
 
 
 @pytest.mark.integration
@@ -1186,7 +1187,7 @@ style: |
         assert any(e.element_type == ElementType.TABLE for e in slide.elements)
         assert all(e.element_type != ElementType.UNSUPPORTED for e in slide.elements)
 
-    def test_inline_gradient_text_becomes_unsupported_with_placeholder(
+    def test_inline_gradient_text_stays_native_run(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:
         md_path = tmp_path / "gradient-text.md"
@@ -1215,17 +1216,60 @@ This has <span class="gradient">gradient text</span> inline.
         paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
         )
-        placeholder_runs = [
-            run for run in paragraph.paragraphs[0].runs if run.style.color.a == 0.0
-        ]
-        assert len(placeholder_runs) == 1
-        assert "gradient text" in placeholder_runs[0].text
-
-        unsupported = next(
-            e for e in slide.elements if e.element_type == ElementType.UNSUPPORTED
+        gradient_run = next(
+            run for run in paragraph.paragraphs[0].runs if "gradient text" in run.text
         )
-        assert unsupported.unsupported_info is not None
-        assert unsupported.unsupported_info.reason == "Gradient text"
+        assert gradient_run.style.text_gradient is not None
+        assert "linear-gradient(" in gradient_run.style.text_gradient
+        assert all(e.element_type != ElementType.UNSUPPORTED for e in slide.elements)
+
+    def test_block_gradient_text_inside_decorated_block_stays_native(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "gradient-text-card.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  .card {
+    background: rgba(59,130,246,0.12);
+    border: 1px solid rgba(59,130,246,0.3);
+    border-radius: 16px;
+    padding: 24px;
+    width: 320px;
+  }
+  .metric-number {
+    font-size: 56px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #60a5fa, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.2;
+  }
+---
+
+# Slide
+
+<div class="card">
+  <div class="metric-number">2.4M</div>
+  <div>Monthly Active Users</div>
+</div>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        card = next(
+            e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
+        )
+        texts = ["".join(run.text for run in para.runs) for para in card.paragraphs]
+        assert "2.4M" in texts[0]
+        assert card.paragraphs[0].runs[0].style.text_gradient is not None
+        assert any("Monthly Active Users" in text for text in texts)
+        assert all(e.element_type != ElementType.UNSUPPORTED for e in slide.elements)
 
     def test_backdrop_filter_block_stays_native(
         self, tmp_path: Path, tmp_output_dir: Path

@@ -48,6 +48,7 @@ class TextStyle(BaseModel):
     strike: bool = False
     color: RGBAColor = Field(default_factory=lambda: RGBAColor(r=0, g=0, b=0))
     background_color: RGBAColor | None = None
+    text_gradient: str | None = None
 
 
 class TextRun(BaseModel):

@@ -302,6 +302,40 @@ class TestTextboxContent:
         run = textbox.text_frame.paragraphs[0].runs[0]
         assert 'strike="sngStrike"' in run._r.xml
 
+    def test_gradient_text_run_emits_grad_fill(self, tmp_path: Path) -> None:
+        element = SlideElement(
+            element_type=ElementType.PARAGRAPH,
+            box=Box(x=50, y=100, width=600, height=80),
+            paragraphs=[
+                Paragraph(
+                    runs=[
+                        TextRun(
+                            text="2.4M",
+                            style=TextStyle(
+                                bold=True,
+                                font_size_px=56,
+                                text_gradient="linear-gradient(135deg, #60a5fa, #c084fc)",
+                            ),
+                        )
+                    ]
+                )
+            ],
+        )
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        textbox = next(shape for shape in slide.shapes if shape.has_text_frame)
+        run = textbox.text_frame.paragraphs[0].runs[0]
+
+        assert "a:gradFill" in run._r.xml
+        assert 'val="60A5FA"' in run._r.xml
+        assert 'val="C084FC"' in run._r.xml
+        assert "<a:tileRect/>" in run._r.xml
+        assert run._r.xml.index("a:gradFill") < run._r.xml.index("a:latin")
+
     def test_inline_code_run_sets_highlight_color(self, tmp_path: Path) -> None:
         pres = Presentation(
             slides=[
@@ -850,15 +884,16 @@ class TestShapeCount:
         slide = pptx.slides[0]
 
         bg_shape = next(
-            shape
-            for shape in slide.shapes
-            if shape.has_text_frame and shape.text == ""
+            shape for shape in slide.shapes if shape.has_text_frame and shape.text == ""
         )
         assert "a:gradFill" in bg_shape._element.xml
         assert 'val="FF0000"' in bg_shape._element.xml
         assert 'val="0000FF"' in bg_shape._element.xml
         assert 'a:lin ang="18900000"' in bg_shape._element.xml
-        assert any(shape.has_text_frame and "Gradient card" in shape.text for shape in slide.shapes)
+        assert any(
+            shape.has_text_frame and "Gradient card" in shape.text
+            for shape in slide.shapes
+        )
 
     def test_horizontal_linear_gradient_decoration_maps_to_ooxml_zero_angle(
         self, tmp_path: Path
@@ -920,6 +955,42 @@ class TestShapeCount:
         assert 'dir="5400000"' in xml
         assert 'val="3B82F6"' in xml
         assert 'a:alpha val="15000"' in xml
+
+    def test_spread_only_box_shadow_renders_outline_shape(self, tmp_path: Path) -> None:
+        box = Box(x=50, y=100, width=48, height=48)
+        decoration = BoxDecoration(
+            background_gradient="linear-gradient(135deg, #3b82f6, #8b5cf6)",
+            border_radius_px=24,
+            box_shadows=[
+                BoxShadow(
+                    offset_x_px=0,
+                    offset_y_px=0,
+                    blur_radius_px=0,
+                    spread_px=2,
+                    color=RGBAColor(r=139, g=92, b=246),
+                )
+            ],
+        )
+        element = SlideElement(
+            element_type=ElementType.DECORATED_BLOCK,
+            box=box,
+            content_box=box,
+            paragraphs=[],
+            decoration=decoration,
+        )
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        outline_shape = next(
+            shape
+            for shape in slide.shapes
+            if f'w="{px_to_emu(4)}"' in shape._element.xml
+            and 'val="8B5CF6"' in shape._element.xml
+        )
+        assert "a:outerShdw" not in outline_shape._element.xml
 
     def test_inset_box_shadow_emits_inner_shadow(self, tmp_path: Path) -> None:
         box = Box(x=50, y=100, width=320, height=120)
@@ -1718,7 +1789,9 @@ class TestSolidBackground:
         fill = bg.fill
         assert fill.type is not None
 
-    def test_slide_linear_gradient_background_renders_picture(self, tmp_path: Path) -> None:
+    def test_slide_linear_gradient_background_renders_picture(
+        self, tmp_path: Path
+    ) -> None:
         pres = Presentation(
             slides=[
                 Slide(
