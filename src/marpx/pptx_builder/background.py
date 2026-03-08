@@ -19,6 +19,30 @@ from .image import _is_svg_source
 logger = logging.getLogger(__name__)
 
 
+def _resolve_split_box(
+    bg_image: BackgroundImage, slide_width_emu: int, slide_height_emu: int
+) -> tuple[int, int, int, int]:
+    """Resolve the destination box for a split background image."""
+    if bg_image.box is not None:
+        return (
+            px_to_emu(bg_image.box.x),
+            px_to_emu(bg_image.box.y),
+            px_to_emu(bg_image.box.width),
+            px_to_emu(bg_image.box.height),
+        )
+
+    split_ratio = bg_image.split_ratio if bg_image.split_ratio is not None else 0.5
+    split_ratio = max(0.0, min(split_ratio, 1.0))
+
+    if bg_image.split == "left":
+        box_width = round(slide_width_emu * split_ratio)
+        return 0, 0, box_width, slide_height_emu
+    if bg_image.split == "right":
+        box_width = round(slide_width_emu * split_ratio)
+        return slide_width_emu - box_width, 0, box_width, slide_height_emu
+    return 0, 0, slide_width_emu, slide_height_emu
+
+
 def _add_background_image(
     pptx_slide,
     bg_image: BackgroundImage,
@@ -47,22 +71,11 @@ def _add_background_image(
     except Exception:
         logger.warning("Failed to inspect background image size: %s", bg_image.url)
 
-    # Calculate placement box based on split mode
-    if bg_image.split == "left":
-        box_left = 0
-        box_top = 0
-        box_width = slide_width_emu // 2
-        box_height = slide_height_emu
-    elif bg_image.split == "right":
-        box_left = slide_width_emu // 2
-        box_top = 0
-        box_width = slide_width_emu // 2
-        box_height = slide_height_emu
-    else:
-        box_left = 0
-        box_top = 0
-        box_width = slide_width_emu
-        box_height = slide_height_emu
+    box_left, box_top, box_width, box_height = _resolve_split_box(
+        bg_image,
+        slide_width_emu,
+        slide_height_emu,
+    )
 
     left = Emu(box_left)
     top = Emu(box_top)

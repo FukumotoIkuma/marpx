@@ -105,6 +105,10 @@
         }
 
         function hasUnsupportedBlockDescendants(child) {
+            const tag = child.tagName.toLowerCase();
+            if (tag === 'table' || tag === 'img' || tag === 'pre' || tag === 'marp-pre' || tag === 'blockquote') {
+                return true;
+            }
             return !!child.querySelector('table, img, pre, marp-pre, blockquote');
         }
 
@@ -192,6 +196,10 @@
                 ];
             }
             return paragraphs;
+        }
+
+        if (el.querySelector('blockquote')) {
+            return [];
         }
 
         if (cs.whiteSpace.includes('pre') || el.querySelector('br')) {

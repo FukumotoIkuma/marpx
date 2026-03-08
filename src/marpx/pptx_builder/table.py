@@ -14,6 +14,17 @@ from ._helpers import _set_fill_color, _set_srgb_alpha
 from .text import _add_paragraph_runs
 
 
+def _remove_table_style(table) -> None:
+    """Strip theme table styling so extracted cell styles are authoritative."""
+    tbl_pr = table._tbl.tblPr
+    style_id = tbl_pr.find(qn("a:tableStyleId"))
+    if style_id is not None:
+        tbl_pr.remove(style_id)
+    for attr in ("firstRow", "firstCol", "lastRow", "lastCol", "bandRow", "bandCol"):
+        if attr in tbl_pr.attrib:
+            del tbl_pr.attrib[attr]
+
+
 def _set_cell_content(pptx_cell, cell: TableCell) -> None:
     """Set content and styling on a PPTX table cell."""
     tf = pptx_cell.text_frame
@@ -28,16 +39,16 @@ def _set_cell_content(pptx_cell, cell: TableCell) -> None:
             p = tf.add_paragraph()
         _add_paragraph_runs(p, para.runs)
 
+    _set_cell_border(pptx_cell, "L", cell.border_left)
+    _set_cell_border(pptx_cell, "R", cell.border_right)
+    _set_cell_border(pptx_cell, "T", cell.border_top)
+    _set_cell_border(pptx_cell, "B", cell.border_bottom)
+
     if cell.background_gradient:
         _set_cell_gradient_fill(pptx_cell, cell.background_gradient)
     elif cell.background:
         fill = pptx_cell.fill
         _set_fill_color(fill, cell.background)
-
-    _set_cell_border(pptx_cell, "L", cell.border_left)
-    _set_cell_border(pptx_cell, "R", cell.border_right)
-    _set_cell_border(pptx_cell, "T", cell.border_top)
-    _set_cell_border(pptx_cell, "B", cell.border_bottom)
 
 
 def _set_cell_gradient_fill(pptx_cell, css_gradient: str) -> None:
@@ -69,6 +80,21 @@ def _set_cell_gradient_fill(pptx_cell, css_gradient: str) -> None:
     lin.set("scaled", "0")
 
 
+def _configure_table_border_line(line, width_emu: int) -> None:
+    """Match PowerPoint's own table border XML shape defaults."""
+    line.set("w", str(width_emu))
+    line.set("cap", "flat")
+    line.set("cmpd", "sng")
+    line.set("algn", "ctr")
+
+
+def _table_border_width_emu(width_px: float) -> int:
+    """Map CSS border widths to PowerPoint table border widths."""
+    if width_px <= 0:
+        return 0
+    return max(px_to_emu(width_px), 12700)
+
+
 def _set_cell_border(pptx_cell, side: str, border) -> None:
     """Apply a single table cell border side via tcPr XML."""
     tc_pr = pptx_cell._tc.get_or_add_tcPr()
@@ -77,21 +103,44 @@ def _set_cell_border(pptx_cell, side: str, border) -> None:
     if existing is not None:
         tc_pr.remove(existing)
 
+    width_emu = _table_border_width_emu(border.width_px)
     if (
         border.width_px <= 0
         or border.style == "none"
         or border.color is None
         or border.color.a <= 0
     ):
+        line = etree.SubElement(tc_pr, tag)
+        _configure_table_border_line(line, width_emu or 12700)
+        etree.SubElement(line, qn("a:noFill"))
+        etree.SubElement(line, qn("a:prstDash")).set("val", "solid")
+        etree.SubElement(line, qn("a:round"))
+        head_end = etree.SubElement(line, qn("a:headEnd"))
+        head_end.set("type", "none")
+        head_end.set("w", "med")
+        head_end.set("len", "med")
+        tail_end = etree.SubElement(line, qn("a:tailEnd"))
+        tail_end.set("type", "none")
+        tail_end.set("w", "med")
+        tail_end.set("len", "med")
         return
 
     line = etree.SubElement(tc_pr, tag)
-    line.set("w", str(px_to_emu(border.width_px)))
+    _configure_table_border_line(line, width_emu)
     solid_fill = etree.SubElement(line, qn("a:solidFill"))
     srgb = etree.SubElement(solid_fill, qn("a:srgbClr"))
     srgb.set("val", f"{border.color.r:02X}{border.color.g:02X}{border.color.b:02X}")
     _set_srgb_alpha(solid_fill, border.color.a)
     etree.SubElement(line, qn("a:prstDash")).set("val", "solid")
+    etree.SubElement(line, qn("a:round"))
+    head_end = etree.SubElement(line, qn("a:headEnd"))
+    head_end.set("type", "none")
+    head_end.set("w", "med")
+    head_end.set("len", "med")
+    tail_end = etree.SubElement(line, qn("a:tailEnd"))
+    tail_end.set("type", "none")
+    tail_end.set("w", "med")
+    tail_end.set("len", "med")
 
 
 def _add_table(slide, element: SlideElement) -> None:
@@ -118,6 +167,7 @@ def _add_table(slide, element: SlideElement) -> None:
 
     table_shape = slide.shapes.add_table(num_rows, num_cols, left, top, width, height)
     table = table_shape.table
+    _remove_table_style(table)
 
     column_widths_px = [0.0] * num_cols
 

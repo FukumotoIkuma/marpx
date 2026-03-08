@@ -223,13 +223,15 @@ function _runBackgroundColor(el, cs) {
 }
 
 export function styleToRunStyle(cs, el = null, renderContext = null) {
+    const textDecoration = cs.textDecorationLine || cs.textDecoration || '';
     const ctx = renderContext || deriveRenderContext(el, null, cs);
     return {
         fontFamily: cs.fontFamily,
         fontSizePx: parseFloat(cs.fontSize),
         bold: parseInt(cs.fontWeight) >= 600 || cs.fontWeight === 'bold',
         italic: cs.fontStyle === 'italic',
-        underline: (cs.textDecorationLine || cs.textDecoration || '').includes('underline'),
+        underline: textDecoration.includes('underline'),
+        strike: textDecoration.includes('line-through'),
         color: _resolveRunTextColor(cs, ctx),
         backgroundColor: applyOpacityToColor(_runBackgroundColor(el, cs), ctx.effectiveOpacity),
     };

@@ -164,13 +164,19 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
 
 export function handleBlockquote(el, slideRect, slideData, decoration, renderContext) {
     const hasDecoration = hasMeaningfulDecoration(decoration);
-    slideData.elements.push(
-        buildTextElement(el, slideRect, 'blockquote', {
-            runs: extractTextRunsWithPseudo(el, renderContext),
-            decoration: hasDecoration ? decoration : null,
-            contentBox: hasDecoration ? getContentBox(el, slideRect) : null,
-        })
-    );
+    slideData.elements.push({
+        type: 'blockquote',
+        box: getBox(el, slideRect),
+        contentBox: hasDecoration ? getContentBox(el, slideRect) : null,
+        zIndex: getZIndex(el),
+        paragraphs: extractParagraphsFromContainer(el, renderContext),
+        decoration: hasDecoration ? decoration : null,
+    });
+    for (const child of Array.from(el.children)) {
+        if ((child.localName || child.tagName).toLowerCase() === 'blockquote') {
+            processElement(child, slideRect, slideData, renderContext);
+        }
+    }
 }
 
 export function handleList(el, slideRect, slideData, tag, renderContext) {

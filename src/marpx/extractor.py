@@ -61,6 +61,7 @@ def _build_text_style(raw_style: dict) -> TextStyle:
         bold=raw_style.get("bold", False),
         italic=raw_style.get("italic", False),
         underline=raw_style.get("underline", False),
+        strike=raw_style.get("strike", False),
         color=color,
         background_color=background_color,
     )
@@ -157,7 +158,10 @@ def _build_slide_element(raw: dict) -> SlideElement:
         ElementType.PARAGRAPH,
         ElementType.BLOCKQUOTE,
     ):
-        element.paragraphs = _build_paragraphs([raw])
+        if "paragraphs" in raw:
+            element.paragraphs = _build_paragraphs(raw.get("paragraphs", []))
+        else:
+            element.paragraphs = _build_paragraphs([raw])
         element.decoration = _build_decoration(raw.get("decoration"))
 
         if etype == ElementType.HEADING:
@@ -349,6 +353,8 @@ async def extract_presentation(html_path: str | Path) -> Presentation:
                     size=raw_bg_img.get("size", "cover"),
                     position=raw_bg_img.get("position", "center"),
                     split=raw_bg_img.get("split"),
+                    split_ratio=raw_bg_img.get("splitRatio"),
+                    box=Box(**raw_bg_img["box"]) if raw_bg_img.get("box") else None,
                 )
             )
 

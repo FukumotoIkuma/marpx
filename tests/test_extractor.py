@@ -263,6 +263,63 @@ table { color: white; }
         background = table.table_rows[0].cells[0].background
         assert background is None or background.a > 0
 
+    def test_background_split_ratio_is_extracted(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "background-split-ratio.md"
+        md_path.write_text(
+            """---
+marp: true
+---
+
+![bg left:40%](https://picsum.photos/800/600)
+
+# Slide
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        assert len(slide.background.images) == 1
+        bg = slide.background.images[0]
+        assert bg.split == "left"
+        assert bg.split_ratio == pytest.approx(0.4)
+        assert bg.box is not None
+        assert bg.box.width == pytest.approx(slide.width_px * 0.4, abs=2)
+
+    def test_multiple_background_images_keep_distinct_boxes(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "multiple-backgrounds.md"
+        md_path.write_text(
+            """---
+marp: true
+---
+
+![bg](https://picsum.photos/1280/720?random=1)
+![bg](https://picsum.photos/1280/720?random=2)
+
+# Slide
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        assert len(slide.background.images) == 2
+        first, second = slide.background.images
+        assert first.box is not None
+        assert second.box is not None
+        assert first.box.x == pytest.approx(0, abs=2)
+        assert second.box.x > first.box.x
+        assert first.box.width == pytest.approx(slide.width_px / 2, abs=2)
+        assert second.box.width == pytest.approx(slide.width_px / 2, abs=2)
+
     def test_table_text_does_not_inherit_hidden_svg_opacity(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:
@@ -1056,6 +1113,58 @@ style: |
         assert quote.decoration.padding.left_px > 0
         assert quote.content_box.x > quote.box.x
         assert quote.content_box.width < quote.box.width
+
+    def test_nested_blockquote_preserves_nested_quote_and_paragraph_break(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "nested-blockquote.md"
+        md_path.write_text(
+            """# Slide
+
+> > line one
+> >
+> > -- **Jeff Atwood**, *Coding Horror*
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        quotes = [e for e in slide.elements if e.element_type == ElementType.BLOCKQUOTE]
+
+        assert len(quotes) == 2
+        outer, inner = quotes
+        assert outer.paragraphs == []
+        assert len(inner.paragraphs) == 2
+        assert "".join(run.text for run in inner.paragraphs[1].runs).startswith(
+            "-- Jeff Atwood"
+        )
+
+    def test_blockquote_strikethrough_is_extracted(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "blockquote-strike.md"
+        md_path.write_text(
+            """# Slide
+
+> Remember that ~~premature optimization~~ is the root of all evil.
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        quote = next(
+            e for e in slide.elements if e.element_type == ElementType.BLOCKQUOTE
+        )
+        struck = next(
+            run
+            for run in quote.paragraphs[0].runs
+            if run.text == "premature optimization"
+        )
+        assert struck.style.strike is True
 
     def test_extracts_element_z_index(self, tmp_path: Path) -> None:
         html_path = tmp_path / "zindex.html"

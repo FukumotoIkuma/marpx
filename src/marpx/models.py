@@ -45,6 +45,7 @@ class TextStyle(BaseModel):
     bold: bool = False
     italic: bool = False
     underline: bool = False
+    strike: bool = False
     color: RGBAColor = Field(default_factory=lambda: RGBAColor(r=0, g=0, b=0))
     background_color: RGBAColor | None = None
 
@@ -108,6 +109,8 @@ class BackgroundImage(BaseModel):
     size: str = "cover"  # cover, contain
     position: str = "center"  # center, left, right, top, bottom
     split: str | None = None  # left, right, or None
+    split_ratio: float | None = Field(default=None, ge=0.0, le=1.0)
+    box: Box | None = None
     image_data: bytes | None = None
 
 

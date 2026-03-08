@@ -48,9 +48,13 @@ def _apply_text_style(run, style: TextStyle) -> None:
     run.font.bold = style.bold
     run.font.italic = style.italic
     run.font.underline = style.underline
+    r_pr = run._r.get_or_add_rPr()
+    if style.strike:
+        r_pr.set("strike", "sngStrike")
+    elif "strike" in r_pr.attrib:
+        del r_pr.attrib["strike"]
     if style.color.a < 1.0:
         run.font.color.rgb = RGBColor(style.color.r, style.color.g, style.color.b)
-        r_pr = run._r.get_or_add_rPr()
         solid_fill = r_pr.find(qn("a:solidFill"))
         if solid_fill is None:
             solid_fill = etree.SubElement(r_pr, qn("a:solidFill"))

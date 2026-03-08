@@ -8,6 +8,13 @@
 export function extractBackgroundImages(slideRoot, advBg, section) {
     const bgImages = [];
     if (advBg === 'content') {
+        const slideRect = slideRoot.getBoundingClientRect();
+        const splitValue = window.getComputedStyle(section)
+            .getPropertyValue('--marpit-advanced-background-split')
+            .trim();
+        const splitRatio = splitValue.endsWith('%')
+            ? Math.max(0, Math.min(parseFloat(splitValue) / 100, 1))
+            : null;
         // Find the matching background section within the same slide root.
         const bgSection = slideRoot.querySelector(
             'section[data-marpit-advanced-background="background"]'
@@ -21,10 +28,18 @@ export function extractBackgroundImages(slideRoot, advBg, section) {
                     // Extract URL from url("...")
                     const urlMatch = bgImg.match(/url\(["']?([^"')]+)["']?\)/);
                     if (urlMatch) {
+                        const figRect = fig.getBoundingClientRect();
                         bgImages.push({
                             url: urlMatch[1],
                             size: figCs.backgroundSize || 'cover',
                             position: figCs.backgroundPosition || 'center',
+                            splitRatio: splitRatio,
+                            box: {
+                                x: figRect.left - slideRect.left,
+                                y: figRect.top - slideRect.top,
+                                width: figRect.width,
+                                height: figRect.height,
+                            },
                         });
                     }
                 }

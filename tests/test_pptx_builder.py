@@ -276,6 +276,31 @@ class TestTextboxContent:
                     texts.append(para.text)
         assert any("Hello World" in t for t in texts)
 
+    def test_strikethrough_run_is_emitted(self, tmp_path: Path) -> None:
+        element = SlideElement(
+            element_type=ElementType.PARAGRAPH,
+            box=Box(x=50, y=100, width=600, height=40),
+            paragraphs=[
+                Paragraph(
+                    runs=[
+                        TextRun(
+                            text="struck",
+                            style=TextStyle(strike=True),
+                        )
+                    ]
+                )
+            ],
+        )
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        textbox = next(shape for shape in slide.shapes if shape.has_text_frame)
+        run = textbox.text_frame.paragraphs[0].runs[0]
+        assert 'strike="sngStrike"' in run._r.xml
+
     def test_inline_code_run_sets_highlight_color(self, tmp_path: Path) -> None:
         pres = Presentation(
             slides=[
@@ -1085,6 +1110,30 @@ class TestTableBuilding:
         assert cell.text_frame.margin_top == px_to_emu(14)
         assert "a:gradFill" in cell._tc.xml
         assert "a:lnB" in cell._tc.xml
+        assert 'w="12700"' in cell._tc.xml
+        assert 'cap="flat"' in cell._tc.xml
+        assert 'cmpd="sng"' in cell._tc.xml
+        assert 'algn="ctr"' in cell._tc.xml
+        assert "<a:round/>" in cell._tc.xml
+        assert "<a:headEnd" in cell._tc.xml
+        assert "<a:tailEnd" in cell._tc.xml
+
+    def test_table_style_is_removed_so_custom_borders_win(self, tmp_path: Path) -> None:
+        table_data = [["H1", "H2"], ["A1", "A2"]]
+        pres = Presentation(
+            slides=[
+                Slide(
+                    width_px=1280,
+                    height_px=720,
+                    elements=[_make_table(table_data)],
+                )
+            ],
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        table_shape = next(shape for shape in slide.shapes if shape.has_table)
+        assert "tableStyleId" not in table_shape.table._tbl.xml
 
 
 class TestCodeBlock:

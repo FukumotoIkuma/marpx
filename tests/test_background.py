@@ -9,6 +9,7 @@ import base64
 import io
 from pathlib import Path
 
+import pytest
 from PIL import Image
 from pptx import Presentation as PptxPresentation
 from pptx.util import Emu
@@ -99,10 +100,15 @@ class TestBackgroundImageModel:
     def test_split_left(self) -> None:
         bg = BackgroundImage(url="test.png", split="left")
         assert bg.split == "left"
+        assert bg.split_ratio is None
 
     def test_split_right(self) -> None:
         bg = BackgroundImage(url="test.png", split="right")
         assert bg.split == "right"
+
+    def test_split_ratio(self) -> None:
+        bg = BackgroundImage(url="test.png", split="left", split_ratio=0.4)
+        assert bg.split_ratio == pytest.approx(0.4)
 
     def test_with_image_data(self) -> None:
         data = b"\x89PNG\r\n"
@@ -199,6 +205,28 @@ class TestAddBackgroundImage:
         assert pic.width == Emu(slide_w // 2)
         assert pic.height == Emu(slide_h)
 
+    def test_split_left_uses_custom_ratio(self, tmp_path: Path) -> None:
+        """Split-left respects Marp's explicit split ratio."""
+        png_data = _create_png(640, 720)
+        bg_img = BackgroundImage(
+            url="bg.png",
+            image_data=png_data,
+            split="left",
+            split_ratio=0.4,
+        )
+
+        pptx = PptxPresentation()
+        layout = pptx.slide_layouts[6]
+        pptx_slide = pptx.slides.add_slide(layout)
+
+        slide_w = px_to_emu(1280)
+        slide_h = px_to_emu(720)
+        _add_background_image(pptx_slide, bg_img, slide_w, slide_h)
+
+        pic = pptx_slide.shapes[0]
+        assert pic.left == 0
+        assert pic.width == Emu(round(slide_w * 0.4))
+
     def test_split_right_positioning(self, tmp_path: Path) -> None:
         """Split right positions image in right half."""
         png_data = _create_png(640, 720)
@@ -217,6 +245,29 @@ class TestAddBackgroundImage:
         assert pic.top == 0
         assert pic.width == Emu(slide_w // 2)
         assert pic.height == Emu(slide_h)
+
+    def test_split_right_uses_custom_ratio(self, tmp_path: Path) -> None:
+        """Split-right respects Marp's explicit split ratio."""
+        png_data = _create_png(640, 720)
+        bg_img = BackgroundImage(
+            url="bg.png",
+            image_data=png_data,
+            split="right",
+            split_ratio=0.4,
+        )
+
+        pptx = PptxPresentation()
+        layout = pptx.slide_layouts[6]
+        pptx_slide = pptx.slides.add_slide(layout)
+
+        slide_w = px_to_emu(1280)
+        slide_h = px_to_emu(720)
+        _add_background_image(pptx_slide, bg_img, slide_w, slide_h)
+
+        pic = pptx_slide.shapes[0]
+        expected_width = round(slide_w * 0.4)
+        assert pic.left == Emu(slide_w - expected_width)
+        assert pic.width == Emu(expected_width)
 
     def test_split_right_cover_crops_to_right_half(self, tmp_path: Path) -> None:
         """Wide split-right backgrounds should crop inside the right-half box."""
