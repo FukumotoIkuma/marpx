@@ -192,7 +192,16 @@ class TestNotesIntegration:
                 pytest.skip(f"marp-cli failed: {result.stderr}")
 
             # Extract presentation
-            pres = asyncio.run(extract_presentation(html_path))
+            try:
+                asyncio.get_running_loop()
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    pres = pool.submit(
+                        asyncio.run, extract_presentation(html_path)
+                    ).result()
+            except RuntimeError:
+                pres = asyncio.run(extract_presentation(html_path))
 
             # Slide 0 should have notes
             assert pres.slides[0].notes is not None
