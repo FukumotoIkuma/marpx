@@ -13,82 +13,136 @@ from marpx.extractor import extract_presentation_sync
 from marpx.marp_renderer import render_to_html
 from marpx.models import ElementType
 
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
-@pytest.fixture()
-def simple_html(simple_md: Path, tmp_output_dir: Path) -> Path:
+@pytest.fixture(scope="module")
+def simple_html(session_output_dir: Path) -> Path:
     """Render simple.md to HTML for extraction tests."""
-    return render_to_html(simple_md, output_dir=tmp_output_dir)
+    return render_to_html(FIXTURES_DIR / "simple.md", output_dir=session_output_dir)
 
 
-@pytest.fixture()
-def nested_list_html(nested_list_md: Path, tmp_output_dir: Path) -> Path:
+@pytest.fixture(scope="module")
+def nested_list_html(session_output_dir: Path) -> Path:
     """Render nested-list.md to HTML."""
-    return render_to_html(nested_list_md, output_dir=tmp_output_dir)
+    return render_to_html(FIXTURES_DIR / "nested-list.md", output_dir=session_output_dir)
 
 
-@pytest.fixture()
-def table_html(table_md: Path, tmp_output_dir: Path) -> Path:
+@pytest.fixture(scope="module")
+def table_html(session_output_dir: Path) -> Path:
     """Render table.md to HTML."""
-    return render_to_html(table_md, output_dir=tmp_output_dir)
+    return render_to_html(FIXTURES_DIR / "table.md", output_dir=session_output_dir)
 
 
-@pytest.fixture()
-def complex_html(complex_unsupported_md: Path, tmp_output_dir: Path) -> Path:
+@pytest.fixture(scope="module")
+def complex_html(session_output_dir: Path) -> Path:
     """Render complex-unsupported.md to HTML."""
-    return render_to_html(complex_unsupported_md, output_dir=tmp_output_dir)
+    return render_to_html(
+        FIXTURES_DIR / "complex-unsupported.md", output_dir=session_output_dir
+    )
 
 
-@pytest.fixture()
-def rendered_layout_boxes_html(
-    rendered_layout_boxes_md: Path, tmp_output_dir: Path
-) -> Path:
+@pytest.fixture(scope="module")
+def rendered_layout_boxes_html(session_output_dir: Path) -> Path:
     """Render rendered-layout-boxes.md to HTML."""
-    return render_to_html(rendered_layout_boxes_md, output_dir=tmp_output_dir)
+    return render_to_html(
+        FIXTURES_DIR / "rendered-layout-boxes.md", output_dir=session_output_dir
+    )
 
 
-@pytest.fixture()
-def rendered_layout_images_html(
-    rendered_layout_images_md: Path, tmp_output_dir: Path
-) -> Path:
+@pytest.fixture(scope="module")
+def rendered_layout_images_html(session_output_dir: Path) -> Path:
     """Render rendered-layout-images.md to HTML."""
-    return render_to_html(rendered_layout_images_md, output_dir=tmp_output_dir)
+    return render_to_html(
+        FIXTURES_DIR / "rendered-layout-images.md", output_dir=session_output_dir
+    )
 
 
-@pytest.fixture()
-def quote_box_list_html(quote_box_list_md: Path, tmp_output_dir: Path) -> Path:
+@pytest.fixture(scope="module")
+def quote_box_list_html(session_output_dir: Path) -> Path:
     """Render quote-box-list.md to HTML."""
-    return render_to_html(quote_box_list_md, output_dir=tmp_output_dir)
+    return render_to_html(
+        FIXTURES_DIR / "quote-box-list.md", output_dir=session_output_dir
+    )
 
 
-@pytest.fixture()
-def decorated_raw_text_html(decorated_raw_text_md: Path, tmp_output_dir: Path) -> Path:
+@pytest.fixture(scope="module")
+def decorated_raw_text_html(session_output_dir: Path) -> Path:
     """Render decorated-raw-text.md to HTML."""
-    return render_to_html(decorated_raw_text_md, output_dir=tmp_output_dir)
+    return render_to_html(
+        FIXTURES_DIR / "decorated-raw-text.md", output_dir=session_output_dir
+    )
 
 
-@pytest.fixture()
-def multi_paragraph_html(multi_paragraph_md: Path, tmp_output_dir: Path) -> Path:
+@pytest.fixture(scope="module")
+def multi_paragraph_html(session_output_dir: Path) -> Path:
     """Render multi-paragraph.md to HTML."""
-    return render_to_html(multi_paragraph_md, output_dir=tmp_output_dir)
+    return render_to_html(
+        FIXTURES_DIR / "multi-paragraph.md", output_dir=session_output_dir
+    )
+
+
+@pytest.fixture(scope="module")
+def simple_pres(simple_html: Path):
+    return extract_presentation_sync(simple_html)
+
+
+@pytest.fixture(scope="module")
+def nested_list_pres(nested_list_html: Path):
+    return extract_presentation_sync(nested_list_html)
+
+
+@pytest.fixture(scope="module")
+def table_pres(table_html: Path):
+    return extract_presentation_sync(table_html)
+
+
+@pytest.fixture(scope="module")
+def complex_pres(complex_html: Path):
+    return extract_presentation_sync(complex_html)
+
+
+@pytest.fixture(scope="module")
+def rendered_layout_boxes_pres(rendered_layout_boxes_html: Path):
+    return extract_presentation_sync(rendered_layout_boxes_html)
+
+
+@pytest.fixture(scope="module")
+def rendered_layout_images_pres(rendered_layout_images_html: Path):
+    return extract_presentation_sync(rendered_layout_images_html)
+
+
+@pytest.fixture(scope="module")
+def quote_box_list_pres(quote_box_list_html: Path):
+    return extract_presentation_sync(quote_box_list_html)
+
+
+@pytest.fixture(scope="module")
+def decorated_raw_text_pres(decorated_raw_text_html: Path):
+    return extract_presentation_sync(decorated_raw_text_html)
+
+
+@pytest.fixture(scope="module")
+def multi_paragraph_pres(multi_paragraph_html: Path):
+    return extract_presentation_sync(multi_paragraph_html)
 
 
 @pytest.mark.integration
 class TestExtractSimple:
     """Tests for extracting simple.md presentation."""
 
-    def test_slide_count(self, simple_html: Path) -> None:
-        pres = extract_presentation_sync(simple_html)
+    def test_slide_count(self, simple_pres) -> None:
+        pres = simple_pres
         assert len(pres.slides) == 2
 
-    def test_slide_dimensions(self, simple_html: Path) -> None:
-        pres = extract_presentation_sync(simple_html)
+    def test_slide_dimensions(self, simple_pres) -> None:
+        pres = simple_pres
         slide = pres.slides[0]
         # Marp default is 1280x720
         assert slide.width_px == pytest.approx(1280, abs=10)
         assert slide.height_px == pytest.approx(720, abs=10)
 
-    def test_first_slide_has_heading(self, simple_html: Path) -> None:
-        pres = extract_presentation_sync(simple_html)
+    def test_first_slide_has_heading(self, simple_pres) -> None:
+        pres = simple_pres
         slide = pres.slides[0]
         heading_elements = [
             e for e in slide.elements if e.element_type == ElementType.HEADING
@@ -99,16 +153,16 @@ class TestExtractSimple:
         text = "".join(r.text for p in heading.paragraphs for r in p.runs)
         assert "Hello World" in text
 
-    def test_first_slide_has_paragraph(self, simple_html: Path) -> None:
-        pres = extract_presentation_sync(simple_html)
+    def test_first_slide_has_paragraph(self, simple_pres) -> None:
+        pres = simple_pres
         slide = pres.slides[0]
         para_elements = [
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
         ]
         assert len(para_elements) >= 1
 
-    def test_first_slide_has_list(self, simple_html: Path) -> None:
-        pres = extract_presentation_sync(simple_html)
+    def test_first_slide_has_list(self, simple_pres) -> None:
+        pres = simple_pres
         slide = pres.slides[0]
         list_elements = [
             e for e in slide.elements if e.element_type == ElementType.UNORDERED_LIST
@@ -122,8 +176,8 @@ class TestExtractSimple:
 class TestExtractNestedList:
     """Tests for extracting nested list presentation."""
 
-    def test_nested_levels(self, nested_list_html: Path) -> None:
-        pres = extract_presentation_sync(nested_list_html)
+    def test_nested_levels(self, nested_list_pres) -> None:
+        pres = nested_list_pres
         slide = pres.slides[0]
         list_elements = [
             e for e in slide.elements if e.element_type == ElementType.UNORDERED_LIST
@@ -135,8 +189,8 @@ class TestExtractNestedList:
         levels = {item.level for item in items}
         assert len(levels) >= 2  # At least level 0 and 1
 
-    def test_level_0_items(self, nested_list_html: Path) -> None:
-        pres = extract_presentation_sync(nested_list_html)
+    def test_level_0_items(self, nested_list_pres) -> None:
+        pres = nested_list_pres
         slide = pres.slides[0]
         list_elements = [
             e for e in slide.elements if e.element_type == ElementType.UNORDERED_LIST
@@ -146,9 +200,9 @@ class TestExtractNestedList:
         assert len(level_0) == 2  # "Level 1 item A" and "Level 1 item B"
 
     def test_unordered_nested_list_preserves_marker_styles(
-        self, nested_list_html: Path
+        self, nested_list_pres
     ) -> None:
-        pres = extract_presentation_sync(nested_list_html)
+        pres = nested_list_pres
         slide = pres.slides[0]
         list_element = next(
             e for e in slide.elements if e.element_type == ElementType.UNORDERED_LIST
@@ -159,9 +213,9 @@ class TestExtractNestedList:
         assert any(item.list_style_type == "square" for item in list_element.list_items)
 
     def test_ordered_nested_list_preserves_numbering_style_and_spacing(
-        self, nested_list_html: Path
+        self, nested_list_pres
     ) -> None:
-        pres = extract_presentation_sync(nested_list_html)
+        pres = nested_list_pres
         slide = pres.slides[1]
         list_element = next(
             e for e in slide.elements if e.element_type == ElementType.ORDERED_LIST
@@ -206,16 +260,16 @@ class TestExtractNestedList:
 class TestExtractTable:
     """Tests for extracting table presentation."""
 
-    def test_table_element_exists(self, table_html: Path) -> None:
-        pres = extract_presentation_sync(table_html)
+    def test_table_element_exists(self, table_pres) -> None:
+        pres = table_pres
         slide = pres.slides[0]
         table_elements = [
             e for e in slide.elements if e.element_type == ElementType.TABLE
         ]
         assert len(table_elements) >= 1
 
-    def test_table_row_count(self, table_html: Path) -> None:
-        pres = extract_presentation_sync(table_html)
+    def test_table_row_count(self, table_pres) -> None:
+        pres = table_pres
         slide = pres.slides[0]
         table_elements = [
             e for e in slide.elements if e.element_type == ElementType.TABLE
@@ -224,8 +278,8 @@ class TestExtractTable:
         # 1 header + 3 data rows = 4 rows
         assert len(table.table_rows) == 4
 
-    def test_table_cell_count(self, table_html: Path) -> None:
-        pres = extract_presentation_sync(table_html)
+    def test_table_cell_count(self, table_pres) -> None:
+        pres = table_pres
         slide = pres.slides[0]
         table_elements = [
             e for e in slide.elements if e.element_type == ElementType.TABLE
@@ -433,8 +487,8 @@ marp: true
 class TestExtractComplex:
     """Tests for extracting complex-unsupported.md."""
 
-    def test_has_unsupported_elements(self, complex_html: Path) -> None:
-        pres = extract_presentation_sync(complex_html)
+    def test_has_unsupported_elements(self, complex_pres) -> None:
+        pres = complex_pres
         # Check across all slides for unsupported elements (SVG)
         unsupported = []
         for slide in pres.slides:
@@ -443,12 +497,12 @@ class TestExtractComplex:
             )
         assert len(unsupported) >= 1
 
-    def test_slide_count(self, complex_html: Path) -> None:
-        pres = extract_presentation_sync(complex_html)
+    def test_slide_count(self, complex_pres) -> None:
+        pres = complex_pres
         assert len(pres.slides) == 3
 
-    def test_inline_svg_unsupported_preserves_markup(self, complex_html: Path) -> None:
-        pres = extract_presentation_sync(complex_html)
+    def test_inline_svg_unsupported_preserves_markup(self, complex_pres) -> None:
+        pres = complex_pres
         slide = pres.slides[2]
         svg = next(
             e
@@ -522,8 +576,8 @@ marp: true
 class TestRenderedLayoutCapture:
     """Tests for generic rendered-layout extraction."""
 
-    def test_extracts_decorated_blocks(self, rendered_layout_boxes_html: Path) -> None:
-        pres = extract_presentation_sync(rendered_layout_boxes_html)
+    def test_extracts_decorated_blocks(self, rendered_layout_boxes_pres) -> None:
+        pres = rendered_layout_boxes_pres
         slide = pres.slides[0]
         decorated = [
             e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
@@ -543,9 +597,9 @@ class TestRenderedLayoutCapture:
         assert len(quote_block.paragraphs) >= 4
 
     def test_checklist_pseudo_content_is_preserved(
-        self, rendered_layout_boxes_html: Path
+        self, rendered_layout_boxes_pres
     ) -> None:
-        pres = extract_presentation_sync(rendered_layout_boxes_html)
+        pres = rendered_layout_boxes_pres
         slide = pres.slides[0]
         lists = [
             e for e in slide.elements if e.element_type == ElementType.UNORDERED_LIST
@@ -555,9 +609,9 @@ class TestRenderedLayoutCapture:
         assert "☐ " in first_item_text
 
     def test_extracts_object_fit_metadata(
-        self, rendered_layout_images_html: Path
+        self, rendered_layout_images_pres
     ) -> None:
-        pres = extract_presentation_sync(rendered_layout_images_html)
+        pres = rendered_layout_images_pres
         slide = pres.slides[0]
         images = [e for e in slide.elements if e.element_type == ElementType.IMAGE]
         assert len(images) == 2
@@ -566,9 +620,9 @@ class TestRenderedLayoutCapture:
         assert all(img.image_natural_height_px == 1 for img in images)
 
     def test_quote_box_with_markdown_list_stays_decorated(
-        self, quote_box_list_html: Path
+        self, quote_box_list_pres
     ) -> None:
-        pres = extract_presentation_sync(quote_box_list_html)
+        pres = quote_box_list_pres
         slide = pres.slides[0]
         decorated = [
             e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
@@ -590,9 +644,9 @@ class TestRenderedLayoutCapture:
         ]
 
     def test_decorated_raw_text_container_keeps_leading_paragraph(
-        self, decorated_raw_text_html: Path
+        self, decorated_raw_text_pres
     ) -> None:
-        pres = extract_presentation_sync(decorated_raw_text_html)
+        pres = decorated_raw_text_pres
         slide = pres.slides[0]
         decorated = [
             e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
@@ -1122,6 +1176,47 @@ style: |
         assert floating.rotation_3d_x_deg == pytest.approx(4.0, abs=1.0)
         assert floating.rotation_3d_y_deg == pytest.approx(8.0, abs=1.0)
         assert len(floating.projected_corners) == 4
+
+    def test_decorated_block_does_not_duplicate_container_background_as_run_highlight(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "decorated-badge.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  .badge {
+    display: inline-block;
+    background: rgba(99,102,241,0.2);
+    border: 1px solid #6366f1;
+    border-radius: 20px;
+    padding: 6px 16px;
+    color: #a5b4fc;
+  }
+---
+
+<div class="badge">Now in Public Beta</div>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        badge = next(
+            e
+            for e in slide.elements
+            if e.element_type == ElementType.DECORATED_BLOCK
+            and any(
+                "".join(run.text for run in p.runs) == "Now in Public Beta"
+                for p in e.paragraphs
+            )
+        )
+
+        assert badge.decoration is not None
+        assert badge.decoration.background_color is not None
+        run = badge.paragraphs[0].runs[0]
+        assert run.style.background_color is None
 
     def test_rounded_overflow_container_becomes_unsupported(
         self, tmp_path: Path, tmp_output_dir: Path
@@ -2145,9 +2240,9 @@ class TestParagraphGrouping:
     """Tests for grouping adjacent paragraphs into one textbox element."""
 
     def test_adjacent_paragraphs_become_single_element(
-        self, multi_paragraph_html: Path
+        self, multi_paragraph_pres
     ) -> None:
-        pres = extract_presentation_sync(multi_paragraph_html)
+        pres = multi_paragraph_pres
         slide = pres.slides[0]
         paragraphs = [
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH

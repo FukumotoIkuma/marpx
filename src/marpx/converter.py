@@ -9,7 +9,7 @@ from pathlib import Path
 
 from marpx.capabilities import Capability, classify_slide, should_fallback_slide
 from marpx.marp_renderer import render_to_html
-from marpx.extractor import extract_presentation_sync
+from marpx.extractor import close_sync_browser, extract_presentation_sync
 from marpx.fallback_renderer import render_fallbacks_sync
 from marpx.pptx_builder.builder import build_pptx
 
@@ -78,6 +78,9 @@ def convert(
             presentation.default_width_px,
             presentation.default_height_px,
         )
+        # Fallback rendering uses asyncio + async Playwright; close the shared
+        # sync extractor browser first to avoid event-loop conflicts.
+        close_sync_browser()
 
         # Step 2.5: Classify element capabilities
         for slide in presentation.slides:

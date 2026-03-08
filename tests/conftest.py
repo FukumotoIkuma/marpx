@@ -72,3 +72,9 @@ def multi_paragraph_md(fixtures_dir: Path) -> Path:
 def tmp_output_dir(tmp_path: Path) -> Path:
     """Return a temporary directory for test outputs."""
     return tmp_path
+
+
+@pytest.fixture(scope="session")
+def session_output_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Return a shared temporary directory for cached rendered fixtures."""
+    return tmp_path_factory.mktemp("session_outputs")

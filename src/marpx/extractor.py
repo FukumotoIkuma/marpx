@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
+import atexit
 import logging
 from pathlib import Path
 
 from playwright.async_api import async_playwright
+from playwright.sync_api import sync_playwright
 
 from marpx.models import (
     Background,
@@ -41,6 +42,8 @@ from marpx.utils import (
 logger = logging.getLogger(__name__)
 _JS_DIR = Path(__file__).parent
 _EXTRACT_NOTES_JS = (_JS_DIR / "extract_notes.js").read_text(encoding="utf-8")
+_SYNC_PLAYWRIGHT = None
+_SYNC_BROWSER = None
 
 TEXTBOX_MERGE_TYPES: tuple[ElementType, ...] = (
     ElementType.PARAGRAPH,
@@ -283,6 +286,104 @@ def _build_slide_element(raw: dict) -> SlideElement:
     return element
 
 
+def _build_presentation_from_raw(
+    raw_slides: list[dict], raw_notes: dict[str, str]
+) -> Presentation:
+    """Convert raw extracted slide payloads into a Presentation model."""
+    if not raw_slides:
+        logger.warning("No slides found in HTML")
+        return Presentation()
+
+    default_w = raw_slides[0].get("width", 1280)
+    default_h = raw_slides[0].get("height", 720)
+
+    slides = []
+    for raw_slide in raw_slides:
+        bg_color = None
+        if raw_slide.get("background", {}).get("color"):
+            bg_color = parse_css_color(raw_slide["background"]["color"])
+
+        bg_images: list[BackgroundImage] = []
+        for raw_bg_img in raw_slide.get("background", {}).get("images", []):
+            bg_images.append(
+                BackgroundImage(
+                    url=raw_bg_img["url"],
+                    size=raw_bg_img.get("size", "cover"),
+                    position=raw_bg_img.get("position", "center"),
+                    split=raw_bg_img.get("split"),
+                    split_ratio=raw_bg_img.get("splitRatio"),
+                    box=Box(**raw_bg_img["box"]) if raw_bg_img.get("box") else None,
+                )
+            )
+
+        elements = []
+        for raw_el in raw_slide.get("elements", []):
+            try:
+                elements.append(_build_slide_element(raw_el))
+            except Exception as e:
+                logger.warning("Failed to build element: %s", e)
+        elements = _merge_same_type_paragraphs(elements)
+
+        slide_number = raw_slide.get("slideNumber", 0)
+        note_text = raw_notes.get(str(slide_number))
+        directives = raw_slide.get("directives", {})
+
+        slide = Slide(
+            width_px=raw_slide.get("width", default_w),
+            height_px=raw_slide.get("height", default_h),
+            elements=elements,
+            background=Background(
+                color=bg_color,
+                background_gradient=raw_slide.get("background", {}).get(
+                    "backgroundGradient"
+                ),
+                images=bg_images,
+            ),
+            slide_number=slide_number,
+            notes=note_text if note_text else None,
+            header_text=directives.get("headerText") or None,
+            footer_text=directives.get("footerText") or None,
+            paginate=directives.get("paginate", False),
+            page_number=directives.get("pageNumber"),
+            page_total=directives.get("pageTotal"),
+        )
+        slides.append(slide)
+
+    return Presentation(
+        slides=slides,
+        default_width_px=default_w,
+        default_height_px=default_h,
+    )
+
+
+def _close_sync_browser() -> None:
+    """Close the shared sync Playwright browser if it exists."""
+    global _SYNC_BROWSER, _SYNC_PLAYWRIGHT
+    if _SYNC_BROWSER is not None:
+        _SYNC_BROWSER.close()
+        _SYNC_BROWSER = None
+    if _SYNC_PLAYWRIGHT is not None:
+        _SYNC_PLAYWRIGHT.stop()
+        _SYNC_PLAYWRIGHT = None
+
+
+def close_sync_browser() -> None:
+    """Public wrapper to close the shared sync Playwright browser."""
+    _close_sync_browser()
+
+
+def _get_sync_browser():
+    """Return a shared sync Chromium browser for repeated sync extraction calls."""
+    global _SYNC_BROWSER, _SYNC_PLAYWRIGHT
+    if _SYNC_BROWSER is None:
+        _SYNC_PLAYWRIGHT = sync_playwright().start()
+        _SYNC_BROWSER = _SYNC_PLAYWRIGHT.chromium.launch()
+    return _SYNC_BROWSER
+
+
+atexit.register(_close_sync_browser)
+
+
 def _should_merge_same_type_paragraphs(
     first: SlideElement, second: SlideElement
 ) -> bool:
@@ -353,75 +454,21 @@ async def extract_presentation(html_path: str | Path) -> Presentation:
 
         await browser.close()
 
-    if not raw_slides:
-        logger.warning("No slides found in HTML")
-        return Presentation()
-
-    # Determine default slide size from first slide
-    default_w = raw_slides[0].get("width", 1280)
-    default_h = raw_slides[0].get("height", 720)
-
-    slides = []
-    for raw_slide in raw_slides:
-        bg_color = None
-        if raw_slide.get("background", {}).get("color"):
-            bg_color = parse_css_color(raw_slide["background"]["color"])
-
-        # Build background images list
-        bg_images: list[BackgroundImage] = []
-        for raw_bg_img in raw_slide.get("background", {}).get("images", []):
-            bg_images.append(
-                BackgroundImage(
-                    url=raw_bg_img["url"],
-                    size=raw_bg_img.get("size", "cover"),
-                    position=raw_bg_img.get("position", "center"),
-                    split=raw_bg_img.get("split"),
-                    split_ratio=raw_bg_img.get("splitRatio"),
-                    box=Box(**raw_bg_img["box"]) if raw_bg_img.get("box") else None,
-                )
-            )
-
-        elements = []
-        for raw_el in raw_slide.get("elements", []):
-            try:
-                elements.append(_build_slide_element(raw_el))
-            except Exception as e:
-                logger.warning("Failed to build element: %s", e)
-        elements = _merge_same_type_paragraphs(elements)
-
-        slide_number = raw_slide.get("slideNumber", 0)
-        note_text = raw_notes.get(str(slide_number))
-
-        directives = raw_slide.get("directives", {})
-
-        slide = Slide(
-            width_px=raw_slide.get("width", default_w),
-            height_px=raw_slide.get("height", default_h),
-            elements=elements,
-            background=Background(
-                color=bg_color,
-                background_gradient=raw_slide.get("background", {}).get(
-                    "backgroundGradient"
-                ),
-                images=bg_images,
-            ),
-            slide_number=slide_number,
-            notes=note_text if note_text else None,
-            header_text=directives.get("headerText") or None,
-            footer_text=directives.get("footerText") or None,
-            paginate=directives.get("paginate", False),
-            page_number=directives.get("pageNumber"),
-            page_total=directives.get("pageTotal"),
-        )
-        slides.append(slide)
-
-    return Presentation(
-        slides=slides,
-        default_width_px=default_w,
-        default_height_px=default_h,
-    )
+    return _build_presentation_from_raw(raw_slides, raw_notes)
 
 
 def extract_presentation_sync(html_path: str | Path) -> Presentation:
     """Synchronous wrapper for extract_presentation."""
-    return asyncio.run(extract_presentation(html_path))
+    html_path = Path(html_path).resolve()
+    file_url = html_path.as_uri()
+    extract_js = load_extract_bundle()
+    browser = _get_sync_browser()
+    page = browser.new_page()
+    try:
+        page.goto(file_url, wait_until="networkidle")
+        page.wait_for_selector("section", timeout=10000)
+        raw_slides = page.evaluate(extract_js)
+        raw_notes = page.evaluate(_EXTRACT_NOTES_JS)
+    finally:
+        page.close()
+    return _build_presentation_from_raw(raw_slides, raw_notes)
