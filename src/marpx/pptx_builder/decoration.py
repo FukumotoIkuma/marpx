@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import logging
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
 from pptx.oxml.ns import qn
 from pptx.util import Emu
 
+from marpx.gradient_utils import render_linear_gradient_png
 from marpx.models import Box, BoxDecoration, SlideElement
 from marpx.utils import px_to_emu
 
@@ -53,32 +55,61 @@ def _add_decoration_shape(slide, box: Box, decoration: BoxDecoration):
         if decoration.border_radius_px > 0
         else MSO_AUTO_SHAPE_TYPE.RECTANGLE
     )
-    bg_shape = slide.shapes.add_shape(shape_type, left, top, width, height)
-    _remove_theme_style(bg_shape)
-    if decoration.border_radius_px > 0:
-        _apply_round_rect_radius(
-            bg_shape,
-            px_to_emu(box.width),
-            px_to_emu(box.height),
-            px_to_emu(decoration.border_radius_px),
+    bg_shape = None
+    if decoration.background_gradient:
+        gradient_bytes = render_linear_gradient_png(
+            decoration.background_gradient,
+            max(int(round(box.width)), 1),
+            max(int(round(box.height)), 1),
+            decoration.border_radius_px,
         )
+        if gradient_bytes:
+            bg_shape = slide.shapes.add_picture(
+                io.BytesIO(gradient_bytes), left, top, width, height
+            )
 
-    fill = bg_shape.fill
-    if decoration.background_color and decoration.opacity > 0:
-        fill_color = _with_opacity(decoration.background_color, decoration.opacity)
-        _set_fill_color(fill, fill_color)
-    else:
-        fill.background()
+    if bg_shape is None:
+        bg_shape = slide.shapes.add_shape(shape_type, left, top, width, height)
+        _remove_theme_style(bg_shape)
+        if decoration.border_radius_px > 0:
+            _apply_round_rect_radius(
+                bg_shape,
+                px_to_emu(box.width),
+                px_to_emu(box.height),
+                px_to_emu(decoration.border_radius_px),
+            )
+
+        fill = bg_shape.fill
+        if decoration.background_color and decoration.opacity > 0:
+            fill_color = _with_opacity(decoration.background_color, decoration.opacity)
+            _set_fill_color(fill, fill_color)
+        else:
+            fill.background()
 
     uniform_border = _detect_uniform_border(decoration)
     if uniform_border:
         border_color = _with_opacity(uniform_border.color, decoration.opacity)
         if border_color.a > 0:
-            _set_line_color(bg_shape.line, border_color)
-            bg_shape.line.width = Emu(px_to_emu(uniform_border.width_px))
+            if hasattr(bg_shape, "line"):
+                _set_line_color(bg_shape.line, border_color)
+                bg_shape.line.width = Emu(px_to_emu(uniform_border.width_px))
+            else:
+                border_shape = slide.shapes.add_shape(shape_type, left, top, width, height)
+                _remove_theme_style(border_shape)
+                border_shape.fill.background()
+                if decoration.border_radius_px > 0:
+                    _apply_round_rect_radius(
+                        border_shape,
+                        px_to_emu(box.width),
+                        px_to_emu(box.height),
+                        px_to_emu(decoration.border_radius_px),
+                    )
+                _set_line_color(border_shape.line, border_color)
+                border_shape.line.width = Emu(px_to_emu(uniform_border.width_px))
         else:
-            bg_shape.line.fill.background()
-    else:
+            if hasattr(bg_shape, "line"):
+                bg_shape.line.fill.background()
+    elif hasattr(bg_shape, "line"):
         bg_shape.line.fill.background()
 
     accent_border = decoration.border_left

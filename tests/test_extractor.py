@@ -315,6 +315,66 @@ class TestExtractComplex:
         assert "<svg" in svg.unsupported_info.svg_markup
         assert "<circle" in svg.unsupported_info.svg_markup
 
+    def test_linear_gradient_box_and_text_are_not_marked_unsupported(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "gradient-supported.md"
+        md_path.write_text(
+            """---
+marp: true
+---
+
+<style scoped>
+.dot {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  border-radius: 50%;
+  color: white;
+}
+.hero-title {
+  background: linear-gradient(135deg, #c7d2fe, #818cf8, #c084fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+</style>
+
+<div class="dot">Q1</div>
+<h1 class="hero-title">Gradient Heading</h1>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        assert all(
+            element.element_type != ElementType.UNSUPPORTED
+            for element in slide.elements
+        )
+
+        dot = next(
+            element
+            for element in slide.elements
+            if element.element_type == ElementType.DECORATED_BLOCK
+        )
+        heading = next(
+            element
+            for element in slide.elements
+            if element.element_type == ElementType.HEADING
+        )
+
+        assert dot.decoration is not None
+        assert dot.decoration.background_gradient is not None
+        assert "".join(run.text for p in dot.paragraphs for run in p.runs) == "Q1"
+        assert heading.paragraphs[0].runs[0].style.color.r == 199
+        assert heading.paragraphs[0].runs[0].style.color.g == 210
+        assert heading.paragraphs[0].runs[0].style.color.b == 254
+
 
 @pytest.mark.integration
 class TestRenderedLayoutCapture:

@@ -125,9 +125,13 @@
             };
         }
         const cs = window.getComputedStyle(el);
-        if (cs.backgroundImage && cs.backgroundImage !== 'none' &&
-            cs.backgroundImage.includes('gradient')) {
-            return { reason: 'Gradient background', tagName: tag };
+        if (
+            cs.backgroundImage &&
+            cs.backgroundImage !== 'none' &&
+            cs.backgroundImage.includes('gradient') &&
+            !cs.backgroundImage.includes('linear-gradient(')
+        ) {
+            return { reason: 'Unsupported gradient background', tagName: tag };
         }
         const transform = cs.transform;
         if (transform && transform !== 'none' && transform !== 'matrix(1, 0, 0, 1, 0, 0)') {

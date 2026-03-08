@@ -127,6 +127,7 @@ def _build_decoration(raw: dict | None) -> BoxDecoration | None:
     raw_padding = raw.get("padding", {})
     return BoxDecoration(
         background_color=background_color,
+        background_gradient=raw.get("backgroundGradient"),
         border_top=_build_border_side(raw.get("borderTop")),
         border_right=_build_border_side(raw.get("borderRight")),
         border_bottom=_build_border_side(raw.get("borderBottom")),

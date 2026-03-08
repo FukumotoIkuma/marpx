@@ -126,6 +126,7 @@ class BorderSide(BaseModel):
 
 class BoxDecoration(BaseModel):
     background_color: RGBAColor | None = None
+    background_gradient: str | None = None
     border_top: BorderSide = Field(default_factory=BorderSide)
     border_right: BorderSide = Field(default_factory=BorderSide)
     border_bottom: BorderSide = Field(default_factory=BorderSide)
