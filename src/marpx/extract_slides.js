@@ -282,22 +282,42 @@
         });
     }
 
-    function splitRunsIntoParagraphs(runs, alignment, metrics, defaultStyle) {
+    function _buildParagraph(runs, alignment, metrics, extra = {}) {
+        const { trimRuns = true, ...paragraphExtra } = extra;
+        const normalizedRuns = trimRuns ? trimBoundaryWhitespace(runs) : runs
+            .map((run) => ({ ...run }))
+            .filter((run) => run.text && run.text.length > 0);
+        if (normalizedRuns.length === 0) return null;
+        return {
+            runs: normalizedRuns,
+            alignment: alignment,
+            lineHeightPx: metrics.lineHeightPx,
+            spaceBeforePx: metrics.spaceBeforePx,
+            spaceAfterPx: metrics.spaceAfterPx,
+            listLevel: null,
+            listOrdered: false,
+            ...paragraphExtra,
+        };
+    }
+
+    function buildParagraphsFromRuns(runs, alignment, metrics, defaultStyle, extra = {}) {
         const paragraphs = [];
         let currentRuns = [];
 
         function pushParagraph() {
-            paragraphs.push({
-                runs: currentRuns.length > 0
+            const paragraph = _buildParagraph(
+                currentRuns.length > 0
                     ? currentRuns
                     : [{ text: ' ', style: defaultStyle, linkUrl: null }],
-                alignment: alignment,
-                lineHeightPx: metrics.lineHeightPx,
-                spaceBeforePx: 0,
-                spaceAfterPx: 0,
-                listLevel: null,
-                listOrdered: false,
-            });
+                alignment,
+                {
+                    lineHeightPx: metrics.lineHeightPx,
+                    spaceBeforePx: 0,
+                    spaceAfterPx: 0,
+                },
+                extra,
+            );
+            if (paragraph) paragraphs.push(paragraph);
             currentRuns = [];
         }
 
@@ -407,6 +427,45 @@
         };
     }
 
+    function extractListItemContent(item, listEl, level, currentOrder) {
+        const itemCs = window.getComputedStyle(item);
+        const metrics = getParagraphMetrics(item, itemCs);
+        const runs = [];
+        const nestedLists = [];
+
+        for (const node of item.childNodes) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                const run = _buildTextRun(node.textContent || '', item, null);
+                if (run && run.text.trim()) runs.push(run);
+                continue;
+            }
+            if (node.nodeType !== Node.ELEMENT_NODE) continue;
+            if (node.tagName === 'UL' || node.tagName === 'OL') {
+                nestedLists.push(node);
+                continue;
+            }
+            runs.push(...extractInlineRuns(node, { includeRootPseudo: true }));
+        }
+
+        const paragraph = _buildParagraph(
+            [
+                ...extractPseudoRuns(item, '::before'),
+                ...runs,
+                ...extractPseudoRuns(item, '::after'),
+            ],
+            itemCs.textAlign || window.getComputedStyle(listEl).textAlign || 'left',
+            metrics,
+            {
+                listLevel: level,
+                listOrdered: listEl.tagName === 'OL',
+                listStyleType: itemCs.listStyleType || window.getComputedStyle(listEl).listStyleType || null,
+                orderNumber: currentOrder,
+            },
+        );
+
+        return { paragraph, nestedLists };
+    }
+
     function extractParagraphsFromContainer(el) {
         const cs = window.getComputedStyle(el);
         const alignment = cs.textAlign;
@@ -418,21 +477,12 @@
         };
 
         function pushParagraph(runs, metrics = containerMetrics, paragraphAlignment = alignment) {
-            const normalizedRuns = trimBoundaryWhitespace(runs);
-            if (normalizedRuns.length === 0) return;
-            paragraphs.push({
-                runs: normalizedRuns,
-                alignment: paragraphAlignment,
-                lineHeightPx: metrics.lineHeightPx,
-                spaceBeforePx: metrics.spaceBeforePx,
-                spaceAfterPx: metrics.spaceAfterPx,
-                listLevel: null,
-                listOrdered: false,
-            });
+            const paragraph = _buildParagraph(runs, paragraphAlignment, metrics);
+            if (paragraph) paragraphs.push(paragraph);
         }
 
         function pushParagraphFromNode(child) {
-            const childRuns = extractTextRunsWithPseudo(child);
+            const childRuns = extractInlineRuns(child, { includeRootPseudo: true });
             if (childRuns.length === 0) return;
             const metrics = getParagraphMetrics(child);
             pushParagraph(
@@ -465,45 +515,19 @@
             const listItems = Array.from(listEl.children).filter((child) => child.tagName === 'LI');
             let orderedIndex = listEl.tagName === 'OL' ? (listEl.start || 1) : 1;
             for (const item of listItems) {
-                const itemCs = window.getComputedStyle(item);
                 const currentOrder = listEl.tagName === 'OL'
                     ? (parseInt(item.value, 10) || orderedIndex)
                     : null;
                 if (listEl.tagName === 'OL') {
                     orderedIndex = currentOrder + 1;
                 }
-                const runs = [];
-                const nestedLists = [];
-                for (const node of item.childNodes) {
-                    if (node.nodeType === Node.TEXT_NODE) {
-                        const run = _buildTextRun(node.textContent || '', item, null);
-                        if (run && run.text.trim()) runs.push(run);
-                    } else if (node.nodeType === Node.ELEMENT_NODE) {
-                        if (node.tagName === 'UL' || node.tagName === 'OL') {
-                            nestedLists.push(node);
-                        } else {
-                            runs.push(...extractInlineRuns(node, { includeRootPseudo: true }));
-                        }
-                    }
-                }
-                if (runs.length > 0) {
-                    const metrics = getParagraphMetrics(item);
-                    paragraphs.push({
-                        runs: [
-                            ...extractPseudoRuns(item, '::before'),
-                            ...runs,
-                            ...extractPseudoRuns(item, '::after'),
-                        ],
-                        alignment: window.getComputedStyle(item).textAlign || alignment,
-                        lineHeightPx: metrics.lineHeightPx,
-                        spaceBeforePx: metrics.spaceBeforePx,
-                        spaceAfterPx: metrics.spaceAfterPx,
-                        listLevel: level,
-                        listOrdered: listEl.tagName === 'OL',
-                        listStyleType: itemCs.listStyleType || window.getComputedStyle(listEl).listStyleType || null,
-                        orderNumber: currentOrder,
-                    });
-                }
+                const { paragraph, nestedLists } = extractListItemContent(
+                    item,
+                    listEl,
+                    level,
+                    currentOrder,
+                );
+                if (paragraph) paragraphs.push(paragraph);
                 for (const nested of nestedLists) {
                     pushListParagraphs(nested, level + 1);
                 }
@@ -539,7 +563,7 @@
                 if (tag === 'br') {
                     flushInlineParagraph();
                 } else {
-                    inlineRuns.push(...extractTextRunsWithPseudo(child));
+                    inlineRuns.push(...extractInlineRuns(child, { includeRootPseudo: true }));
                 }
             } else if (!hasUnsupportedBlockDescendants(child)) {
                 flushInlineParagraph();
@@ -570,15 +594,8 @@
         const runs = extractTextRunsWithPseudo(el);
         if (runs.length === 0) return [];
         const metrics = getParagraphMetrics(el, cs);
-        return [{
-            runs: runs,
-            alignment: alignment,
-            lineHeightPx: metrics.lineHeightPx,
-            spaceBeforePx: metrics.spaceBeforePx,
-            spaceAfterPx: metrics.spaceAfterPx,
-            listLevel: null,
-            listOrdered: false,
-        }];
+        const paragraph = _buildParagraph(runs, alignment, metrics);
+        return paragraph ? [paragraph] : [];
     }
 
     function isDecoratedBlockContainer(el) {
@@ -637,63 +654,31 @@
         let orderedIndex = listEl.tagName === 'OL' ? (listEl.start || 1) : 1;
         for (const child of listEl.children) {
             if (child.tagName === 'LI') {
-                const childCs = window.getComputedStyle(child);
-                const childMetrics = getParagraphMetrics(child, childCs);
                 const currentOrder = listEl.tagName === 'OL'
                     ? (parseInt(child.value, 10) || orderedIndex)
                     : null;
                 if (listEl.tagName === 'OL') {
                     orderedIndex = currentOrder + 1;
                 }
-                // Two-pass: first collect runs, then collect nested lists
-                const runs = [];
-                const nestedLists = [];
-                for (const node of child.childNodes) {
-                    if (node.nodeType === Node.TEXT_NODE) {
-                        const text = normalizeInlineText(node.textContent || '');
-                        if (text.trim()) {
-                            runs.push({
-                                text: text,
-                                style: {
-                                    fontFamily: childCs.fontFamily,
-                                    fontSizePx: parseFloat(childCs.fontSize),
-                                    bold: parseInt(childCs.fontWeight) >= 600,
-                                    italic: childCs.fontStyle === 'italic',
-                                    underline: false,
-                                    color: childCs.color,
-                                    backgroundColor: _runBackgroundColor(child, childCs),
-                                },
-                                linkUrl: null,
-                            });
-                        }
-                    } else if (node.nodeType === Node.ELEMENT_NODE) {
-                        if (node.tagName === 'UL' || node.tagName === 'OL') {
-                            nestedLists.push(node);
-                        } else {
-                            // Inline elements within li
-                            const inlineRuns = extractTextRuns(node);
-                            runs.push(...inlineRuns);
-                        }
-                    }
-                }
-                // Push parent item first
-                const normalizedRuns = trimBoundaryWhitespace(runs);
-                if (normalizedRuns.length > 0) {
-                    const beforeRuns = extractPseudoRuns(child, '::before');
-                    const afterRuns = extractPseudoRuns(child, '::after');
+                const { paragraph, nestedLists } = extractListItemContent(
+                    child,
+                    listEl,
+                    level,
+                    currentOrder,
+                );
+                if (paragraph) {
                     items.push({
-                        runs: [...beforeRuns, ...normalizedRuns, ...afterRuns],
-                        level: level,
-                        isOrdered: listEl.tagName === 'OL',
-                        orderNumber: currentOrder,
-                        listStyleType: childCs.listStyleType || window.getComputedStyle(listEl).listStyleType || null,
-                        alignment: childCs.textAlign || 'left',
-                        lineHeightPx: childMetrics.lineHeightPx,
-                        spaceBeforePx: childMetrics.spaceBeforePx,
-                        spaceAfterPx: childMetrics.spaceAfterPx,
+                        runs: paragraph.runs,
+                        level: paragraph.listLevel,
+                        isOrdered: paragraph.listOrdered,
+                        orderNumber: paragraph.orderNumber,
+                        listStyleType: paragraph.listStyleType,
+                        alignment: paragraph.alignment,
+                        lineHeightPx: paragraph.lineHeightPx,
+                        spaceBeforePx: paragraph.spaceBeforePx,
+                        spaceAfterPx: paragraph.spaceAfterPx,
                     });
                 }
-                // Then push nested list items
                 for (const nested of nestedLists) {
                     items.push(...extractListItems(nested, level + 1));
                 }
@@ -1038,11 +1023,12 @@
                         type: 'code_block',
                         box: getBox(el, slideRect),
                         zIndex: getZIndex(el),
-                        paragraphs: splitRunsIntoParagraphs(
+                        paragraphs: buildParagraphsFromRuns(
                             extractExactTextRuns(codeEl),
                             alignment,
                             metrics,
                             styleToRunStyle(window.getComputedStyle(codeEl)),
+                            { trimRuns: false },
                         ),
                         codeLanguage: lang ? lang.replace('language-', '') : null,
                         codeBackground: styles.backgroundColor,
