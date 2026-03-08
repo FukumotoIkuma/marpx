@@ -255,7 +255,13 @@ def _iter_text_payloads(element: SlideElement):
             }
 
 
-def _append_payload_to_text_frame(text_frame, payload, index: int) -> None:
+def _append_payload_to_text_frame(
+    text_frame,
+    payload,
+    index: int,
+    *,
+    suppress_line_spacing: bool = False,
+) -> None:
     """Append a paragraph payload to a text frame."""
     if index == 0:
         p = text_frame.paragraphs[0]
@@ -273,7 +279,7 @@ def _append_payload_to_text_frame(text_frame, payload, index: int) -> None:
         p.alignment = ALIGNMENT_MAP.get(payload.get("alignment", "left"), PP_ALIGN.LEFT)
         _apply_spacing(
             p,
-            payload.get("line_height_px"),
+            None if suppress_line_spacing else payload.get("line_height_px"),
             payload.get("space_before_px", 0.0),
             payload.get("space_after_px", 0.0),
         )
@@ -290,17 +296,38 @@ def _append_payload_to_text_frame(text_frame, payload, index: int) -> None:
             para.order_number,
         )
     p.alignment = ALIGNMENT_MAP.get(para.alignment, PP_ALIGN.LEFT)
-    _apply_paragraph_layout(p, para)
+    _apply_paragraph_layout(p, para, suppress_line_spacing=suppress_line_spacing)
     _add_paragraph_runs(p, para.runs)
 
 
 def _populate_text_frame(text_frame, elements: list[SlideElement]) -> None:
     """Populate a text frame from one or more text-bearing elements."""
-    payload_index = 0
+    payloads: list[tuple[SlideElement, dict]] = []
     for element in elements:
         for payload in _iter_text_payloads(element):
-            _append_payload_to_text_frame(text_frame, payload, payload_index)
-            payload_index += 1
+            payloads.append((element, payload))
+
+    suppress_line_spacing = False
+    if len(payloads) == 1:
+        element, payload = payloads[0]
+        if (
+            element.vertical_align == "middle"
+            and not payload["is_list"]
+            and len(element.paragraphs) == 1
+        ):
+            para = payload["paragraph"]
+            if para is not None and all("\n" not in run.text for run in para.runs):
+                suppress_line_spacing = True
+
+    payload_index = 0
+    for _element, payload in payloads:
+        _append_payload_to_text_frame(
+            text_frame,
+            payload,
+            payload_index,
+            suppress_line_spacing=suppress_line_spacing,
+        )
+        payload_index += 1
 
 
 def _resolve_textbox_geometry(element: SlideElement) -> tuple[Emu, Emu, Emu, Emu]:
@@ -350,11 +377,13 @@ def _set_text_frame_margins_zero(text_frame) -> None:
     text_frame.margin_left = zero
 
 
-def _apply_paragraph_layout(pptx_para, para) -> None:
+def _apply_paragraph_layout(
+    pptx_para, para, *, suppress_line_spacing: bool = False
+) -> None:
     """Apply paragraph-level layout such as line-height and spacing."""
     _apply_spacing(
         pptx_para,
-        para.line_height_px,
+        None if suppress_line_spacing else para.line_height_px,
         para.space_before_px,
         para.space_after_px,
     )

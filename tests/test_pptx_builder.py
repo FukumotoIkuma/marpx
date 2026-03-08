@@ -372,6 +372,7 @@ class TestTextboxContent:
             shape for shape in slide.shapes if shape.has_text_frame and shape.text == "1"
         )
         assert textbox.text_frame.vertical_anchor == MSO_VERTICAL_ANCHOR.MIDDLE
+        assert "<a:lnSpc>" not in textbox.text_frame.paragraphs[0]._p.xml
 
     def test_inline_code_run_sets_highlight_color(self, tmp_path: Path) -> None:
         pres = Presentation(
