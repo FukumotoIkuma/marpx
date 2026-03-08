@@ -25,6 +25,12 @@ class ParsedLinearGradient:
     stops: tuple[GradientStop, ...]
 
 
+def css_angle_to_ooxml_angle(angle_deg: float) -> int:
+    """Convert CSS linear-gradient angle to OOXML a:lin angle units."""
+    normalized = (90.0 - angle_deg) % 360.0
+    return int(round(normalized * 60000))
+
+
 def representative_gradient_color(css_gradient: str) -> RGBAColor | None:
     """Return a representative color for text gradients."""
     parsed = parse_linear_gradient(css_gradient)

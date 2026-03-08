@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import io
 import logging
 from pathlib import Path
 
+from lxml import etree
 from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
 from pptx.oxml.ns import qn
 from pptx.util import Emu
 
-from marpx.gradient_utils import render_linear_gradient_png
+from marpx.gradient_utils import css_angle_to_ooxml_angle, parse_linear_gradient
 from marpx.models import Box, BoxDecoration, BoxShadow, RGBAColor, SlideElement
 from marpx.utils import px_to_emu
 
@@ -73,36 +73,35 @@ def _add_decoration_shape(slide, box: Box, decoration: BoxDecoration):
             continue
         _add_shadow_shape(slide, box, decoration, shape_type, shadow)
 
-    bg_shape = None
-    if decoration.background_gradient:
-        gradient_bytes = render_linear_gradient_png(
-            decoration.background_gradient,
-            max(int(round(box.width)), 1),
-            max(int(round(box.height)), 1),
-            decoration.border_radius_px,
+    bg_shape = slide.shapes.add_shape(shape_type, left, top, width, height)
+    _remove_theme_style(bg_shape)
+    if decoration.border_radius_px > 0:
+        _apply_round_rect_radius(
+            bg_shape,
+            px_to_emu(box.width),
+            px_to_emu(box.height),
+            px_to_emu(decoration.border_radius_px),
         )
-        if gradient_bytes:
-            bg_shape = slide.shapes.add_picture(
-                io.BytesIO(gradient_bytes), left, top, width, height
-            )
 
-    if bg_shape is None:
-        bg_shape = slide.shapes.add_shape(shape_type, left, top, width, height)
-        _remove_theme_style(bg_shape)
-        if decoration.border_radius_px > 0:
-            _apply_round_rect_radius(
-                bg_shape,
-                px_to_emu(box.width),
-                px_to_emu(box.height),
-                px_to_emu(decoration.border_radius_px),
-            )
-
+    if decoration.background_gradient and not _set_shape_gradient_fill(
+        bg_shape, decoration.background_gradient
+    ):
         fill = bg_shape.fill
         if decoration.background_color and decoration.opacity > 0:
             fill_color = _with_opacity(decoration.background_color, decoration.opacity)
             _set_fill_color(fill, fill_color)
         else:
             fill.background()
+    else:
+        fill = bg_shape.fill
+        if not decoration.background_gradient:
+            if decoration.background_color and decoration.opacity > 0:
+                fill_color = _with_opacity(
+                    decoration.background_color, decoration.opacity
+                )
+                _set_fill_color(fill, fill_color)
+            else:
+                fill.background()
 
     uniform_border = _detect_uniform_border(decoration)
     if uniform_border:
@@ -160,6 +159,42 @@ def _add_decoration_shape(slide, box: Box, decoration: BoxDecoration):
         _add_shadow_shape(slide, box, decoration, shape_type, shadow, inset=True)
 
     return bg_shape
+
+
+def _set_shape_gradient_fill(shape, css_gradient: str) -> bool:
+    """Apply a linear gradient fill directly to a shape spPr node."""
+    parsed = parse_linear_gradient(css_gradient)
+    if parsed is None:
+        return False
+
+    sp_pr = shape._element.spPr
+    for child in list(sp_pr):
+        if child.tag in {
+            qn("a:solidFill"),
+            qn("a:gradFill"),
+            qn("a:noFill"),
+            qn("a:pattFill"),
+            qn("a:blipFill"),
+        }:
+            sp_pr.remove(child)
+
+    grad_fill = etree.SubElement(sp_pr, qn("a:gradFill"))
+    grad_fill.set("rotWithShape", "1")
+    gs_lst = etree.SubElement(grad_fill, qn("a:gsLst"))
+    for stop in parsed.stops:
+        gs = etree.SubElement(gs_lst, qn("a:gs"))
+        gs.set("pos", str(int(round(stop.position * 100000))))
+        srgb = etree.SubElement(gs, qn("a:srgbClr"))
+        srgb.set("val", f"{stop.color.r:02X}{stop.color.g:02X}{stop.color.b:02X}")
+        if stop.color.a < 1.0:
+            etree.SubElement(srgb, qn("a:alpha")).set(
+                "val", str(int(round(stop.color.a * 100000)))
+            )
+
+    lin = etree.SubElement(grad_fill, qn("a:lin"))
+    lin.set("ang", str(css_angle_to_ooxml_angle(parsed.angle_deg)))
+    lin.set("scaled", "0")
+    return True
 
 
 def _add_shadow_shape(

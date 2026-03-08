@@ -6,7 +6,7 @@ from lxml import etree
 from pptx.oxml.ns import qn
 from pptx.util import Emu
 
-from marpx.gradient_utils import parse_linear_gradient
+from marpx.gradient_utils import css_angle_to_ooxml_angle, parse_linear_gradient
 from marpx.models import SlideElement, TableCell
 from marpx.utils import px_to_emu
 
@@ -77,7 +77,7 @@ def _set_cell_gradient_fill(pptx_cell, css_gradient: str) -> None:
             )
 
     lin = etree.SubElement(grad_fill, qn("a:lin"))
-    lin.set("ang", str(int(round(parsed.angle_deg * 60000))))
+    lin.set("ang", str(css_angle_to_ooxml_angle(parsed.angle_deg)))
     lin.set("scaled", "0")
 
 

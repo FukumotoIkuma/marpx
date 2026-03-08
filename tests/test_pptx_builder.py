@@ -827,7 +827,7 @@ class TestShapeCount:
         assert 'a:srgbClr val="0000FF"' in accent_shape._element.xml
         assert 'a:alpha val="50000"' in accent_shape._element.xml
 
-    def test_linear_gradient_decoration_renders_picture_background(
+    def test_linear_gradient_decoration_renders_native_shape_background(
         self, tmp_path: Path
     ) -> None:
         box = Box(x=50, y=100, width=320, height=120)
@@ -849,11 +849,40 @@ class TestShapeCount:
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
 
-        assert any(shape.shape_type == 13 for shape in slide.shapes)
-        assert any(
-            shape.has_text_frame and "Gradient card" in shape.text
+        bg_shape = next(
+            shape
             for shape in slide.shapes
+            if shape.has_text_frame and shape.text == ""
         )
+        assert "a:gradFill" in bg_shape._element.xml
+        assert 'val="FF0000"' in bg_shape._element.xml
+        assert 'val="0000FF"' in bg_shape._element.xml
+        assert 'a:lin ang="18900000"' in bg_shape._element.xml
+        assert any(shape.has_text_frame and "Gradient card" in shape.text for shape in slide.shapes)
+
+    def test_horizontal_linear_gradient_decoration_maps_to_ooxml_zero_angle(
+        self, tmp_path: Path
+    ) -> None:
+        box = Box(x=50, y=100, width=320, height=6)
+        decoration = BoxDecoration(
+            background_gradient="linear-gradient(90deg, #ff0000, #0000ff)",
+        )
+        element = SlideElement(
+            element_type=ElementType.DECORATED_BLOCK,
+            box=box,
+            content_box=box,
+            paragraphs=[],
+            decoration=decoration,
+        )
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        bg_shape = next(shape for shape in slide.shapes if shape.has_text_frame)
+
+        assert 'a:lin ang="0"' in bg_shape._element.xml
 
     def test_box_shadow_decoration_emits_outer_shadow(self, tmp_path: Path) -> None:
         box = Box(x=50, y=100, width=320, height=120)
@@ -1188,6 +1217,7 @@ class TestTableBuilding:
         assert cell.text_frame.margin_left == px_to_emu(16)
         assert cell.text_frame.margin_top == px_to_emu(14)
         assert "a:gradFill" in cell._tc.xml
+        assert 'a:lin ang="18900000"' in cell._tc.xml
         assert "a:lnB" in cell._tc.xml
         assert 'w="12700"' in cell._tc.xml
         assert 'cap="flat"' in cell._tc.xml
