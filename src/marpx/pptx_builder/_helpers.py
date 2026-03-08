@@ -74,17 +74,23 @@ def _set_blip_alpha(blip, alpha: float) -> None:
     alpha_node.set("amt", str(int(round(bounded_alpha * 100000))))
 
 
-def _set_outer_shadow(sp_pr, shadow: BoxShadow, width_px: float, height_px: float) -> None:
+def _set_outer_shadow(
+    sp_pr, shadow: BoxShadow, width_px: float, height_px: float
+) -> None:
     """Write an a:outerShdw effect to a shape properties node."""
     _set_shadow_effect(sp_pr, qn("a:outerShdw"), shadow, width_px, height_px)
 
 
-def _set_inner_shadow(sp_pr, shadow: BoxShadow, width_px: float, height_px: float) -> None:
+def _set_inner_shadow(
+    sp_pr, shadow: BoxShadow, width_px: float, height_px: float
+) -> None:
     """Write an a:innerShdw effect to a shape properties node."""
     _set_shadow_effect(sp_pr, qn("a:innerShdw"), shadow, width_px, height_px)
 
 
-def _set_shadow_effect(sp_pr, tag: str, shadow: BoxShadow, width_px: float, height_px: float) -> None:
+def _set_shadow_effect(
+    sp_pr, tag: str, shadow: BoxShadow, width_px: float, height_px: float
+) -> None:
     """Write a shadow effect node to a shape properties node."""
     effect_lst = sp_pr.find(qn("a:effectLst"))
     if effect_lst is None:

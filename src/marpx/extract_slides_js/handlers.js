@@ -97,7 +97,7 @@ export function handleDecoratedBlock(el, slideRect, slideData, decoration, rende
     slideData.elements.push({
         type: 'decorated_block',
         box: getBox(el, slideRect),
-        contentBox: getContentBox(el, slideRect),
+        contentBox: getContentBox(el, slideRect, renderContext),
         zIndex: getZIndex(el),
         paragraphs: decomposeDecoratedBlock ? [] : extractParagraphsFromContainer(el, renderContext),
         decoration: decoration,
@@ -115,6 +115,7 @@ export function handleHeading(el, slideRect, slideData, tag, renderContext) {
         buildTextElement(el, slideRect, 'heading', {
             headingLevel: level,
             runs: extractTextRuns(el, renderContext),
+            renderContext,
         })
     );
 }
@@ -156,6 +157,7 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
             runs: decoratedChildren.length > 0
                 ? extractTextRunsWithHiddenDecorated(el, renderContext, mathContainers.length > 0)
                 : extractTextRunsWithPseudo(el, renderContext, mathContainers.length > 0),
+            renderContext,
         })
     );
     for (const mathEl of mathContainers) {
@@ -171,7 +173,7 @@ export function handleBlockquote(el, slideRect, slideData, decoration, renderCon
     slideData.elements.push({
         type: 'blockquote',
         box: getBox(el, slideRect),
-        contentBox: hasDecoration ? getContentBox(el, slideRect) : null,
+        contentBox: hasDecoration ? getContentBox(el, slideRect, renderContext) : null,
         zIndex: getZIndex(el),
         paragraphs: extractParagraphsFromContainer(el, renderContext),
         decoration: hasDecoration ? decoration : null,
@@ -202,14 +204,16 @@ export function handleCodeBlock(el, slideRect, slideData, renderContext) {
             .find(c => c.startsWith('language-'));
         const alignment = window.getComputedStyle(codeEl).textAlign || styles.textAlign;
         const metrics = {
-            lineHeightPx: parseFloat(styles.lineHeight) || null,
-            spaceBeforePx: parseFloat(styles.marginTop) || 0,
-            spaceAfterPx: parseFloat(styles.marginBottom) || 0,
+            lineHeightPx: parseFloat(styles.lineHeight)
+                ? parseFloat(styles.lineHeight) * renderContext.effectiveScaleY
+                : null,
+            spaceBeforePx: (parseFloat(styles.marginTop) || 0) * renderContext.effectiveScaleY,
+            spaceAfterPx: (parseFloat(styles.marginBottom) || 0) * renderContext.effectiveScaleY,
         };
         slideData.elements.push({
             type: 'code_block',
             box: getBox(el, slideRect),
-            contentBox: hasDecoration ? getContentBox(el, slideRect) : null,
+            contentBox: hasDecoration ? getContentBox(el, slideRect, renderContext) : null,
             zIndex: getZIndex(el),
             paragraphs: buildParagraphsFromRuns(
                 extractExactTextRuns(codeEl, deriveRenderContext(codeEl, renderContext)),

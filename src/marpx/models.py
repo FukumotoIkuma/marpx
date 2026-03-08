@@ -138,9 +138,7 @@ class BoxShadow(BaseModel):
     offset_y_px: float = 0.0
     blur_radius_px: float = 0.0
     spread_px: float = 0.0
-    color: RGBAColor = Field(
-        default_factory=lambda: RGBAColor(r=0, g=0, b=0, a=0.0)
-    )
+    color: RGBAColor = Field(default_factory=lambda: RGBAColor(r=0, g=0, b=0, a=0.0))
     inset: bool = False
 
 

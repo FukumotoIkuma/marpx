@@ -883,9 +883,7 @@ class TestShapeCount:
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
         shadow_shape = next(
-            shape
-            for shape in slide.shapes
-            if "a:outerShdw" in shape._element.xml
+            shape for shape in slide.shapes if "a:outerShdw" in shape._element.xml
         )
         xml = shadow_shape._element.xml
         assert 'blurRad="304800"' in xml

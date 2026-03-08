@@ -1037,6 +1037,83 @@ style: |
         assert outer_shadow.color.b == 246
         assert outer_shadow.color.a == pytest.approx(0.15)
 
+    def test_scaled_block_scales_text_and_decoration_metrics(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "scaled-block.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  .card {
+    background: white;
+    border: 2px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 20px;
+    line-height: 1.2;
+    transform: scale(1.25);
+    transform-origin: top left;
+  }
+---
+
+# Slide
+
+<div class="card">Scaled text</div>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        card = next(
+            e
+            for e in slide.elements
+            if e.element_type == ElementType.DECORATED_BLOCK
+            and any(
+                "".join(run.text for run in p.runs) == "Scaled text"
+                for p in e.paragraphs
+            )
+        )
+
+        assert card.decoration is not None
+        assert card.decoration.border_top.width_px == pytest.approx(2.5)
+        assert card.decoration.border_radius_px == pytest.approx(10.0)
+        assert card.decoration.padding.top_px == pytest.approx(12.5)
+        assert card.decoration.padding.left_px == pytest.approx(25.0)
+        run = card.paragraphs[0].runs[0]
+        assert run.style.font_size_px == pytest.approx(25.0)
+        assert card.paragraphs[0].line_height_px == pytest.approx(30.0)
+
+    def test_complex_3d_transform_stays_unsupported(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "complex-transform.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  .floating {
+    width: 280px;
+    height: 200px;
+    background: linear-gradient(135deg, rgba(99,102,241,0.3), rgba(168,85,247,0.3));
+    transform: perspective(800px) rotateY(-8deg) rotateX(4deg);
+  }
+---
+
+# Slide
+
+<div class="floating"></div>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        assert any(e.element_type == ElementType.UNSUPPORTED for e in slide.elements)
+
     def test_decorated_badge_is_extracted_as_separate_element(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:

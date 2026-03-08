@@ -1,4 +1,4 @@
-    import { styleToRunStyle } from './entry.js';
+    import { deriveRenderContext, styleToRunStyle } from './entry.js';
     import { trimBoundaryWhitespace } from './runs.js';
 
     export function _buildParagraph(runs, alignment, metrics, extra = {}) {
@@ -90,12 +90,15 @@
         }));
     }
 
-    export function getParagraphMetrics(el, fallbackCs = null) {
+    export function getParagraphMetrics(el, fallbackCs = null, renderContext = null) {
         const cs = fallbackCs || window.getComputedStyle(el);
+        const ctx = renderContext || deriveRenderContext(el, null, cs);
         const lineHeight = parseFloat(cs.lineHeight);
         return {
-            lineHeightPx: Number.isFinite(lineHeight) ? lineHeight : null,
-            spaceBeforePx: parseFloat(cs.marginTop) || 0,
-            spaceAfterPx: parseFloat(cs.marginBottom) || 0,
+            lineHeightPx: Number.isFinite(lineHeight)
+                ? lineHeight * ctx.effectiveScaleY
+                : null,
+            spaceBeforePx: (parseFloat(cs.marginTop) || 0) * ctx.effectiveScaleY,
+            spaceAfterPx: (parseFloat(cs.marginBottom) || 0) * ctx.effectiveScaleY,
         };
     }

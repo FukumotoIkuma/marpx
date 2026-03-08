@@ -3,6 +3,7 @@
         hasMeaningfulDecoration,
         deriveRenderContext,
         deriveSubtreeRenderContext,
+        isComplexTransform,
     } from './entry.js';
     import { extractTextRuns } from './runs.js';
     import { extractListItemContent, extractParagraphsFromContainer } from './containers.js';
@@ -181,16 +182,8 @@
             return { reason: 'Unsupported gradient background', tagName: tag };
         }
         const transform = cs.transform;
-        if (transform && transform !== 'none' && transform !== 'matrix(1, 0, 0, 1, 0, 0)') {
-            // Check if it's a significant transform (rotation or skew)
-            const m = transform.match(/matrix\(([^)]+)\)/);
-            if (m) {
-                const vals = m[1].split(',').map(Number);
-                // Significant rotation or skew
-                if (Math.abs(vals[1]) > 0.01 || Math.abs(vals[2]) > 0.01) {
-                    return { reason: 'Complex CSS transform', tagName: tag };
-                }
-            }
+        if (isComplexTransform(transform)) {
+            return { reason: 'Complex CSS transform', tagName: tag };
         }
         return null;
     }

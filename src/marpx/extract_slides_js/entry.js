@@ -28,24 +28,98 @@ function _parseOpacity(raw) {
 export function createRenderContext(effectiveOpacity = 1) {
     return {
         effectiveOpacity: Math.max(0, Math.min(effectiveOpacity, 1)),
+        effectiveScaleX: 1,
+        effectiveScaleY: 1,
     };
+}
+
+function _parseTransformScale(transform) {
+    if (!transform || transform === 'none' || transform === 'matrix(1, 0, 0, 1, 0, 0)') {
+        return { scaleX: 1, scaleY: 1, complex: false };
+    }
+
+    if (transform.startsWith('matrix3d(')) {
+        return { scaleX: 1, scaleY: 1, complex: true };
+    }
+
+    const matrixMatch = transform.match(/matrix\(([^)]+)\)/);
+    if (!matrixMatch) {
+        return { scaleX: 1, scaleY: 1, complex: true };
+    }
+
+    const vals = matrixMatch[1].split(',').map((value) => parseFloat(value.trim()));
+    if (vals.length !== 6 || vals.some((value) => !Number.isFinite(value))) {
+        return { scaleX: 1, scaleY: 1, complex: true };
+    }
+
+    const [a, b, c, d] = vals;
+    if (Math.abs(b) > 0.01 || Math.abs(c) > 0.01) {
+        return { scaleX: 1, scaleY: 1, complex: true };
+    }
+
+    return {
+        scaleX: Math.abs(a) || 1,
+        scaleY: Math.abs(d) || 1,
+        complex: false,
+    };
+}
+
+export function isComplexTransform(transform) {
+    return _parseTransformScale(transform).complex;
+}
+
+function _copyContextWithScale(base, scaleX, scaleY) {
+    return {
+        effectiveOpacity: base.effectiveOpacity,
+        effectiveScaleX: base.effectiveScaleX * scaleX,
+        effectiveScaleY: base.effectiveScaleY * scaleY,
+    };
+}
+
+function _textScale(ctx) {
+    return (ctx.effectiveScaleX + ctx.effectiveScaleY) / 2;
+}
+
+function _scaleX(value, ctx) {
+    return value * ctx.effectiveScaleX;
+}
+
+function _scaleY(value, ctx) {
+    return value * ctx.effectiveScaleY;
+}
+
+function _scaleText(value, ctx) {
+    return value * _textScale(ctx);
 }
 
 export function deriveRenderContext(el, parentCtx = null, computedStyle = null) {
     if (!el) return parentCtx || createRenderContext();
     const cs = computedStyle || window.getComputedStyle(el);
     const ownOpacity = _parseOpacity(cs.opacity);
+    const ownTransform = _parseTransformScale(cs.transform);
     if (parentCtx) {
-        return createRenderContext(parentCtx.effectiveOpacity * ownOpacity);
+        const ctx = createRenderContext(parentCtx.effectiveOpacity * ownOpacity);
+        ctx.effectiveScaleX = parentCtx.effectiveScaleX * ownTransform.scaleX;
+        ctx.effectiveScaleY = parentCtx.effectiveScaleY * ownTransform.scaleY;
+        return ctx;
     }
 
     let effectiveOpacity = ownOpacity;
+    let effectiveScaleX = ownTransform.scaleX;
+    let effectiveScaleY = ownTransform.scaleY;
     let current = el.parentElement;
     while (current) {
-        effectiveOpacity *= _parseOpacity(window.getComputedStyle(current).opacity);
+        const currentStyle = window.getComputedStyle(current);
+        effectiveOpacity *= _parseOpacity(currentStyle.opacity);
+        const currentTransform = _parseTransformScale(currentStyle.transform);
+        effectiveScaleX *= currentTransform.scaleX;
+        effectiveScaleY *= currentTransform.scaleY;
         current = current.parentElement;
     }
-    return createRenderContext(effectiveOpacity);
+    const ctx = createRenderContext(effectiveOpacity);
+    ctx.effectiveScaleX = effectiveScaleX;
+    ctx.effectiveScaleY = effectiveScaleY;
+    return ctx;
 }
 
 export function deriveSubtreeRenderContext(target, rootEl, rootContext = null) {
@@ -189,7 +263,7 @@ function _resolveCssColorToken(token, fallbackColor) {
     return probe.style.color;
 }
 
-function _parseBoxShadow(boxShadow, fallbackColor, opacity) {
+function _parseBoxShadow(boxShadow, fallbackColor, ctx) {
     if (!boxShadow || boxShadow === 'none') return [];
     return _splitTopLevelCommas(boxShadow)
         .map((shadowValue) => {
@@ -217,13 +291,13 @@ function _parseBoxShadow(boxShadow, fallbackColor, opacity) {
                     colorTokens.join(' ').trim(),
                     fallbackColor,
                 ),
-                opacity,
+                ctx.effectiveOpacity,
             );
             return {
-                offsetXPx: parseFloat(lengthTokens[0]) || 0,
-                offsetYPx: parseFloat(lengthTokens[1]) || 0,
-                blurRadiusPx: parseFloat(lengthTokens[2]) || 0,
-                spreadPx: parseFloat(lengthTokens[3]) || 0,
+                offsetXPx: _scaleX(parseFloat(lengthTokens[0]) || 0, ctx),
+                offsetYPx: _scaleY(parseFloat(lengthTokens[1]) || 0, ctx),
+                blurRadiusPx: _scaleText(parseFloat(lengthTokens[2]) || 0, ctx),
+                spreadPx: _scaleText(parseFloat(lengthTokens[3]) || 0, ctx),
                 color,
                 inset,
             };
@@ -269,15 +343,17 @@ function _resolveEffectiveTextDecoration(el, cs) {
 
 export function buildTextElement(el, sectionRect, type, extra = {}) {
     const styles = getComputedStyles(el);
+    const { renderContext = null, ...restExtra } = extra;
+    const ctx = renderContext || deriveRenderContext(el);
         return {
             type: type,
             box: getBox(el, sectionRect),
             zIndex: getZIndex(el),
             alignment: styles.textAlign,
-            lineHeightPx: parseFloat(styles.lineHeight) || null,
-            spaceBeforePx: parseFloat(styles.marginTop) || 0,
-            spaceAfterPx: parseFloat(styles.marginBottom) || 0,
-            ...extra,
+            lineHeightPx: parseFloat(styles.lineHeight) ? _scaleY(parseFloat(styles.lineHeight), ctx) : null,
+            spaceBeforePx: _scaleY(parseFloat(styles.marginTop) || 0, ctx),
+            spaceAfterPx: _scaleY(parseFloat(styles.marginBottom) || 0, ctx),
+            ...restExtra,
         };
     }
 
@@ -319,7 +395,9 @@ function _extractDecorationFromComputedStyle(cs, ctx) {
     const backgroundClip = (cs.webkitBackgroundClip || cs.backgroundClip || '').toLowerCase();
     const hasTextClippedGradient = backgroundClip.includes('text');
     const borderSide = (side) => {
-        const width = parseFloat(cs[`border${side}Width`]) || 0;
+        const width = side === 'Left' || side === 'Right'
+            ? _scaleX(parseFloat(cs[`border${side}Width`]) || 0, ctx)
+            : _scaleY(parseFloat(cs[`border${side}Width`]) || 0, ctx);
         return {
             widthPx: width,
             style: cs[`border${side}Style`] || 'none',
@@ -337,17 +415,17 @@ function _extractDecorationFromComputedStyle(cs, ctx) {
         borderRight: borderSide('Right'),
         borderBottom: borderSide('Bottom'),
         borderLeft: borderSide('Left'),
-        borderRadiusPx: parseFloat(cs.borderTopLeftRadius) || 0,
+        borderRadiusPx: _scaleText(parseFloat(cs.borderTopLeftRadius) || 0, ctx),
         padding: {
-            topPx: parseFloat(cs.paddingTop) || 0,
-            rightPx: parseFloat(cs.paddingRight) || 0,
-            bottomPx: parseFloat(cs.paddingBottom) || 0,
-            leftPx: parseFloat(cs.paddingLeft) || 0,
+            topPx: _scaleY(parseFloat(cs.paddingTop) || 0, ctx),
+            rightPx: _scaleX(parseFloat(cs.paddingRight) || 0, ctx),
+            bottomPx: _scaleY(parseFloat(cs.paddingBottom) || 0, ctx),
+            leftPx: _scaleX(parseFloat(cs.paddingLeft) || 0, ctx),
         },
         boxShadows: _parseBoxShadow(
             cs.boxShadow,
             cs.color || 'rgba(0, 0, 0, 1)',
-            ctx.effectiveOpacity,
+            ctx,
         ),
         opacity: 1,
     };
@@ -358,7 +436,7 @@ export function styleToRunStyle(cs, el = null, renderContext = null) {
     const ctx = renderContext || deriveRenderContext(el, null, cs);
     return {
         fontFamily: cs.fontFamily,
-        fontSizePx: parseFloat(cs.fontSize),
+        fontSizePx: _scaleText(parseFloat(cs.fontSize), ctx),
         bold: parseInt(cs.fontWeight) >= 600 || cs.fontWeight === 'bold',
         italic: cs.fontStyle === 'italic',
         underline: textDecoration.has('underline'),
@@ -435,13 +513,14 @@ export function hasMeaningfulDecoration(decoration) {
         };
     }
 
-    export function getContentBox(el, sectionRect) {
+    export function getContentBox(el, sectionRect, renderContext = null) {
         const rect = el.getBoundingClientRect();
         const cs = window.getComputedStyle(el);
-        const leftInset = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0);
-        const topInset = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0);
-        const rightInset = (parseFloat(cs.borderRightWidth) || 0) + (parseFloat(cs.paddingRight) || 0);
-        const bottomInset = (parseFloat(cs.borderBottomWidth) || 0) + (parseFloat(cs.paddingBottom) || 0);
+        const ctx = renderContext || deriveRenderContext(el, null, cs);
+        const leftInset = _scaleX((parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0), ctx);
+        const topInset = _scaleY((parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0), ctx);
+        const rightInset = _scaleX((parseFloat(cs.borderRightWidth) || 0) + (parseFloat(cs.paddingRight) || 0), ctx);
+        const bottomInset = _scaleY((parseFloat(cs.borderBottomWidth) || 0) + (parseFloat(cs.paddingBottom) || 0), ctx);
         return {
             x: rect.left - sectionRect.left + leftInset,
             y: rect.top - sectionRect.top + topInset,
@@ -463,11 +542,11 @@ function _boxFromRect(rect, sectionRect) {
     };
 }
 
-function _contentBoxFromRectAndStyle(rect, cs, sectionRect) {
-    const leftInset = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0);
-    const topInset = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0);
-    const rightInset = (parseFloat(cs.borderRightWidth) || 0) + (parseFloat(cs.paddingRight) || 0);
-    const bottomInset = (parseFloat(cs.borderBottomWidth) || 0) + (parseFloat(cs.paddingBottom) || 0);
+function _contentBoxFromRectAndStyle(rect, cs, sectionRect, ctx) {
+    const leftInset = _scaleX((parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0), ctx);
+    const topInset = _scaleY((parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0), ctx);
+    const rightInset = _scaleX((parseFloat(cs.borderRightWidth) || 0) + (parseFloat(cs.paddingRight) || 0), ctx);
+    const bottomInset = _scaleY((parseFloat(cs.borderBottomWidth) || 0) + (parseFloat(cs.paddingBottom) || 0), ctx);
     return {
         x: rect.left - sectionRect.left + leftInset,
         y: rect.top - sectionRect.top + topInset,
@@ -575,7 +654,7 @@ export function extractBlockPseudoElements(el, sectionRect, renderContext = null
             type: 'decorated_block',
             box: _boxFromRect(rect, sectionRect),
             contentBox: hasMeaningfulDecoration(decoration)
-                ? _contentBoxFromRectAndStyle(rect, cs, sectionRect)
+                ? _contentBoxFromRectAndStyle(rect, cs, sectionRect, ctx)
                 : null,
             zIndex: _parsePseudoZIndex(cs, parentZ),
             paragraphs: hasText ? _buildPseudoParagraph(content, cs, el, ctx) : [],

@@ -13,7 +13,7 @@
         const itemContext = renderContext
             ? deriveRenderContext(item, renderContext, itemCs)
             : deriveRenderContext(item, null, itemCs);
-        const metrics = getParagraphMetrics(item, itemCs);
+        const metrics = getParagraphMetrics(item, itemCs, itemContext);
         const runs = [];
         const nestedLists = [];
 
@@ -62,7 +62,7 @@
         const alignment = cs.textAlign;
         const paragraphs = [];
         const containerMetrics = {
-            lineHeightPx: getParagraphMetrics(el, cs).lineHeightPx,
+            lineHeightPx: getParagraphMetrics(el, cs, containerContext).lineHeightPx,
             spaceBeforePx: 0,
             spaceAfterPx: 0,
         };
@@ -79,7 +79,7 @@
                 renderContext: childContext,
             });
             if (childRuns.length === 0) return;
-            const metrics = getParagraphMetrics(child);
+            const metrics = getParagraphMetrics(child, null, childContext);
             pushParagraph(
                 childRuns,
                 metrics,
@@ -212,7 +212,7 @@
 
         const runs = extractTextRunsWithPseudo(el, containerContext);
         if (runs.length === 0) return [];
-        const metrics = getParagraphMetrics(el, cs);
-        const paragraph = _buildParagraph(runs, alignment, metrics);
+        const scaledMetrics = getParagraphMetrics(el, cs, containerContext);
+        const paragraph = _buildParagraph(runs, alignment, scaledMetrics);
         return paragraph ? [paragraph] : [];
     }
