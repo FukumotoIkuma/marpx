@@ -1271,6 +1271,123 @@ style: |
         assert any("Monthly Active Users" in text for text in texts)
         assert all(e.element_type != ElementType.UNSUPPORTED for e in slide.elements)
 
+    def test_decorated_block_with_nested_decorated_child_decomposes(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "nested-decorated-child.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  .card {
+    background: white;
+    border: 2px solid #bfdbfe;
+    border-radius: 16px;
+    padding: 24px;
+  }
+  .num {
+    width: 32px;
+    height: 32px;
+    background: #3b82f6;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+  }
+---
+
+# Slide
+
+<div class="card">
+  <div class="num">1</div>
+  <div>Upload</div>
+</div>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        decorated = [
+            e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
+        ]
+        assert len(decorated) >= 2
+        parent = max(decorated, key=lambda e: e.box.width * e.box.height)
+        child = min(decorated, key=lambda e: e.box.width * e.box.height)
+        assert parent.paragraphs == []
+        assert child.decoration is not None
+        assert child.decoration.background_color is not None
+        assert "".join(run.text for p in child.paragraphs for run in p.runs) == "1"
+        assert any(
+            e.element_type == ElementType.PARAGRAPH
+            and any("Upload" in run.text for p in e.paragraphs for run in p.runs)
+            for e in slide.elements
+        )
+
+    def test_leaf_block_text_is_extracted_as_paragraph(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "leaf-block-text.md"
+        md_path.write_text(
+            """---
+marp: true
+---
+
+# Slide
+
+<div>Upload</div>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        paragraph = next(
+            e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
+        )
+        assert "".join(run.text for p in paragraph.paragraphs for run in p.runs) == "Upload"
+
+    def test_flex_centered_decorated_text_sets_middle_vertical_align(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "flex-centered-num.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  .num {
+    width: 32px;
+    height: 32px;
+    background: #3b82f6;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+  }
+---
+
+# Slide
+
+<div class="num">1</div>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        num = next(e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK)
+        assert num.vertical_align == "middle"
+
     def test_backdrop_filter_block_stays_native(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:

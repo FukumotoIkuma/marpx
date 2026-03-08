@@ -165,6 +165,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
 
     element = SlideElement(element_type=etype, box=box, content_box=content_box)
     element.z_index = raw.get("zIndex", 0) or 0
+    element.vertical_align = raw.get("verticalAlign", "top")
 
     if etype in (
         ElementType.HEADING,

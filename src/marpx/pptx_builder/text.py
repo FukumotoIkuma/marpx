@@ -33,6 +33,12 @@ ALIGNMENT_MAP: dict[str, PP_ALIGN] = {
     "end": PP_ALIGN.RIGHT,
 }
 
+VERTICAL_ALIGNMENT_MAP = {
+    "top": MSO_VERTICAL_ANCHOR.TOP,
+    "middle": MSO_VERTICAL_ANCHOR.MIDDLE,
+    "bottom": MSO_VERTICAL_ANCHOR.BOTTOM,
+}
+
 GROUPABLE_TEXT_TYPES: tuple[ElementType, ...] = (
     ElementType.HEADING,
     ElementType.PARAGRAPH,
@@ -385,6 +391,9 @@ def _add_textbox(slide, element: SlideElement) -> None:
 
     tf = text_container.text_frame
     tf.word_wrap = True
-    tf.vertical_anchor = MSO_VERTICAL_ANCHOR.TOP
+    tf.vertical_anchor = VERTICAL_ALIGNMENT_MAP.get(
+        element.vertical_align,
+        MSO_VERTICAL_ANCHOR.TOP,
+    )
     _set_text_frame_margins_zero(tf)
     _populate_text_frame(tf, [element])

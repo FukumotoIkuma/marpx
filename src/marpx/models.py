@@ -171,6 +171,7 @@ class SlideElement(BaseModel):
     box: Box
     content_box: Box | None = None
     z_index: int = 0
+    vertical_align: str = "top"
 
     # Text content (for heading, paragraph, blockquote, code_block)
     paragraphs: list[Paragraph] = Field(default_factory=list)

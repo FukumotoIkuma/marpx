@@ -55,7 +55,31 @@ export function getComputedStyles(el) {
         lineHeight: cs.lineHeight,
         marginTop: cs.marginTop,
         marginBottom: cs.marginBottom,
+        display: cs.display,
+        alignItems: cs.alignItems,
+        justifyContent: cs.justifyContent,
+        flexDirection: cs.flexDirection,
     };
+}
+
+export function resolveVerticalAlign(cs) {
+    const display = (cs.display || '').toLowerCase();
+    if (display.includes('flex')) {
+        const flexDirection = (cs.flexDirection || 'row').toLowerCase();
+        const crossAxisAlign = (cs.alignItems || '').toLowerCase();
+        const mainAxisJustify = (cs.justifyContent || '').toLowerCase();
+        const relevant = flexDirection.startsWith('column')
+            ? mainAxisJustify
+            : crossAxisAlign;
+        if (relevant.includes('center')) return 'middle';
+        if (relevant.includes('end')) return 'bottom';
+    }
+    if (display.includes('grid')) {
+        const alignItems = (cs.alignItems || '').toLowerCase();
+        if (alignItems.includes('center')) return 'middle';
+        if (alignItems.includes('end')) return 'bottom';
+    }
+    return 'top';
 }
 
 export function buildTextElement(el, sectionRect, type, extra = {}) {
@@ -67,6 +91,7 @@ export function buildTextElement(el, sectionRect, type, extra = {}) {
             box: getBox(el, sectionRect),
             zIndex: getZIndex(el),
             alignment: styles.textAlign,
+            verticalAlign: resolveVerticalAlign(styles),
             lineHeightPx: parseFloat(styles.lineHeight) ? _scaleY(parseFloat(styles.lineHeight), ctx) : null,
             spaceBeforePx: _scaleY(parseFloat(styles.marginTop) || 0, ctx),
             spaceAfterPx: _scaleY(parseFloat(styles.marginBottom) || 0, ctx),

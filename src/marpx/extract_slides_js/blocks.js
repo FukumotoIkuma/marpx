@@ -38,6 +38,12 @@
         if (hasUnsupportedDescendant) return true;
         return Array.from(el.children).some((child) =>
             shouldExtractStandaloneDecoratedText(child, extractDecoration(child)) ||
+            (
+                isDecoratedBlockContainer(child) &&
+                hasMeaningfulDecoration(
+                    extractDecoration(child, deriveRenderContext(child))
+                )
+            ) ||
             !!isUnsupported(child) ||
             ['table', 'img', 'pre', 'marp-pre'].includes(
                 (child.localName || child.tagName).toLowerCase()

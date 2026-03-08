@@ -7,6 +7,7 @@ import {
     getZIndex,
     getBox,
     getContentBox,
+    resolveVerticalAlign,
 } from './entry.js';
 import {
     extractTextRuns,
@@ -83,12 +84,14 @@ export function handleMath(el, slideRect, slideData, tag) {
 }
 
 export function handleDecoratedStandalone(el, slideRect, slideData, decoration, renderContext) {
+    const cs = window.getComputedStyle(el);
     slideData.elements.push({
         type: 'decorated_block',
         box: getBox(el, slideRect),
         zIndex: getZIndex(el),
         paragraphs: extractParagraphsFromContainer(el, renderContext),
         decoration: decoration,
+        verticalAlign: resolveVerticalAlign(cs),
     });
 }
 
@@ -119,6 +122,7 @@ export function handleImageWithDecoration(
 }
 
 export function handleDecoratedBlock(el, slideRect, slideData, decoration, renderContext) {
+    const cs = window.getComputedStyle(el);
     const decomposeDecoratedBlock = shouldDecomposeDecoratedBlock(el);
     slideData.elements.push({
         type: 'decorated_block',
@@ -127,6 +131,7 @@ export function handleDecoratedBlock(el, slideRect, slideData, decoration, rende
         zIndex: getZIndex(el),
         paragraphs: decomposeDecoratedBlock ? [] : extractParagraphsFromContainer(el, renderContext),
         decoration: decoration,
+        verticalAlign: resolveVerticalAlign(cs),
     });
     if (decomposeDecoratedBlock) {
         for (const child of el.children) {
@@ -210,8 +215,16 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
     }
 }
 
+function _isLeafTextBlock(el) {
+    if (el.children.length > 0) return false;
+    const display = window.getComputedStyle(el).display || '';
+    if (display.startsWith('inline')) return false;
+    return !!el.textContent && el.textContent.trim().length > 0;
+}
+
 export function handleBlockquote(el, slideRect, slideData, decoration, renderContext) {
     const hasDecoration = hasMeaningfulDecoration(decoration);
+    const cs = window.getComputedStyle(el);
     slideData.elements.push({
         type: 'blockquote',
         box: getBox(el, slideRect),
@@ -219,6 +232,7 @@ export function handleBlockquote(el, slideRect, slideData, decoration, renderCon
         zIndex: getZIndex(el),
         paragraphs: extractParagraphsFromContainer(el, renderContext),
         decoration: hasDecoration ? decoration : null,
+        verticalAlign: resolveVerticalAlign(cs),
     });
     for (const child of Array.from(el.children)) {
         if ((child.localName || child.tagName).toLowerCase() === 'blockquote') {
@@ -267,6 +281,7 @@ export function handleCodeBlock(el, slideRect, slideData, renderContext) {
             codeLanguage: lang ? lang.replace('language-', '') : null,
             decoration: hasDecoration ? decoration : null,
             codeBackground: applyOpacityToColor(styles.backgroundColor, renderContext.effectiveOpacity),
+            verticalAlign: resolveVerticalAlign(styles),
         });
         return true; // handled
     }
@@ -363,6 +378,11 @@ export function processElement(el, slideRect, slideData, parentContext = null) {
 
     // Paragraphs
     if (tag === 'p' || tag === 'figcaption') {
+        handleParagraph(el, slideRect, slideData, renderContext);
+        return;
+    }
+
+    if (_isLeafTextBlock(el)) {
         handleParagraph(el, slideRect, slideData, renderContext);
         return;
     }

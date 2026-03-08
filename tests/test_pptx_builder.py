@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from pptx import Presentation as PptxPresentation
+from pptx.enum.text import MSO_VERTICAL_ANCHOR
 from marpx.models import (
     Background,
     BorderSide,
@@ -335,6 +336,42 @@ class TestTextboxContent:
         assert 'val="C084FC"' in run._r.xml
         assert "<a:tileRect/>" in run._r.xml
         assert run._r.xml.index("a:gradFill") < run._r.xml.index("a:latin")
+
+    def test_middle_vertical_align_sets_center_anchor(self, tmp_path: Path) -> None:
+        element = SlideElement(
+            element_type=ElementType.DECORATED_BLOCK,
+            box=Box(x=50, y=100, width=32, height=32),
+            content_box=Box(x=50, y=100, width=32, height=32),
+            vertical_align="middle",
+            decoration=BoxDecoration(
+                background_color=RGBAColor(r=59, g=130, b=246),
+                border_radius_px=16,
+            ),
+            paragraphs=[
+                Paragraph(
+                    runs=[
+                        TextRun(
+                            text="1",
+                            style=TextStyle(
+                                bold=True,
+                                color=RGBAColor(r=255, g=255, b=255),
+                            ),
+                        )
+                    ],
+                    alignment="center",
+                )
+            ],
+        )
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        textbox = next(
+            shape for shape in slide.shapes if shape.has_text_frame and shape.text == "1"
+        )
+        assert textbox.text_frame.vertical_anchor == MSO_VERTICAL_ANCHOR.MIDDLE
 
     def test_inline_code_run_sets_highlight_color(self, tmp_path: Path) -> None:
         pres = Presentation(
