@@ -11,6 +11,7 @@ from marpx.models import SlideElement, TableCell
 from marpx.utils import px_to_emu
 
 from ._helpers import _set_fill_color, _set_srgb_alpha
+from .decoration import _add_decoration_shape
 from .text import _add_paragraph_runs
 
 
@@ -147,6 +148,9 @@ def _add_table(slide, element: SlideElement) -> None:
     """Add a table to the slide, handling colspan and rowspan merges."""
     if not element.table_rows:
         return
+
+    if element.decoration:
+        _add_decoration_shape(slide, element.box, element.decoration)
 
     num_rows = len(element.table_rows)
 

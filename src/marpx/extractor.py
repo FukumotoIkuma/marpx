@@ -14,6 +14,7 @@ from marpx.models import (
     BorderSide,
     Box,
     BoxDecoration,
+    BoxShadow,
     BoxPadding,
     ElementType,
     ListItem,
@@ -140,6 +141,17 @@ def _build_decoration(raw: dict | None) -> BoxDecoration | None:
             bottom_px=raw_padding.get("bottomPx", 0.0),
             left_px=raw_padding.get("leftPx", 0.0),
         ),
+        box_shadows=[
+            BoxShadow(
+                offset_x_px=shadow.get("offsetXPx", 0.0),
+                offset_y_px=shadow.get("offsetYPx", 0.0),
+                blur_radius_px=shadow.get("blurRadiusPx", 0.0),
+                spread_px=shadow.get("spreadPx", 0.0),
+                color=parse_css_color(shadow.get("color", "rgba(0,0,0,0)")),
+                inset=shadow.get("inset", False),
+            )
+            for shadow in raw.get("boxShadows", [])
+        ],
         opacity=raw.get("opacity", 1.0),
     )
 
@@ -204,6 +216,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
         element.decoration = _build_decoration(raw.get("decoration"))
 
     elif etype == ElementType.TABLE:
+        element.decoration = _build_decoration(raw.get("decoration"))
         for row_raw in raw.get("tableRows", []):
             cells = []
             for cell_raw in row_raw.get("cells", []):

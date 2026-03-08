@@ -975,6 +975,68 @@ style: |
         assert badge.decoration is not None
         assert badge.decoration.background_color is not None
 
+    def test_box_shadow_is_extracted_into_decoration(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "box-shadow.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+      .card {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow:
+          inset 0 2px 8px rgba(15,23,42,0.08),
+          0 8px 32px rgba(59,130,246,0.15);
+      }
+---
+
+# Slide
+
+<div class="card">Shadow card</div>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        card = next(
+            e
+            for e in slide.elements
+            if e.element_type == ElementType.DECORATED_BLOCK
+            and any(
+                "".join(run.text for run in p.runs) == "Shadow card"
+                for p in e.paragraphs
+            )
+        )
+
+        assert card.decoration is not None
+        assert len(card.decoration.box_shadows) == 2
+        inset_shadow = next(
+            shadow for shadow in card.decoration.box_shadows if shadow.inset
+        )
+        assert inset_shadow.offset_x_px == pytest.approx(0.0)
+        assert inset_shadow.offset_y_px == pytest.approx(2.0)
+        assert inset_shadow.blur_radius_px == pytest.approx(8.0)
+        assert inset_shadow.color.r == 15
+        assert inset_shadow.color.g == 23
+        assert inset_shadow.color.b == 42
+        assert inset_shadow.color.a == pytest.approx(0.08)
+
+        outer_shadow = next(
+            shadow for shadow in card.decoration.box_shadows if not shadow.inset
+        )
+        assert outer_shadow.offset_x_px == pytest.approx(0.0)
+        assert outer_shadow.offset_y_px == pytest.approx(8.0)
+        assert outer_shadow.blur_radius_px == pytest.approx(32.0)
+        assert outer_shadow.color.r == 59
+        assert outer_shadow.color.g == 130
+        assert outer_shadow.color.b == 246
+        assert outer_shadow.color.a == pytest.approx(0.15)
+
     def test_decorated_badge_is_extracted_as_separate_element(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:

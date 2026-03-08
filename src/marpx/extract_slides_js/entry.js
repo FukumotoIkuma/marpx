@@ -156,6 +156,81 @@ function _applyOpacityToGradient(backgroundImage, opacity) {
     return `${fnName}(${rewritten.join(', ')})`;
 }
 
+function _splitTopLevelSpaces(value) {
+    const parts = [];
+    let current = '';
+    let depth = 0;
+    for (const char of value) {
+        if (char === '(') depth += 1;
+        if (char === ')') depth = Math.max(depth - 1, 0);
+        if (/\s/.test(char) && depth === 0) {
+            if (current) {
+                parts.push(current);
+                current = '';
+            }
+            continue;
+        }
+        current += char;
+    }
+    if (current) parts.push(current);
+    return parts;
+}
+
+function _isCssLengthToken(token) {
+    return /^-?(?:\d+|\d*\.\d+)(?:px|r?em|%|pt)?$/i.test(token);
+}
+
+function _resolveCssColorToken(token, fallbackColor) {
+    if (!token) return fallbackColor;
+    const probe = document.createElement('span');
+    probe.style.color = '';
+    probe.style.color = token;
+    if (!probe.style.color) return fallbackColor;
+    return probe.style.color;
+}
+
+function _parseBoxShadow(boxShadow, fallbackColor, opacity) {
+    if (!boxShadow || boxShadow === 'none') return [];
+    return _splitTopLevelCommas(boxShadow)
+        .map((shadowValue) => {
+            const tokens = _splitTopLevelSpaces(shadowValue);
+            if (tokens.length < 2) return null;
+
+            let inset = false;
+            const lengthTokens = [];
+            const colorTokens = [];
+            for (const token of tokens) {
+                if (token === 'inset') {
+                    inset = true;
+                    continue;
+                }
+                if (_isCssLengthToken(token)) {
+                    lengthTokens.push(token);
+                    continue;
+                }
+                colorTokens.push(token);
+            }
+
+            if (lengthTokens.length < 2) return null;
+            const color = applyOpacityToColor(
+                _resolveCssColorToken(
+                    colorTokens.join(' ').trim(),
+                    fallbackColor,
+                ),
+                opacity,
+            );
+            return {
+                offsetXPx: parseFloat(lengthTokens[0]) || 0,
+                offsetYPx: parseFloat(lengthTokens[1]) || 0,
+                blurRadiusPx: parseFloat(lengthTokens[2]) || 0,
+                spreadPx: parseFloat(lengthTokens[3]) || 0,
+                color,
+                inset,
+            };
+        })
+        .filter((shadow) => shadow !== null);
+}
+
 function _resolveRunTextColor(cs, ctx) {
     const textFill = _parseCssColor(cs.webkitTextFillColor || '');
     const backgroundClip = (cs.webkitBackgroundClip || cs.backgroundClip || '').toLowerCase();
@@ -269,6 +344,11 @@ function _extractDecorationFromComputedStyle(cs, ctx) {
             bottomPx: parseFloat(cs.paddingBottom) || 0,
             leftPx: parseFloat(cs.paddingLeft) || 0,
         },
+        boxShadows: _parseBoxShadow(
+            cs.boxShadow,
+            cs.color || 'rgba(0, 0, 0, 1)',
+            ctx.effectiveOpacity,
+        ),
         opacity: 1,
     };
 }
@@ -317,6 +397,15 @@ export function hasMeaningfulDecoration(decoration) {
         decoration.backgroundGradient &&
         decoration.backgroundGradient !== 'none'
     );
+    const hasBoxShadow = (decoration.boxShadows || []).some((shadow) => {
+        if (shadow.inset || !shadow.color) return false;
+        const normalized = shadow.color.replace(/\s+/g, '').toLowerCase();
+        return (
+            normalized !== 'transparent' &&
+            normalized !== 'rgba(0,0,0,0)' &&
+            normalized !== 'rgb(0,0,0,0)'
+        );
+    });
         const borders = [
             decoration.borderTop,
             decoration.borderRight,
@@ -327,7 +416,13 @@ export function hasMeaningfulDecoration(decoration) {
             (b) => b.widthPx > 0 && b.style && b.style !== 'none'
         );
         const hasRadius = decoration.borderRadiusPx > 0;
-    return hasVisibleBackground || hasGradientBackground || hasVisibleBorder || hasRadius;
+    return (
+        hasVisibleBackground ||
+        hasGradientBackground ||
+        hasVisibleBorder ||
+        hasRadius ||
+        hasBoxShadow
+    );
 }
 
     export function getBox(el, sectionRect) {

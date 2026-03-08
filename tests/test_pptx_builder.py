@@ -14,6 +14,7 @@ from marpx.models import (
     BorderSide,
     Box,
     BoxDecoration,
+    BoxShadow,
     BoxPadding,
     ElementType,
     ListItem,
@@ -854,6 +855,86 @@ class TestShapeCount:
             for shape in slide.shapes
         )
 
+    def test_box_shadow_decoration_emits_outer_shadow(self, tmp_path: Path) -> None:
+        box = Box(x=50, y=100, width=320, height=120)
+        decoration = BoxDecoration(
+            background_color=RGBAColor(r=255, g=255, b=255),
+            border_radius_px=12,
+            box_shadows=[
+                BoxShadow(
+                    offset_x_px=0,
+                    offset_y_px=8,
+                    blur_radius_px=32,
+                    color=RGBAColor(r=59, g=130, b=246, a=0.15),
+                )
+            ],
+        )
+        element = SlideElement(
+            element_type=ElementType.DECORATED_BLOCK,
+            box=box,
+            content_box=_content_box_from_decoration(box, decoration),
+            paragraphs=[Paragraph(runs=[TextRun(text="Shadow card")])],
+            decoration=decoration,
+        )
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        shadow_shape = next(
+            shape
+            for shape in slide.shapes
+            if "a:outerShdw" in shape._element.xml
+        )
+        xml = shadow_shape._element.xml
+        assert 'blurRad="304800"' in xml
+        assert 'dist="76200"' in xml
+        assert 'dir="5400000"' in xml
+        assert 'val="3B82F6"' in xml
+        assert 'a:alpha val="15000"' in xml
+
+    def test_inset_box_shadow_emits_inner_shadow(self, tmp_path: Path) -> None:
+        box = Box(x=50, y=100, width=320, height=120)
+        decoration = BoxDecoration(
+            background_color=RGBAColor(r=255, g=255, b=255),
+            border_radius_px=12,
+            box_shadows=[
+                BoxShadow(
+                    offset_x_px=0,
+                    offset_y_px=2,
+                    blur_radius_px=8,
+                    spread_px=4,
+                    color=RGBAColor(r=15, g=23, b=42, a=0.08),
+                    inset=True,
+                )
+            ],
+        )
+        element = SlideElement(
+            element_type=ElementType.DECORATED_BLOCK,
+            box=box,
+            content_box=_content_box_from_decoration(box, decoration),
+            paragraphs=[Paragraph(runs=[TextRun(text="Inset card")])],
+            decoration=decoration,
+        )
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        shadow_shape = next(
+            shape for shape in slide.shapes if "a:innerShdw" in shape._element.xml
+        )
+        xml = shadow_shape._element.xml
+        assert 'blurRad="76200"' in xml
+        assert 'dist="19050"' in xml
+        assert 'dir="5400000"' in xml
+        assert 'sx="102500"' in xml
+        assert 'sy="106667"' in xml
+        assert 'val="0F172A"' in xml
+        assert 'a:alpha val="8000"' in xml
+
     def test_blockquote_uses_extracted_padding_and_left_accent(
         self, tmp_path: Path
     ) -> None:
@@ -1117,6 +1198,27 @@ class TestTableBuilding:
         assert "<a:round/>" in cell._tc.xml
         assert "<a:headEnd" in cell._tc.xml
         assert "<a:tailEnd" in cell._tc.xml
+
+    def test_table_decoration_adds_shadow_backplate(self, tmp_path: Path) -> None:
+        element = _make_table([["H1", "H2"], ["A1", "A2"]])
+        element.decoration = BoxDecoration(
+            border_radius_px=12,
+            box_shadows=[
+                BoxShadow(
+                    offset_x_px=0,
+                    offset_y_px=4,
+                    blur_radius_px=24,
+                    color=RGBAColor(r=0, g=0, b=0, a=0.08),
+                )
+            ],
+        )
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        assert any("a:outerShdw" in shape._element.xml for shape in slide.shapes)
 
     def test_table_style_is_removed_so_custom_borders_win(self, tmp_path: Path) -> None:
         table_data = [["H1", "H2"], ["A1", "A2"]]

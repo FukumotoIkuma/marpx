@@ -11,10 +11,16 @@ from pptx.oxml.ns import qn
 from pptx.util import Emu
 
 from marpx.gradient_utils import render_linear_gradient_png
-from marpx.models import Box, BoxDecoration, SlideElement
+from marpx.models import Box, BoxDecoration, BoxShadow, RGBAColor, SlideElement
 from marpx.utils import px_to_emu
 
-from ._helpers import _set_fill_color, _set_line_color, _with_opacity
+from ._helpers import (
+    _set_fill_color,
+    _set_inner_shadow,
+    _set_line_color,
+    _set_outer_shadow,
+    _with_opacity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +67,12 @@ def _add_decoration_shape(slide, box: Box, decoration: BoxDecoration):
         if decoration.border_radius_px > 0
         else MSO_AUTO_SHAPE_TYPE.RECTANGLE
     )
+
+    for shadow in decoration.box_shadows:
+        if shadow.inset or shadow.color.a <= 0:
+            continue
+        _add_shadow_shape(slide, box, decoration, shape_type, shadow)
+
     bg_shape = None
     if decoration.background_gradient:
         gradient_bytes = render_linear_gradient_png(
@@ -142,7 +154,43 @@ def _add_decoration_shape(slide, box: Box, decoration: BoxDecoration):
         _set_fill_color(accent_shape.fill, accent_color)
         accent_shape.line.fill.background()
 
+    for shadow in decoration.box_shadows:
+        if not shadow.inset or shadow.color.a <= 0:
+            continue
+        _add_shadow_shape(slide, box, decoration, shape_type, shadow, inset=True)
+
     return bg_shape
+
+
+def _add_shadow_shape(
+    slide,
+    box: Box,
+    decoration: BoxDecoration,
+    shape_type,
+    shadow: BoxShadow,
+    *,
+    inset: bool = False,
+):
+    """Render a shadow-only helper shape behind a decoration."""
+    left = Emu(px_to_emu(box.x))
+    top = Emu(px_to_emu(box.y))
+    width = Emu(px_to_emu(box.width))
+    height = Emu(px_to_emu(box.height))
+    shadow_shape = slide.shapes.add_shape(shape_type, left, top, width, height)
+    _remove_theme_style(shadow_shape)
+    _set_fill_color(shadow_shape.fill, RGBAColor(r=255, g=255, b=255, a=0.0))
+    shadow_shape.line.fill.background()
+    if decoration.border_radius_px > 0:
+        _apply_round_rect_radius(
+            shadow_shape,
+            px_to_emu(box.width),
+            px_to_emu(box.height),
+            px_to_emu(decoration.border_radius_px),
+        )
+    if inset:
+        _set_inner_shadow(shadow_shape._element.spPr, shadow, box.width, box.height)
+    else:
+        _set_outer_shadow(shadow_shape._element.spPr, shadow, box.width, box.height)
 
 
 def _remove_theme_style(shape) -> None:

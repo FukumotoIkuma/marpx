@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import math
+
 from lxml import etree
 from pptx.dml.color import RGBColor
 from pptx.oxml.ns import qn
 
-from marpx.models import RGBAColor
-from marpx.utils import blend_alpha
+from marpx.models import BoxShadow, RGBAColor
+from marpx.utils import blend_alpha, px_to_emu
 
 
 def _to_rgb(color: RGBAColor) -> RGBColor:
@@ -70,3 +72,46 @@ def _set_blip_alpha(blip, alpha: float) -> None:
         return
     alpha_node = etree.SubElement(blip, qn("a:alphaModFix"))
     alpha_node.set("amt", str(int(round(bounded_alpha * 100000))))
+
+
+def _set_outer_shadow(sp_pr, shadow: BoxShadow, width_px: float, height_px: float) -> None:
+    """Write an a:outerShdw effect to a shape properties node."""
+    _set_shadow_effect(sp_pr, qn("a:outerShdw"), shadow, width_px, height_px)
+
+
+def _set_inner_shadow(sp_pr, shadow: BoxShadow, width_px: float, height_px: float) -> None:
+    """Write an a:innerShdw effect to a shape properties node."""
+    _set_shadow_effect(sp_pr, qn("a:innerShdw"), shadow, width_px, height_px)
+
+
+def _set_shadow_effect(sp_pr, tag: str, shadow: BoxShadow, width_px: float, height_px: float) -> None:
+    """Write a shadow effect node to a shape properties node."""
+    effect_lst = sp_pr.find(qn("a:effectLst"))
+    if effect_lst is None:
+        effect_lst = etree.SubElement(sp_pr, qn("a:effectLst"))
+    for child in list(effect_lst):
+        if child.tag == tag:
+            effect_lst.remove(child)
+
+    shadow_el = etree.SubElement(effect_lst, tag)
+    shadow_el.set("blurRad", str(max(px_to_emu(shadow.blur_radius_px), 0)))
+    dist_px = math.hypot(shadow.offset_x_px, shadow.offset_y_px)
+    shadow_el.set("dist", str(max(px_to_emu(dist_px), 0)))
+    angle_deg = math.degrees(math.atan2(shadow.offset_y_px, shadow.offset_x_px))
+    if angle_deg < 0:
+        angle_deg += 360
+    shadow_el.set("dir", str(int(round(angle_deg * 60000))))
+    shadow_el.set("rotWithShape", "0")
+
+    if shadow.spread_px > 0 and width_px > 0 and height_px > 0:
+        sx = int(round(((width_px + (shadow.spread_px * 2)) / width_px) * 100000))
+        sy = int(round(((height_px + (shadow.spread_px * 2)) / height_px) * 100000))
+        shadow_el.set("sx", str(max(sx, 100000)))
+        shadow_el.set("sy", str(max(sy, 100000)))
+
+    srgb = etree.SubElement(shadow_el, qn("a:srgbClr"))
+    srgb.set("val", f"{shadow.color.r:02X}{shadow.color.g:02X}{shadow.color.b:02X}")
+    if shadow.color.a < 1.0:
+        etree.SubElement(srgb, qn("a:alpha")).set(
+            "val", str(int(round(shadow.color.a * 100000)))
+        )

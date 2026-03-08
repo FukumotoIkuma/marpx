@@ -247,12 +247,13 @@ export function handleImage(el, slideRect, slideData, decoration, renderContext)
     }
 }
 
-export function handleTable(el, slideRect, slideData, renderContext) {
+export function handleTable(el, slideRect, slideData, renderContext, decoration) {
     slideData.elements.push({
         type: 'table',
         box: getBox(el, slideRect),
         zIndex: getZIndex(el),
         tableRows: extractTable(el, slideRect, renderContext),
+        decoration: hasMeaningfulDecoration(decoration) ? decoration : null,
     });
 }
 
@@ -347,7 +348,7 @@ export function processElement(el, slideRect, slideData, parentContext = null) {
 
     // Tables
     if (tag === 'table') {
-        handleTable(el, slideRect, slideData, renderContext);
+        handleTable(el, slideRect, slideData, renderContext, decoration);
         return;
     }
 
