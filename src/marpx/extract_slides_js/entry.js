@@ -174,6 +174,24 @@ function _resolveRunTextColor(cs, ctx) {
     return applyOpacityToColor(cs.color, ctx.effectiveOpacity);
 }
 
+function _resolveEffectiveTextDecoration(el, cs) {
+    const decorations = new Set();
+    const addTokens = (value) => {
+        for (const token of (value || '').split(/\s+/)) {
+            if (token && token !== 'none') decorations.add(token);
+        }
+    };
+
+    addTokens(cs.textDecorationLine || cs.textDecoration || '');
+    let current = el ? el.parentElement : null;
+    while (current) {
+        const currentStyle = window.getComputedStyle(current);
+        addTokens(currentStyle.textDecorationLine || currentStyle.textDecoration || '');
+        current = current.parentElement;
+    }
+    return decorations;
+}
+
 export function buildTextElement(el, sectionRect, type, extra = {}) {
     const styles = getComputedStyles(el);
         return {
@@ -223,15 +241,15 @@ function _runBackgroundColor(el, cs) {
 }
 
 export function styleToRunStyle(cs, el = null, renderContext = null) {
-    const textDecoration = cs.textDecorationLine || cs.textDecoration || '';
+    const textDecoration = _resolveEffectiveTextDecoration(el, cs);
     const ctx = renderContext || deriveRenderContext(el, null, cs);
     return {
         fontFamily: cs.fontFamily,
         fontSizePx: parseFloat(cs.fontSize),
         bold: parseInt(cs.fontWeight) >= 600 || cs.fontWeight === 'bold',
         italic: cs.fontStyle === 'italic',
-        underline: textDecoration.includes('underline'),
-        strike: textDecoration.includes('line-through'),
+        underline: textDecoration.has('underline'),
+        strike: textDecoration.has('line-through'),
         color: _resolveRunTextColor(cs, ctx),
         backgroundColor: applyOpacityToColor(_runBackgroundColor(el, cs), ctx.effectiveOpacity),
     };

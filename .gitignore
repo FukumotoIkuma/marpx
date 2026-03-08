@@ -20,3 +20,4 @@ tmp-*
 input.md
 *.bundle.js
 package-lock.json
+.tmp_strike_diag/

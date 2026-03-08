@@ -1251,6 +1251,31 @@ style: |
         )
         assert struck.style.strike is True
 
+    def test_nested_bold_inside_strikethrough_preserves_strike(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "nested-strike-bold.md"
+        md_path.write_text(
+            """# Slide
+
+Strikethrough with bold: <s>this is struck through with <strong>bold emphasis</strong> inside</s>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        paragraph = next(
+            e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
+        )
+        bold_run = next(
+            run for run in paragraph.paragraphs[0].runs if run.text == "bold emphasis"
+        )
+
+        assert bold_run.style.bold is True
+        assert bold_run.style.strike is True
+
     def test_extracts_element_z_index(self, tmp_path: Path) -> None:
         html_path = tmp_path / "zindex.html"
         html_path.write_text(
