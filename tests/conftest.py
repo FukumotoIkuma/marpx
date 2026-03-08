@@ -6,9 +6,12 @@ from pathlib import Path
 
 import pytest
 
+from marpx.js_bundle import ensure_extract_bundle
+
 
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "integration: requires Playwright and marp-cli")
+    ensure_extract_bundle(dev=True)
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"

@@ -11,6 +11,7 @@ from rich.logging import RichHandler
 
 from marpx import __version__
 from marpx.converter import convert, ConversionError
+from marpx.js_bundle import ensure_extract_bundle
 
 console = Console()
 
@@ -51,6 +52,12 @@ console = Console()
     default=False,
     help="Enable verbose logging.",
 )
+@click.option(
+    "--dev",
+    is_flag=True,
+    default=False,
+    help="Rebuild browser-side JS bundle before running conversion.",
+)
 @click.version_option(version=__version__)
 def main(
     input_file: str,
@@ -60,6 +67,7 @@ def main(
     prefer_editable: bool,
     keep_temp: bool,
     verbose: bool,
+    dev: bool,
 ) -> None:
     """Convert Marp Markdown to editable PPTX.
 
@@ -90,6 +98,7 @@ def main(
     console.print()
 
     try:
+        ensure_extract_bundle(dev=dev)
         with console.status("[bold blue]Converting...[/bold blue]", spinner="dots"):
             result = convert(
                 markdown_path=input_file,

@@ -116,7 +116,7 @@ Marp MD --> marp-cli HTML --> Playwright 抽出 --> 正規化モデル --> pytho
 ```
 
 1. **marp-cli** が Markdown をスタンドアロン HTML に変換（`marp_renderer.py`）。
-2. **Playwright**（Chromium）が HTML を開き、各要素の DOM 構造・算出スタイル・バウンディングボックスを抽出（`extractor.py` + `extract_slides.js`）。
+2. **Playwright**（Chromium）が HTML を開き、各要素の DOM 構造・算出スタイル・バウンディングボックスを抽出（`extractor.py` + `extract_slides.bundle.js`）。
 3. **正規化中間モデル**（Pydantic v2）がスライドコンテンツをツール非依存な形式で表現（`models.py`）。
 4. **python-pptx** が正規化モデルからネイティブ PowerPoint 要素を含む PPTX を生成（`pptx_builder/` パッケージ）。
 
@@ -128,7 +128,8 @@ Marp MD --> marp-cli HTML --> Playwright 抽出 --> 正規化モデル --> pytho
 | `converter.py` | 変換パイプラインのオーケストレーション |
 | `marp_renderer.py` | marp-cli による Markdown → HTML 変換 |
 | `extractor.py` | Playwright による DOM 抽出・モデル構築 |
-| `extract_slides.js` | ブラウザ内で実行されるスライド抽出 JavaScript |
+| `extract_slides.bundle.js` | 実行時に Playwright へ渡されるブラウザ内抽出バンドル |
+| `extract_slides_js/` | 抽出ロジックの分割ソース（entry/runs/paragraphs/blocks/handlers など） |
 | `extract_notes.js` | ブラウザ内で実行されるスピーカーノート抽出 JavaScript |
 | `models.py` | Pydantic v2 による中間データモデル |
 | `capabilities.py` | 要素ごとのレンダリング能力分類（`CapabilityDecision` は NamedTuple） |
@@ -163,6 +164,23 @@ Marp MD --> marp-cli HTML --> Playwright 抽出 --> 正規化モデル --> pytho
 ```bash
 uv sync
 uv run pytest
+```
+
+`extract_slides.bundle.js` は実行時に静的ファイルとして読み込まれます。  
+開発中は、`pytest` の入口で自動再生成されます。CLI で分割ソースを反映したい場合は `--dev` を付けて実行します。
+
+- ライブラリ import 時には `node` / `npm` は実行されません
+- 通常の CLI 実行では bundle を読むだけです
+- 分割ソースを使って CLI デバッグする場合だけ `--dev` で stale bundle を自動更新します
+- bundle を手で再生成したい場合は次を実行します
+
+```bash
+cd src/marpx/extract_slides_js
+npm run build
+```
+
+```bash
+uv run marpx --dev input.md -o output.pptx
 ```
 
 リンティングとフォーマットは [ruff](https://docs.astral.sh/ruff/) を使用:

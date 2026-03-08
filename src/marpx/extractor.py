@@ -28,6 +28,7 @@ from marpx.models import (
     UnsupportedInfo,
 )
 from marpx.fonts import safe_font_family
+from marpx.js_bundle import load_extract_bundle
 from marpx.utils import (
     boxes_have_mergeable_vertical_gap,
     boxes_share_column,
@@ -36,7 +37,6 @@ from marpx.utils import (
 )
 
 logger = logging.getLogger(__name__)
-
 _JS_DIR = Path(__file__).parent
 _EXTRACT_NOTES_JS = (_JS_DIR / "extract_notes.js").read_text(encoding="utf-8")
 
@@ -44,61 +44,6 @@ TEXTBOX_MERGE_TYPES: tuple[ElementType, ...] = (
     ElementType.PARAGRAPH,
     ElementType.BLOCKQUOTE,
 )
-
-
-def _load_js_bundle(bundle_name: str) -> str:
-    """Load a browser-evaluated JS bundle, auto-building if needed."""
-    bundle_file = _JS_DIR / f"{bundle_name}.bundle.js"
-    bundle_dir = _JS_DIR / f"{bundle_name}_js"
-
-    if not bundle_dir.exists():
-        raise FileNotFoundError(f"JS bundle directory not found: {bundle_dir}")
-
-    # Check if rebuild is needed
-    needs_build = not bundle_file.exists()
-    if not needs_build:
-        bundle_mtime = bundle_file.stat().st_mtime
-        for src in bundle_dir.glob("*.js"):
-            if src.name == "build.mjs":
-                continue
-            if src.stat().st_mtime > bundle_mtime:
-                needs_build = True
-                break
-
-    if needs_build:
-        import subprocess
-
-        # Ensure esbuild is installed
-        node_modules = bundle_dir / "node_modules"
-        if not node_modules.exists():
-            subprocess.run(
-                ["npm", "install", "--no-audit", "--no-fund"],
-                cwd=str(bundle_dir),
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-
-        result = subprocess.run(
-            ["node", str(bundle_dir / "build.mjs")],
-            cwd=str(bundle_dir),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"Failed to build JS bundle '{bundle_name}': {result.stderr}"
-            )
-        if not bundle_file.exists():
-            raise FileNotFoundError(
-                f"Bundle file not created after build: {bundle_file}"
-            )
-
-    return bundle_file.read_text(encoding="utf-8")
-
-
-EXTRACT_JS = _load_js_bundle("extract_slides")
 
 
 def _build_text_style(raw_style: dict) -> TextStyle:
@@ -344,6 +289,7 @@ async def extract_presentation(html_path: str | Path) -> Presentation:
     """
     html_path = Path(html_path).resolve()
     file_url = html_path.as_uri()
+    extract_js = load_extract_bundle()
 
     async with async_playwright() as p:
         browser = await p.chromium.launch()
@@ -356,7 +302,7 @@ async def extract_presentation(html_path: str | Path) -> Presentation:
         await page.wait_for_selector("section", timeout=10000)
 
         # Extract all slide data in one batch
-        raw_slides = await page.evaluate(EXTRACT_JS)
+        raw_slides = await page.evaluate(extract_js)
 
         # Extract speaker notes (stored outside slide sections)
         raw_notes = await page.evaluate(_EXTRACT_NOTES_JS)
