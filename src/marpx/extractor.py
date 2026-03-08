@@ -322,6 +322,7 @@ def _build_presentation_from_raw(
                 elements.append(_build_slide_element(raw_el))
             except Exception as e:
                 logger.warning("Failed to build element: %s", e)
+                logger.debug("Failed to extract element: %s", e, exc_info=True)
         elements = _merge_same_type_paragraphs(elements)
 
         slide_number = raw_slide.get("slideNumber", 0)

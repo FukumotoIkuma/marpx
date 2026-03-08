@@ -115,27 +115,13 @@ def _apply_round_rect_radius_to_geom(
     prst_geom.rewrite_guides([("adj", adj)])
 
 
-def _add_decoration_shape(
+def _create_outer_shadow_shapes(
     slide,
     box: Box,
     decoration: BoxDecoration,
-    *,
-    rotation_3d_x_deg: float = 0.0,
-    rotation_3d_y_deg: float = 0.0,
-    rotation_3d_z_deg: float = 0.0,
-):
-    """Render a generic decorated box and return it as the text container."""
-    left = Emu(px_to_emu(box.x))
-    top = Emu(px_to_emu(box.y))
-    width = Emu(px_to_emu(box.width))
-    height = Emu(px_to_emu(box.height))
-
-    shape_type = (
-        MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE
-        if decoration.border_radius_px > 0
-        else MSO_AUTO_SHAPE_TYPE.RECTANGLE
-    )
-
+    shape_type,
+) -> None:
+    """Render outer (non-inset) shadow shapes behind the main background shape."""
     for shadow in decoration.box_shadows:
         if shadow.inset or shadow.color.a <= 0:
             continue
@@ -155,6 +141,19 @@ def _add_decoration_shape(
                 shape_type,
                 shadow,
             )
+
+
+def _create_background_shape(
+    slide,
+    box: Box,
+    decoration: BoxDecoration,
+    shape_type,
+):
+    """Create the main background shape and apply its fill (solid color or gradient)."""
+    left = Emu(px_to_emu(box.x))
+    top = Emu(px_to_emu(box.y))
+    width = Emu(px_to_emu(box.width))
+    height = Emu(px_to_emu(box.height))
 
     bg_shape = slide.shapes.add_shape(shape_type, left, top, width, height)
     _remove_theme_style(bg_shape)
@@ -186,7 +185,23 @@ def _add_decoration_shape(
             else:
                 fill.background()
 
-    uniform_border = _detect_uniform_border(decoration)
+    return bg_shape
+
+
+def _apply_uniform_border(
+    slide,
+    box: Box,
+    decoration: BoxDecoration,
+    shape_type,
+    bg_shape,
+    uniform_border,
+) -> None:
+    """Apply a uniform border to the background shape, or clear the line if none."""
+    left = Emu(px_to_emu(box.x))
+    top = Emu(px_to_emu(box.y))
+    width = Emu(px_to_emu(box.width))
+    height = Emu(px_to_emu(box.height))
+
     if uniform_border:
         border_color = _with_opacity(uniform_border.color, decoration.opacity)
         if border_color.a > 0:
@@ -214,6 +229,85 @@ def _add_decoration_shape(
     elif hasattr(bg_shape, "line"):
         bg_shape.line.fill.background()
 
+
+def _apply_left_accent_bar(
+    slide,
+    box: Box,
+    decoration: BoxDecoration,
+    *,
+    rotation_3d_x_deg: float = 0.0,
+    rotation_3d_y_deg: float = 0.0,
+    rotation_3d_z_deg: float = 0.0,
+) -> None:
+    """Render a left accent bar shape for blockquote-style left-border elements."""
+    accent_border = decoration.border_left
+    if accent_border.color is None:
+        return
+    accent_left, accent_top, accent_width, accent_height = (
+        _resolve_left_accent_geometry(box, decoration)
+    )
+    accent_shape = slide.shapes.add_shape(
+        MSO_AUTO_SHAPE_TYPE.RECTANGLE,
+        accent_left,
+        accent_top,
+        accent_width,
+        accent_height,
+    )
+    _remove_theme_style(accent_shape)
+    accent_color = _with_opacity(accent_border.color, decoration.opacity)
+    _set_fill_color(accent_shape.fill, accent_color)
+    accent_shape.line.fill.background()
+    _apply_scene3d(
+        accent_shape._element.spPr,
+        rotation_3d_x_deg=rotation_3d_x_deg,
+        rotation_3d_y_deg=rotation_3d_y_deg,
+        rotation_3d_z_deg=rotation_3d_z_deg,
+    )
+
+
+def _create_inset_shadow_shapes(
+    slide,
+    box: Box,
+    decoration: BoxDecoration,
+    shape_type,
+) -> None:
+    """Render inset shadow shapes layered on top of the main background shape."""
+    for shadow in decoration.box_shadows:
+        if not shadow.inset or shadow.color.a <= 0:
+            continue
+        _add_shadow_shape(
+            slide,
+            box,
+            decoration,
+            shape_type,
+            shadow,
+            inset=True,
+        )
+
+
+def _add_decoration_shape(
+    slide,
+    box: Box,
+    decoration: BoxDecoration,
+    *,
+    rotation_3d_x_deg: float = 0.0,
+    rotation_3d_y_deg: float = 0.0,
+    rotation_3d_z_deg: float = 0.0,
+):
+    """Render a generic decorated box and return it as the text container."""
+    shape_type = (
+        MSO_AUTO_SHAPE_TYPE.ROUNDED_RECTANGLE
+        if decoration.border_radius_px > 0
+        else MSO_AUTO_SHAPE_TYPE.RECTANGLE
+    )
+
+    _create_outer_shadow_shapes(slide, box, decoration, shape_type)
+
+    bg_shape = _create_background_shape(slide, box, decoration, shape_type)
+
+    uniform_border = _detect_uniform_border(decoration)
+    _apply_uniform_border(slide, box, decoration, shape_type, bg_shape, uniform_border)
+
     _apply_scene3d(
         bg_shape._element.spPr,
         rotation_3d_x_deg=rotation_3d_x_deg,
@@ -228,22 +322,10 @@ def _add_decoration_shape(
         and decoration.opacity > 0
         and _is_left_accent_only(decoration)
     ):
-        accent_left, accent_top, accent_width, accent_height = (
-            _resolve_left_accent_geometry(box, decoration)
-        )
-        accent_shape = slide.shapes.add_shape(
-            MSO_AUTO_SHAPE_TYPE.RECTANGLE,
-            accent_left,
-            accent_top,
-            accent_width,
-            accent_height,
-        )
-        _remove_theme_style(accent_shape)
-        accent_color = _with_opacity(accent_border.color, decoration.opacity)
-        _set_fill_color(accent_shape.fill, accent_color)
-        accent_shape.line.fill.background()
-        _apply_scene3d(
-            accent_shape._element.spPr,
+        _apply_left_accent_bar(
+            slide,
+            box,
+            decoration,
             rotation_3d_x_deg=rotation_3d_x_deg,
             rotation_3d_y_deg=rotation_3d_y_deg,
             rotation_3d_z_deg=rotation_3d_z_deg,
@@ -258,17 +340,7 @@ def _add_decoration_shape(
             rotation_3d_z_deg=rotation_3d_z_deg,
         )
 
-    for shadow in decoration.box_shadows:
-        if not shadow.inset or shadow.color.a <= 0:
-            continue
-        _add_shadow_shape(
-            slide,
-            box,
-            decoration,
-            shape_type,
-            shadow,
-            inset=True,
-        )
+    _create_inset_shadow_shapes(slide, box, decoration, shape_type)
 
     return bg_shape
 

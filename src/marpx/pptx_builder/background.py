@@ -70,6 +70,9 @@ def _add_background_image(
             image_width_px, image_height_px = image.size
     except Exception:
         logger.warning("Failed to inspect background image size: %s", bg_image.url)
+        logger.debug(
+            "Failed to process background image: %s", bg_image.url, exc_info=True
+        )
 
     box_left, box_top, box_width, box_height = _resolve_split_box(
         bg_image,
