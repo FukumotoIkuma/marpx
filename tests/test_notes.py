@@ -169,8 +169,6 @@ class TestNotesIntegration:
 
         Requires marp-cli and Playwright to be installed.
         """
-        import asyncio
-
         from marpx.extractor import extract_presentation
 
         fixture = Path(__file__).parent / "fixtures" / "speaker-notes.md"
@@ -192,16 +190,9 @@ class TestNotesIntegration:
                 pytest.skip(f"marp-cli failed: {result.stderr}")
 
             # Extract presentation
-            try:
-                asyncio.get_running_loop()
-                import concurrent.futures
+            from marpx.async_utils import run_coroutine_sync
 
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    pres = pool.submit(
-                        asyncio.run, extract_presentation(html_path)
-                    ).result()
-            except RuntimeError:
-                pres = asyncio.run(extract_presentation(html_path))
+            pres = run_coroutine_sync(extract_presentation(html_path))
 
             # Slide 0 should have notes
             assert pres.slides[0].notes is not None

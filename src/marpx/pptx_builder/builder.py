@@ -123,8 +123,12 @@ def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
                         )
                     except Exception as e:
                         logger.warning("Failed to add background image: %s", e)
+                        logger.debug(
+                            "Failed to process background: %s", e, exc_info=True
+                        )
 
             # Add elements sorted by z-index, grouping adjacent plain text content
+            skipped_count = 0
             sorted_elements = sorted(slide_data.elements, key=lambda e: e.z_index)
             for group in _group_adjacent_text_elements(sorted_elements):
                 if len(group) > 1 and all(
@@ -163,6 +167,16 @@ def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
                         element.element_type.value,
                         e,
                     )
+                    logger.debug("Failed to build element: %s", e, exc_info=True)
+                    skipped_count += 1
+
+            if skipped_count:
+                slide_index = presentation.slides.index(slide_data)
+                logger.info(
+                    "Slide %d: skipped %d element(s)",
+                    slide_index + 1,
+                    skipped_count,
+                )
 
             # Add directives (header, footer, page number)
             slide_w_emu = px_to_emu(slide_data.width_px)

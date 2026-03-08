@@ -142,6 +142,7 @@ Marp MD --> marp-cli HTML --> Playwright 抽出 --> 正規化モデル --> pytho
 | `pptx_builder/decoration.py` | 装飾シェイプの生成 |
 | `pptx_builder/directives.py` | ページ番号・ヘッダー・フッターの描画 |
 | `pptx_builder/_helpers.py` | 色処理ヘルパー（RGBA→RGB、オパシティ） |
+| `async_utils.py` | 非同期→同期ブリッジユーティリティ（`run_coroutine_sync()`） |
 | `fallback_renderer.py` | 非対応要素のスクリーンショットフォールバック |
 | `svg_utils.py` | SVG の PNG ラスタライズ（`rasterize_svg_to_png()`） |
 | `fonts.py` | CSS → PowerPoint フォントマッピング |

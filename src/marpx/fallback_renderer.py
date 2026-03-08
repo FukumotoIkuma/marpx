@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -348,13 +347,8 @@ def render_fallbacks_sync(
     fallback_mode: str = "subtree",
 ) -> Presentation:
     """Synchronous wrapper for render_fallbacks."""
-    coro = render_fallbacks(html_path, presentation, output_dir, fallback_mode)
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    # Already inside an event loop — run in a new thread to avoid nesting
-    import concurrent.futures
+    from marpx.async_utils import run_coroutine_sync
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(asyncio.run, coro).result()
+    return run_coroutine_sync(
+        render_fallbacks(html_path, presentation, output_dir, fallback_mode)
+    )
