@@ -348,6 +348,13 @@ def render_fallbacks_sync(
     fallback_mode: str = "subtree",
 ) -> Presentation:
     """Synchronous wrapper for render_fallbacks."""
-    return asyncio.run(
-        render_fallbacks(html_path, presentation, output_dir, fallback_mode)
-    )
+    coro = render_fallbacks(html_path, presentation, output_dir, fallback_mode)
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    # Already inside an event loop — run in a new thread to avoid nesting
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
