@@ -1,4 +1,5 @@
-    import { deriveRenderContext, styleToRunStyle } from './entry.js';
+    import { deriveRenderContext } from './render-context.js';
+    import { styleToRunStyle } from './style.js';
     import { trimBoundaryWhitespace } from './runs.js';
 
     export function _buildParagraph(runs, alignment, metrics, extra = {}) {

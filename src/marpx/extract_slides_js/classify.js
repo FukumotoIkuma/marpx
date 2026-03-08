@@ -1,4 +1,4 @@
-    import { extractDecoration, hasMeaningfulDecoration } from './entry.js';
+    import { extractDecoration, hasMeaningfulDecoration } from './decoration.js';
     import { extractParagraphsFromContainer } from './containers.js';
     import { extractInlineRuns } from './runs.js';
 

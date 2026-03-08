@@ -116,6 +116,7 @@ class BackgroundImage(BaseModel):
 
 class Background(BaseModel):
     color: RGBAColor | None = None
+    background_gradient: str | None = None
     image_path: str | None = None  # for fallback image backgrounds
     images: list[BackgroundImage] = Field(default_factory=list)  # background images
 

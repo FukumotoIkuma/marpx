@@ -388,7 +388,13 @@ async def extract_presentation(html_path: str | Path) -> Presentation:
             width_px=raw_slide.get("width", default_w),
             height_px=raw_slide.get("height", default_h),
             elements=elements,
-            background=Background(color=bg_color, images=bg_images),
+            background=Background(
+                color=bg_color,
+                background_gradient=raw_slide.get("background", {}).get(
+                    "backgroundGradient"
+                ),
+                images=bg_images,
+            ),
             slide_number=slide_number,
             notes=note_text if note_text else None,
             header_text=directives.get("headerText") or None,

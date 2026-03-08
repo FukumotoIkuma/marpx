@@ -1,6 +1,6 @@
 import { extractBackgroundImages, extractDirectives } from './backgrounds.js';
 import { processElement } from './handlers.js';
-import { createRenderContext } from './entry.js';
+import { createRenderContext } from './render-context.js';
 
 export function extractSlides() {
     const sections = document.querySelectorAll('section[id]');
@@ -51,6 +51,9 @@ export function extractSlides() {
             slideNumber: slideIndex++,
             background: {
                 color: cs.backgroundColor,
+                backgroundGradient: cs.backgroundImage && cs.backgroundImage.includes('linear-gradient(')
+                    ? cs.backgroundImage
+                    : null,
                 images: bgImages,
             },
             directives: directives,

@@ -1,15 +1,12 @@
+import { deriveRenderContext } from './render-context.js';
+import { styleToRunStyle, applyOpacityToColor } from './style.js';
+import { extractDecoration, hasMeaningfulDecoration, extractBlockPseudoElements } from './decoration.js';
 import {
     getComputedStyles,
     buildTextElement,
     getZIndex,
-    styleToRunStyle,
-    extractDecoration,
-    hasMeaningfulDecoration,
     getBox,
     getContentBox,
-    deriveRenderContext,
-    applyOpacityToColor,
-    extractBlockPseudoElements,
 } from './entry.js';
 import {
     extractTextRuns,

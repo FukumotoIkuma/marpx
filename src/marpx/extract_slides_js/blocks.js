@@ -1,11 +1,10 @@
     import {
-        extractDecoration,
-        hasMeaningfulDecoration,
         deriveRenderContext,
         deriveSubtreeRenderContext,
-        getUnsupportedStyleReason,
         isComplexTransform,
-    } from './entry.js';
+    } from './render-context.js';
+    import { getUnsupportedStyleReason } from './style.js';
+    import { extractDecoration, hasMeaningfulDecoration } from './decoration.js';
     import { extractTextRuns } from './runs.js';
     import { extractListItemContent, extractParagraphsFromContainer } from './containers.js';
     import { shouldExtractStandaloneDecoratedText } from './classify.js';
@@ -124,6 +123,8 @@
     }
 
     function _requiresOverflowClipFallback(el, cs) {
+        const tag = (el.localName || el.tagName).toLowerCase();
+        if (tag === 'table') return false;
         if (!_hasOverflowClipping(cs)) return false;
         const radius = parseFloat(cs.borderTopLeftRadius) || 0;
         if (radius <= 0) return false;

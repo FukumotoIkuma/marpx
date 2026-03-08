@@ -1688,6 +1688,24 @@ class TestSolidBackground:
         fill = bg.fill
         assert fill.type is not None
 
+    def test_slide_linear_gradient_background_renders_picture(self, tmp_path: Path) -> None:
+        pres = Presentation(
+            slides=[
+                Slide(
+                    width_px=1280,
+                    height_px=720,
+                    elements=[_make_heading("Gradient Slide")],
+                    background=Background(
+                        background_gradient="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+                    ),
+                )
+            ],
+        )
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+
+        assert any(shape.shape_type == 13 for shape in slide.shapes)
+
 
 class TestOutputFile:
     """Verify the PPTX file is written to disk."""

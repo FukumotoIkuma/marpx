@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import logging
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from marpx.utils import px_to_emu
 from ._helpers import _set_fill_color
 from .background import _add_background_image
 from .decoration import _add_code_block, _add_fallback_image
+from marpx.gradient_utils import render_linear_gradient_png
 from .directives import _add_footer, _add_header, _add_page_number
 from .image import MissingDependencyError, _add_image
 from .table import _add_table
@@ -27,8 +29,25 @@ from .text_grouping import (
 logger = logging.getLogger(__name__)
 
 
-def _set_slide_background(pptx_slide, background: Background) -> None:
+def _set_slide_background(
+    pptx_slide, background: Background, slide_width_px: float, slide_height_px: float
+) -> None:
     """Set solid background color on a slide."""
+    if background.background_gradient:
+        gradient_bytes = render_linear_gradient_png(
+            background.background_gradient,
+            max(int(round(slide_width_px)), 1),
+            max(int(round(slide_height_px)), 1),
+        )
+        if gradient_bytes:
+            pptx_slide.shapes.add_picture(
+                io.BytesIO(gradient_bytes),
+                Emu(0),
+                Emu(0),
+                Emu(px_to_emu(slide_width_px)),
+                Emu(px_to_emu(slide_height_px)),
+            )
+            return
     if background.color and background.color.a > 0:
         bg = pptx_slide.background
         fill = bg.fill
@@ -83,7 +102,12 @@ def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
                 )
         else:
             # Set background
-            _set_slide_background(pptx_slide, slide_data.background)
+            _set_slide_background(
+                pptx_slide,
+                slide_data.background,
+                slide_data.width_px,
+                slide_data.height_px,
+            )
 
             # Add background images (behind content)
             if slide_data.background.images:

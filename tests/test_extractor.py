@@ -1152,6 +1152,40 @@ style: |
         assert unsupported.unsupported_info is not None
         assert unsupported.unsupported_info.reason == "Overflow clipping container"
 
+    def test_rounded_overflow_table_stays_native(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "overflow-table.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  }
+  th { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
+---
+
+# Slide
+
+| A | B |
+|---|---|
+| 1 | 2 |
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        assert any(e.element_type == ElementType.TABLE for e in slide.elements)
+        assert all(e.element_type != ElementType.UNSUPPORTED for e in slide.elements)
+
     def test_inline_gradient_text_becomes_unsupported_with_placeholder(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:
@@ -1193,7 +1227,7 @@ This has <span class="gradient">gradient text</span> inline.
         assert unsupported.unsupported_info is not None
         assert unsupported.unsupported_info.reason == "Gradient text"
 
-    def test_backdrop_filter_block_becomes_unsupported(
+    def test_backdrop_filter_block_stays_native(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:
         md_path = tmp_path / "backdrop-filter.md"
@@ -1219,11 +1253,44 @@ style: |
         html_path = render_to_html(md_path, output_dir=tmp_output_dir)
         pres = extract_presentation_sync(html_path)
         slide = pres.slides[0]
-        unsupported = next(
-            e for e in slide.elements if e.element_type == ElementType.UNSUPPORTED
+        panel = next(
+            e
+            for e in slide.elements
+            if e.element_type == ElementType.DECORATED_BLOCK
+            and any(
+                "".join(run.text for run in p.runs) == "Glass panel"
+                for p in e.paragraphs
+            )
         )
-        assert unsupported.unsupported_info is not None
-        assert unsupported.unsupported_info.reason == "Backdrop filter"
+        assert panel.decoration is not None
+        assert panel.decoration.background_color is not None
+        assert all(e.element_type != ElementType.UNSUPPORTED for e in slide.elements)
+
+    def test_slide_linear_gradient_background_is_extracted(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "slide-bg-gradient.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+  }
+---
+
+# Slide
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        assert slide.background.background_gradient is not None
+        assert slide.background.background_gradient.startswith("linear-gradient(")
 
     def test_decorated_badge_is_extracted_as_separate_element(
         self, tmp_path: Path, tmp_output_dir: Path
