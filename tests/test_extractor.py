@@ -258,9 +258,7 @@ table { color: white; }
         html_path = render_to_html(md_path, output_dir=tmp_output_dir)
         pres = extract_presentation_sync(html_path)
         slide = pres.slides[0]
-        table = next(
-            e for e in slide.elements if e.element_type == ElementType.TABLE
-        )
+        table = next(e for e in slide.elements if e.element_type == ElementType.TABLE)
 
         background = table.table_rows[0].cells[0].background
         assert background is None or background.a > 0
@@ -288,9 +286,7 @@ th { color: white; background: linear-gradient(135deg, #3b82f6, #2563eb); }
         html_path = render_to_html(md_path, output_dir=tmp_output_dir)
         pres = extract_presentation_sync(html_path)
         slide = pres.slides[0]
-        table = next(
-            e for e in slide.elements if e.element_type == ElementType.TABLE
-        )
+        table = next(e for e in slide.elements if e.element_type == ElementType.TABLE)
 
         header_run = table.table_rows[0].cells[0].paragraphs[0].runs[0]
         assert header_run.style.color.a == pytest.approx(1.0)
@@ -320,9 +316,7 @@ tbody tr:nth-child(odd) { background: #f1f5f9; }
         html_path = render_to_html(md_path, output_dir=tmp_output_dir)
         pres = extract_presentation_sync(html_path)
         slide = pres.slides[0]
-        table = next(
-            e for e in slide.elements if e.element_type == ElementType.TABLE
-        )
+        table = next(e for e in slide.elements if e.element_type == ElementType.TABLE)
 
         header = table.table_rows[0].cells[0]
         body = table.table_rows[1].cells[0]
@@ -366,12 +360,8 @@ marp: true
         panel = next(
             e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
         )
-        image = next(
-            e for e in slide.elements if e.element_type == ElementType.IMAGE
-        )
-        table = next(
-            e for e in slide.elements if e.element_type == ElementType.TABLE
-        )
+        image = next(e for e in slide.elements if e.element_type == ElementType.IMAGE)
+        table = next(e for e in slide.elements if e.element_type == ElementType.TABLE)
 
         assert paragraph.paragraphs[0].runs[0].style.color.a == pytest.approx(0.6)
         assert panel.decoration is not None
@@ -591,7 +581,10 @@ class TestRenderedLayoutCapture:
             if e.element_type == ElementType.HEADING and e.heading_level == 2
         )
 
-        assert "".join(run.text for run in heading.paragraphs[0].runs) == "marpx Kitchen Sink"
+        assert (
+            "".join(run.text for run in heading.paragraphs[0].runs)
+            == "marpx Kitchen Sink"
+        )
 
     def test_paragraph_trims_html_indentation_whitespace(
         self, tmp_path: Path, tmp_output_dir: Path
@@ -615,9 +608,14 @@ class TestRenderedLayoutCapture:
         )
 
         text = "".join(run.text for run in paragraph.paragraphs[0].runs)
-        assert text == "Header · Footer · Paginate · Speaker Notes · Background — all directives supported"
+        assert (
+            text
+            == "Header · Footer · Paginate · Speaker Notes · Background — all directives supported"
+        )
 
-    def test_paragraph_preserves_br_line_breaks(self, tmp_path: Path, tmp_output_dir: Path) -> None:
+    def test_paragraph_preserves_br_line_breaks(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
         md_path = tmp_path / "paragraph-br.md"
         md_path.write_text(
             """# Slide
@@ -678,7 +676,9 @@ class Sample:
             "    value: int",
         ]
 
-    def test_code_block_preserves_pre_decoration(self, tmp_path: Path, tmp_output_dir: Path) -> None:
+    def test_code_block_preserves_pre_decoration(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
         md_path = tmp_path / "decorated-code-block.md"
         md_path.write_text(
             """# Slide
@@ -692,7 +692,9 @@ beta</code></pre>
         html_path = render_to_html(md_path, output_dir=tmp_output_dir)
         pres = extract_presentation_sync(html_path)
         slide = pres.slides[0]
-        code = next(e for e in slide.elements if e.element_type == ElementType.CODE_BLOCK)
+        code = next(
+            e for e in slide.elements if e.element_type == ElementType.CODE_BLOCK
+        )
 
         assert code.decoration is not None
         assert code.decoration.border_radius_px == pytest.approx(6.0)

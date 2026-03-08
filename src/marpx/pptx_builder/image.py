@@ -161,10 +161,7 @@ def _add_image(slide, element: SlideElement) -> None:
             else:
                 logger.warning("Failed to resolve image: %s", element.image_src)
 
-        if (
-            picture is not None
-            and element.image_opacity < 1.0
-        ):
+        if picture is not None and element.image_opacity < 1.0:
             blip = picture._element.blipFill.blip
             _set_blip_alpha(blip, element.image_opacity)
 

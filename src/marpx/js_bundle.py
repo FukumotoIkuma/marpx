@@ -25,7 +25,9 @@ def _bundle_needs_rebuild(bundle_file: Path, bundle_dir: Path) -> bool:
     if not bundle_file.exists():
         return True
     bundle_mtime = bundle_file.stat().st_mtime
-    return any(src.stat().st_mtime > bundle_mtime for src in _bundle_sources(bundle_dir))
+    return any(
+        src.stat().st_mtime > bundle_mtime for src in _bundle_sources(bundle_dir)
+    )
 
 
 def _run_dev_bundle_build(bundle_dir: Path) -> None:

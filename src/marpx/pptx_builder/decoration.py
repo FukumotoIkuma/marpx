@@ -19,7 +19,9 @@ from ._helpers import _set_fill_color, _set_line_color, _with_opacity
 logger = logging.getLogger(__name__)
 
 
-def _round_rect_adjustment(width: int | float, height: int | float, radius: int | float) -> float:
+def _round_rect_adjustment(
+    width: int | float, height: int | float, radius: int | float
+) -> float:
     """Return normalized roundRect adjustment matching CSS border-radius."""
     min_dim = min(float(width), float(height))
     if min_dim <= 0:
@@ -27,7 +29,9 @@ def _round_rect_adjustment(width: int | float, height: int | float, radius: int 
     return max(0.0, min(float(radius) / min_dim, 0.5))
 
 
-def _apply_round_rect_radius(shape, width: int | float, height: int | float, radius: int | float) -> None:
+def _apply_round_rect_radius(
+    shape, width: int | float, height: int | float, radius: int | float
+) -> None:
     """Apply a CSS-like corner radius to a rounded rectangle auto shape."""
     if radius <= 0 or width <= 0 or height <= 0:
         return
@@ -35,7 +39,9 @@ def _apply_round_rect_radius(shape, width: int | float, height: int | float, rad
         shape.adjustments[0] = _round_rect_adjustment(width, height, radius)
 
 
-def _apply_round_rect_radius_to_geom(prst_geom, width: int | float, height: int | float, radius: int | float) -> None:
+def _apply_round_rect_radius_to_geom(
+    prst_geom, width: int | float, height: int | float, radius: int | float
+) -> None:
     """Apply a CSS-like corner radius to a preset geometry node."""
     if radius <= 0 or width <= 0 or height <= 0:
         return
@@ -94,7 +100,9 @@ def _add_decoration_shape(slide, box: Box, decoration: BoxDecoration):
                 _set_line_color(bg_shape.line, border_color)
                 bg_shape.line.width = Emu(px_to_emu(uniform_border.width_px))
             else:
-                border_shape = slide.shapes.add_shape(shape_type, left, top, width, height)
+                border_shape = slide.shapes.add_shape(
+                    shape_type, left, top, width, height
+                )
                 _remove_theme_style(border_shape)
                 border_shape.fill.background()
                 if decoration.border_radius_px > 0:

@@ -494,7 +494,9 @@ class TestShapeCount:
         assert len(text_shapes) == 2
         assert any(shape.text == "Split Layout" for shape in text_shapes)
         assert any("Text Region" in shape.text for shape in text_shapes)
-        grouped_shape = next(shape for shape in text_shapes if "Text Region" in shape.text)
+        grouped_shape = next(
+            shape for shape in text_shapes if "Text Region" in shape.text
+        )
         assert grouped_shape.text_frame.margin_left == 0
         assert grouped_shape.text_frame.margin_right == 0
         assert grouped_shape.text_frame.margin_top == 0
@@ -627,7 +629,9 @@ class TestShapeCount:
         ]
         assert any("Quoted text" in text for text in texts)
 
-    def test_decorated_block_places_textbox_at_content_box(self, tmp_path: Path) -> None:
+    def test_decorated_block_places_textbox_at_content_box(
+        self, tmp_path: Path
+    ) -> None:
         element = _make_decorated_block("Quoted text")
         pres = Presentation(
             slides=[Slide(width_px=1280, height_px=720, elements=[element])],
@@ -1042,7 +1046,9 @@ class TestTableBuilding:
         assert widths[1] == px_to_emu(230)
         assert widths[2] == px_to_emu(110)
 
-    def test_table_cell_emits_gradient_fill_padding_and_border(self, tmp_path: Path) -> None:
+    def test_table_cell_emits_gradient_fill_padding_and_border(
+        self, tmp_path: Path
+    ) -> None:
         element = SlideElement(
             element_type=ElementType.TABLE,
             box=Box(x=72, y=100, width=400, height=120),
@@ -1053,7 +1059,9 @@ class TestTableBuilding:
                             paragraphs=[Paragraph(runs=[TextRun(text="Header")])],
                             is_header=True,
                             background_gradient="linear-gradient(135deg, #3b82f6, #2563eb)",
-                            padding=BoxPadding(top_px=14, right_px=16, bottom_px=14, left_px=16),
+                            padding=BoxPadding(
+                                top_px=14, right_px=16, bottom_px=14, left_px=16
+                            ),
                             border_bottom=BorderSide(
                                 width_px=1,
                                 style="solid",
@@ -1075,8 +1083,8 @@ class TestTableBuilding:
 
         assert cell.text_frame.margin_left == px_to_emu(16)
         assert cell.text_frame.margin_top == px_to_emu(14)
-        assert 'a:gradFill' in cell._tc.xml
-        assert 'a:lnB' in cell._tc.xml
+        assert "a:gradFill" in cell._tc.xml
+        assert "a:lnB" in cell._tc.xml
 
 
 class TestCodeBlock:
@@ -1127,7 +1135,9 @@ class TestCodeBlock:
                 Slide(
                     width_px=1280,
                     height_px=720,
-                    elements=[_make_code_block("print('hello')", decoration=decoration)],
+                    elements=[
+                        _make_code_block("print('hello')", decoration=decoration)
+                    ],
                 )
             ],
         )

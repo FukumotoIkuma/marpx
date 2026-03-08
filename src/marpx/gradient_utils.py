@@ -36,7 +36,9 @@ def representative_gradient_color(css_gradient: str) -> RGBAColor | None:
 def parse_linear_gradient(css_gradient: str) -> ParsedLinearGradient | None:
     """Parse a simple CSS linear-gradient() string."""
     gradient = css_gradient.strip()
-    if not gradient.lower().startswith("linear-gradient(") or not gradient.endswith(")"):
+    if not gradient.lower().startswith("linear-gradient(") or not gradient.endswith(
+        ")"
+    ):
         return None
 
     inner = gradient[len("linear-gradient(") : -1]
@@ -184,12 +186,15 @@ def _parse_gradient_stop(value: str) -> tuple[RGBAColor, float | None] | None:
 
 
 def _resolve_stop_positions(
-    raw_stops: list[tuple[RGBAColor, float | None]]
+    raw_stops: list[tuple[RGBAColor, float | None]],
 ) -> list[GradientStop]:
     count = len(raw_stops)
     if count == 1:
         color, _ = raw_stops[0]
-        return [GradientStop(color=color, position=0.0), GradientStop(color=color, position=1.0)]
+        return [
+            GradientStop(color=color, position=0.0),
+            GradientStop(color=color, position=1.0),
+        ]
 
     positions = [pos for _, pos in raw_stops]
     if all(pos is None for pos in positions):
