@@ -186,6 +186,8 @@ export function handleCodeBlock(el, slideRect, slideData, renderContext) {
     const codeEl = el.querySelector('code');
     if (codeEl) {
         const styles = getComputedStyles(el);
+        const decoration = extractDecoration(el, renderContext);
+        const hasDecoration = hasMeaningfulDecoration(decoration);
         const lang = Array.from(codeEl.classList)
             .find(c => c.startsWith('language-'));
         const alignment = window.getComputedStyle(codeEl).textAlign || styles.textAlign;
@@ -197,6 +199,7 @@ export function handleCodeBlock(el, slideRect, slideData, renderContext) {
         slideData.elements.push({
             type: 'code_block',
             box: getBox(el, slideRect),
+            contentBox: hasDecoration ? getContentBox(el, slideRect) : null,
             zIndex: getZIndex(el),
             paragraphs: buildParagraphsFromRuns(
                 extractExactTextRuns(codeEl, deriveRenderContext(codeEl, renderContext)),
@@ -206,6 +209,7 @@ export function handleCodeBlock(el, slideRect, slideData, renderContext) {
                 { trimRuns: false },
             ),
             codeLanguage: lang ? lang.replace('language-', '') : null,
+            decoration: hasDecoration ? decoration : null,
             codeBackground: applyOpacityToColor(styles.backgroundColor, renderContext.effectiveOpacity),
         });
         return true; // handled

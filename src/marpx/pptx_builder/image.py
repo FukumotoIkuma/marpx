@@ -102,6 +102,13 @@ def _resolve_image_placement(element: SlideElement) -> tuple[Emu, Emu, Emu, Emu]
     )
 
 
+def _should_round_picture_geometry(element: SlideElement) -> bool:
+    """Round the picture itself only when the image is expected to fill the box."""
+    if not element.decoration or element.decoration.border_radius_px <= 0:
+        return False
+    return (element.object_fit or "").lower() not in {"contain", "scale-down"}
+
+
 def _add_image(slide, element: SlideElement) -> None:
     """Add an image to the slide."""
     if not element.image_src:
@@ -161,11 +168,7 @@ def _add_image(slide, element: SlideElement) -> None:
             blip = picture._element.blipFill.blip
             _set_blip_alpha(blip, element.image_opacity)
 
-        if (
-            picture is not None
-            and element.decoration
-            and element.decoration.border_radius_px > 0
-        ):
+        if picture is not None and _should_round_picture_geometry(element):
             picture._element.spPr.prstGeom.set("prst", "roundRect")
             _apply_round_rect_radius_to_geom(
                 picture._element.spPr.prstGeom,

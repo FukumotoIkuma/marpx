@@ -205,22 +205,33 @@ def _resolve_left_accent_geometry(
 
 def _add_code_block(slide, element: SlideElement) -> None:
     """Add a code block as textbox with background."""
-    from .text import _apply_paragraph_layout, _apply_text_style, ALIGNMENT_MAP
+    from .text import (
+        _apply_paragraph_layout,
+        _apply_text_style,
+        _resolve_textbox_geometry,
+        _set_text_frame_margins_zero,
+        ALIGNMENT_MAP,
+    )
     from pptx.enum.text import PP_ALIGN
 
-    left = Emu(px_to_emu(element.box.x))
-    top = Emu(px_to_emu(element.box.y))
-    width = Emu(px_to_emu(element.box.width))
-    height = Emu(px_to_emu(element.box.height))
+    if element.decoration:
+        _add_decoration_shape(slide, element.box, element.decoration)
+
+    left, top, width, height = _resolve_textbox_geometry(element)
 
     txbox = slide.shapes.add_textbox(left, top, width, height)
     tf = txbox.text_frame
     tf.word_wrap = True
+    _set_text_frame_margins_zero(tf)
+    txbox.line.fill.background()
 
-    # Set background color
-    if element.code_background:
+    if element.decoration:
+        txbox.fill.background()
+    elif element.code_background:
         fill = txbox.fill
         _set_fill_color(fill, element.code_background)
+    else:
+        txbox.fill.background()
 
     # Add code text with monospace font
     for i, para in enumerate(element.paragraphs):

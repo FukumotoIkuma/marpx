@@ -166,6 +166,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
     elif etype == ElementType.CODE_BLOCK:
         element.paragraphs = _build_paragraphs(raw.get("paragraphs", []))
         element.code_language = raw.get("codeLanguage")
+        element.decoration = _build_decoration(raw.get("decoration"))
         if raw.get("codeBackground"):
             element.code_background = parse_css_color(raw["codeBackground"])
 

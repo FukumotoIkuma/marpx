@@ -94,10 +94,18 @@ def _make_table(rows_data: list[list[str]], has_header: bool = True) -> SlideEle
     )
 
 
-def _make_code_block(code: str, language: str = "python") -> SlideElement:
+def _make_code_block(
+    code: str,
+    language: str = "python",
+    decoration: BoxDecoration | None = None,
+) -> SlideElement:
+    box = Box(x=50, y=100, width=600, height=150)
     return SlideElement(
         element_type=ElementType.CODE_BLOCK,
-        box=Box(x=50, y=100, width=600, height=150),
+        box=box,
+        content_box=_content_box_from_decoration(box, decoration)
+        if decoration is not None
+        else None,
         paragraphs=[
             Paragraph(
                 runs=[TextRun(text=code, style=TextStyle(font_family="Courier New"))]
@@ -105,6 +113,7 @@ def _make_code_block(code: str, language: str = "python") -> SlideElement:
         ],
         code_language=language,
         code_background=RGBAColor(r=40, g=42, b=54),
+        decoration=decoration,
     )
 
 
@@ -1093,6 +1102,52 @@ class TestCodeBlock:
                 fill = shape.fill
                 assert fill.type is not None  # Should have some fill type
 
+    def test_code_block_with_decoration_uses_rounded_background_shape(
+        self, tmp_path: Path
+    ) -> None:
+        decoration = BoxDecoration(
+            background_color=RGBAColor(r=246, g=248, b=250),
+            border_top=BorderSide(
+                width_px=1, style="solid", color=RGBAColor(r=209, g=217, b=224)
+            ),
+            border_right=BorderSide(
+                width_px=1, style="solid", color=RGBAColor(r=209, g=217, b=224)
+            ),
+            border_bottom=BorderSide(
+                width_px=1, style="solid", color=RGBAColor(r=209, g=217, b=224)
+            ),
+            border_left=BorderSide(
+                width_px=1, style="solid", color=RGBAColor(r=209, g=217, b=224)
+            ),
+            border_radius_px=6,
+            padding=BoxPadding(top_px=16, right_px=16, bottom_px=16, left_px=16),
+        )
+        pres = Presentation(
+            slides=[
+                Slide(
+                    width_px=1280,
+                    height_px=720,
+                    elements=[_make_code_block("print('hello')", decoration=decoration)],
+                )
+            ],
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        assert len(slide.shapes) == 2
+
+        background_shape = next(
+            shape for shape in slide.shapes if shape.has_text_frame and shape.text == ""
+        )
+        textbox = next(
+            shape for shape in slide.shapes if shape.has_text_frame and shape.text != ""
+        )
+
+        assert 'prst="roundRect"' in background_shape._element.xml
+        assert textbox.left > px_to_emu(50)
+        assert textbox.top > px_to_emu(100)
+        assert "<a:noFill/>" in textbox._element.xml
+
 
 class TestImagePlacement:
     """Verify CSS object-fit placement."""
@@ -1281,7 +1336,7 @@ class TestImageRendering:
         assert picture.left > px_to_emu(10)
         assert picture.top > px_to_emu(20)
 
-    def test_image_with_rounded_decoration_uses_rounded_picture_geometry(
+    def test_image_with_contain_fit_keeps_picture_geometry_unrounded(
         self, tmp_path: Path
     ) -> None:
         image_path = tmp_path / "sample image.png"
@@ -1321,8 +1376,47 @@ class TestImageRendering:
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
         picture = next(shape for shape in slide.shapes if shape.shape_type == 13)
+        assert 'prst="roundRect"' not in picture._element.xml
+
+    def test_image_with_cover_fit_uses_rounded_picture_geometry(
+        self, tmp_path: Path
+    ) -> None:
+        image_path = tmp_path / "sample image.png"
+        image_path.write_bytes(
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0"
+            b"\x00\x00\x03\x01\x01\x00\xc9\xfe\x92\xef\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        element = SlideElement(
+            element_type=ElementType.IMAGE,
+            box=Box(x=10, y=20, width=240, height=120),
+            image_src=image_path.as_uri(),
+            object_fit="cover",
+            decoration=BoxDecoration(
+                background_color=RGBAColor(r=255, g=255, b=255),
+                border_top=BorderSide(
+                    width_px=1, style="solid", color=RGBAColor(r=0, g=0, b=0)
+                ),
+                border_right=BorderSide(
+                    width_px=1, style="solid", color=RGBAColor(r=0, g=0, b=0)
+                ),
+                border_bottom=BorderSide(
+                    width_px=1, style="solid", color=RGBAColor(r=0, g=0, b=0)
+                ),
+                border_left=BorderSide(
+                    width_px=1, style="solid", color=RGBAColor(r=0, g=0, b=0)
+                ),
+                border_radius_px=12,
+            ),
+        )
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+        picture = next(shape for shape in slide.shapes if shape.shape_type == 13)
         assert 'prst="roundRect"' in picture._element.xml
-        assert 'a:gd name="adj" fmla="val 10169"' in picture._element.xml
 
     def test_image_opacity_emits_blip_alpha(self, tmp_path: Path) -> None:
         image_path = tmp_path / "sample image.png"

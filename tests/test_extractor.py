@@ -678,6 +678,32 @@ class Sample:
             "    value: int",
         ]
 
+    def test_code_block_preserves_pre_decoration(self, tmp_path: Path, tmp_output_dir: Path) -> None:
+        md_path = tmp_path / "decorated-code-block.md"
+        md_path.write_text(
+            """# Slide
+
+<pre style="background:#f6f8fa; border:1px solid #d1d9e0; border-radius:6px; padding:16px; margin:0;"><code>alpha
+beta</code></pre>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        code = next(e for e in slide.elements if e.element_type == ElementType.CODE_BLOCK)
+
+        assert code.decoration is not None
+        assert code.decoration.border_radius_px == pytest.approx(6.0)
+        assert code.decoration.background_color is not None
+        assert code.decoration.background_color.r == 246
+        assert code.decoration.background_color.g == 248
+        assert code.decoration.background_color.b == 250
+        assert code.content_box is not None
+        assert code.content_box.x > code.box.x
+        assert code.content_box.y > code.box.y
+
     def test_inline_code_stays_in_paragraph_runs(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:
