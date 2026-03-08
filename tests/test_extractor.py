@@ -833,6 +833,91 @@ beta</code></pre>
             for e in slide.elements
         )
 
+    def test_mark_stays_in_paragraph_runs(self, tmp_path: Path, tmp_output_dir: Path) -> None:
+        md_path = tmp_path / "inline-mark.md"
+        md_path.write_text(
+            "# Slide\n\n<mark>This text is highlighted</mark> and continues normally.\n",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        paragraph = next(
+            e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
+        )
+        marked_run = next(
+            run for run in paragraph.paragraphs[0].runs if run.text == "This text is highlighted"
+        )
+
+        assert marked_run.style.background_color is not None
+        assert marked_run.style.background_color.a > 0
+        assert not any(
+            e.element_type == ElementType.DECORATED_BLOCK
+            and e.paragraphs
+            and e.paragraphs[0].runs[0].text == "This text is highlighted"
+            for e in slide.elements
+        )
+
+    def test_twemoji_inline_images_fallback_to_alt_text(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "twemoji-inline.md"
+        md_path.write_text(
+            "# Slide\n\nTarget: 🎯 Rocket: 🚀\n",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        paragraph = next(
+            e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
+        )
+        run_texts = [run.text for run in paragraph.paragraphs[0].runs]
+
+        assert "🎯" in run_texts
+        assert "🚀" in run_texts
+
+    def test_inline_math_creates_math_elements_and_placeholder_runs(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "inline-math.md"
+        md_path.write_text(
+            """---
+marp: true
+math: mathjax
+---
+
+# Slide
+
+Inline: $E = mc^2$ and $\\sum_{i=1}^{n} i$
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        math_elements = [e for e in slide.elements if e.element_type == ElementType.MATH]
+        assert len(math_elements) == 2
+        assert all(
+            e.unsupported_info and e.unsupported_info.tag_name == "mjx-container"
+            for e in math_elements
+        )
+
+        paragraph = next(
+            e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
+        )
+        placeholder_runs = [
+            run for run in paragraph.paragraphs[0].runs if run.style.color.a == 0.0
+        ]
+        assert len(placeholder_runs) == 2
+        assert all(run.text for run in placeholder_runs)
+
     def test_decorated_badge_is_extracted_as_separate_element(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:

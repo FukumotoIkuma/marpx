@@ -27,6 +27,7 @@
             trimBoundary = true,
             includeRootPseudo = false,
             isStandaloneDecoratedFn = null,
+            includeMathPlaceholders = false,
             renderContext = null,
         } = options;
         const runs = [];
@@ -54,6 +55,23 @@
             }
         }
 
+        function buildMathPlaceholderRun(node, styleEl, linkUrl, currentContext) {
+            const placeholderText = _buildMathPlaceholderText(node, styleEl);
+            if (!placeholderText) return null;
+            const style = _hiddenRunStyle(
+                styleToRunStyle(
+                    window.getComputedStyle(styleEl),
+                    styleEl,
+                    currentContext,
+                )
+            );
+            return {
+                text: placeholderText,
+                style,
+                linkUrl,
+            };
+        }
+
         function visit(node, styleEl, linkUrl = null, currentContext = rootContext) {
             if (node.nodeType === Node.TEXT_NODE) {
                 pushRun(node.textContent || '', styleEl, linkUrl, null, currentContext);
@@ -72,6 +90,26 @@
                     style: styleToRunStyle(window.getComputedStyle(styleEl), styleEl, currentContext),
                     linkUrl: linkUrl,
                 });
+                return;
+            }
+
+            if (
+                node.tagName === 'IMG' &&
+                node.hasAttribute('data-marp-twemoji') &&
+                node.alt
+            ) {
+                pushRun(node.alt, styleEl, linkUrl, null, currentContext);
+                return;
+            }
+
+            if (includeMathPlaceholders && node.tagName === 'MJX-CONTAINER') {
+                const placeholderRun = buildMathPlaceholderRun(
+                    node,
+                    styleEl,
+                    linkUrl,
+                    currentContext,
+                );
+                if (placeholderRun) runs.push(placeholderRun);
                 return;
             }
 
@@ -131,9 +169,17 @@
         });
     }
 
-    export function extractTextRunsWithPseudo(el, renderContext = null) {
-        return extractInlineRuns(el, { includeRootPseudo: true, renderContext });
-    }
+export function extractTextRunsWithPseudo(
+    el,
+    renderContext = null,
+    includeMathPlaceholders = false,
+) {
+    return extractInlineRuns(el, {
+        includeRootPseudo: true,
+        includeMathPlaceholders,
+        renderContext,
+    });
+}
 
     function _hiddenRunStyle(style) {
         return {
@@ -141,6 +187,27 @@
             color: 'rgba(0, 0, 0, 0)',
             backgroundColor: 'transparent',
         };
+    }
+
+    function _buildMathPlaceholderText(node, styleEl) {
+        const box = node.getBoundingClientRect();
+        const cs = window.getComputedStyle(styleEl);
+        const fontSizePx = parseFloat(cs.fontSize) || 16;
+        const canvas = _getMeasurementCanvas();
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return 'M';
+        ctx.font = `${cs.fontStyle || 'normal'} ${cs.fontWeight || '400'} ${fontSizePx}px ${cs.fontFamily || 'Arial'}`;
+        const charWidth = Math.max(ctx.measureText('M').width, fontSizePx * 0.5, 1);
+        const count = Math.max(1, Math.ceil(box.width / charWidth));
+        return 'M'.repeat(count);
+    }
+
+    let _measurementCanvas = null;
+
+    function _getMeasurementCanvas() {
+        if (_measurementCanvas) return _measurementCanvas;
+        _measurementCanvas = document.createElement('canvas');
+        return _measurementCanvas;
     }
 
     export function trimBoundaryWhitespace(runs) {

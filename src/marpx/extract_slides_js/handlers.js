@@ -42,11 +42,16 @@ export function handleUnsupported(el, slideRect, slideData, unsup) {
 }
 
 export function handleMath(el, slideRect, slideData, tag) {
+    const svg = el.querySelector('svg');
     slideData.elements.push({
         type: 'math',
         box: getBox(el, slideRect),
         zIndex: getZIndex(el),
-        unsupportedInfo: { reason: 'Math expression (MathJax)', tagName: tag },
+        unsupportedInfo: {
+            reason: 'Math expression (MathJax)',
+            tagName: tag,
+            svgMarkup: svg ? svg.outerHTML : null,
+        },
     });
 }
 
@@ -131,16 +136,11 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
 
         if (nonMathText === 0 && el.children.length === mathContainers.length) {
             // Pure math paragraph - extract as math
-            slideData.elements.push({
-                type: 'math',
-                box: getBox(el, slideRect),
-                zIndex: getZIndex(el),
-                unsupportedInfo: { reason: 'Math expression (MathJax)', tagName: 'mjx-container' },
-            });
+            handleMath(el, slideRect, slideData, 'mjx-container');
             return;
         }
-        // Mixed content: fall through to normal paragraph handling
-        // Math will be handled as unsupported subtree
+        // Mixed content: reserve inline width in the paragraph and extract
+        // each math fragment as a separate fallback element.
     }
 
     const decoratedChildren = Array.from(el.children).filter((child) =>
@@ -153,10 +153,13 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
     slideData.elements.push(
         buildTextElement(el, slideRect, 'paragraph', {
             runs: decoratedChildren.length > 0
-                ? extractTextRunsWithHiddenDecorated(el, renderContext)
-                : extractTextRunsWithPseudo(el, renderContext),
+                ? extractTextRunsWithHiddenDecorated(el, renderContext, mathContainers.length > 0)
+                : extractTextRunsWithPseudo(el, renderContext, mathContainers.length > 0),
         })
     );
+    for (const mathEl of mathContainers) {
+        handleMath(mathEl, slideRect, slideData, 'mjx-container');
+    }
     for (const child of decoratedChildren) {
         processElement(child, slideRect, slideData, renderContext);
     }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from playwright.async_api import async_playwright
@@ -17,15 +18,29 @@ from marpx.models import (
 from marpx.svg_utils import rasterize_svg_to_png
 
 logger = logging.getLogger(__name__)
+_SVG_FALLBACK_SCALE = 2.0
+
+_BESPOKE_UI_HIDE_CSS = """
+.bespoke-marp-osc,
+.bespoke-progress-parent,
+.bespoke-marp-presenter-container,
+.bespoke-marp-presenter-osc,
+[data-bespoke-view="presenter"] .bespoke-marp-parent,
+[data-bespoke-view="next"] .bespoke-marp-parent {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+""".strip()
 
 
 def _is_inline_svg_element(element: SlideElement) -> bool:
-    """Return True when the unsupported element carries inline SVG markup."""
+    """Return True when the fallback element carries inline SVG markup."""
     info = element.unsupported_info
     return bool(
-        element.element_type == ElementType.UNSUPPORTED
+        element.element_type in (ElementType.UNSUPPORTED, ElementType.MATH)
         and info
-        and info.tag_name == "svg"
         and info.svg_markup
     )
 
@@ -36,14 +51,47 @@ def _write_inline_svg_fallback(
     element: SlideElement,
     output_dir: Path,
 ) -> Path:
-    """Rasterize inline SVG markup directly instead of screenshotting the page."""
+    """Rasterize stored SVG markup directly instead of screenshotting the page."""
     output_path = output_dir / f"slide_{slide_index}_el_{element_index}_fallback.png"
     svg_markup = (
         element.unsupported_info.svg_markup if element.unsupported_info else ""
     ) or ""
-    output_path.write_bytes(rasterize_svg_to_png(svg_markup.encode("utf-8")))
+    sized_svg = _resize_svg_markup(svg_markup, element.box.width, element.box.height)
+    output_path.write_bytes(
+        rasterize_svg_to_png(
+            sized_svg,
+            width_px=element.box.width,
+            height_px=element.box.height,
+            scale=_SVG_FALLBACK_SCALE,
+        )
+    )
     logger.info("Element fallback rasterized from inline SVG: %s", output_path)
     return output_path
+
+
+def _resize_svg_markup(svg_markup: str, width_px: float, height_px: float) -> bytes:
+    """Normalize SVG dimensions to the measured element box before rasterizing."""
+    if not svg_markup:
+        return b""
+
+    root = ET.fromstring(svg_markup)
+    width = max(width_px, 1.0)
+    height = max(height_px, 1.0)
+    root.set("width", f"{width:.3f}px")
+    root.set("height", f"{height:.3f}px")
+
+    style = root.get("style", "")
+    style_parts = [
+        part.strip()
+        for part in style.split(";")
+        if part.strip()
+        and not part.strip().startswith("width:")
+        and not part.strip().startswith("height:")
+    ]
+    style_parts.append(f"width:{width:.3f}px")
+    style_parts.append(f"height:{height:.3f}px")
+    root.set("style", ";".join(style_parts))
+    return ET.tostring(root, encoding="utf-8")
 
 
 def _is_content_section(
@@ -110,6 +158,50 @@ async def _screenshot_slide(
 
     logger.warning("Could not find section for slide %d", slide_index)
     return output_path
+
+
+async def _hide_bespoke_ui(page) -> None:
+    """Hide Marp/Bespoke viewer UI so fallback screenshots capture slide content only."""
+    await page.add_style_tag(content=_BESPOKE_UI_HIDE_CSS)
+
+
+async def _wait_for_mathjax(page) -> None:
+    """Wait until MathJax containers have rendered their SVG output."""
+    await page.wait_for_function(
+        """() => {
+            const math = Array.from(document.querySelectorAll('mjx-container'));
+            return math.length === 0 || math.every((el) => !!el.querySelector('svg'));
+        }""",
+        timeout=10000,
+    )
+
+
+async def _navigate_to_slide(page, slide_index: int) -> None:
+    """Use Marp/Bespoke slide controls to navigate to the requested slide."""
+    await page.evaluate(
+        """(targetIndex) => {
+            const prev = document.querySelector('button[title="Previous slide"]');
+            const next = document.querySelector('button[title="Next slide"]');
+            const waitFrame = () =>
+                new Promise((resolve) =>
+                    requestAnimationFrame(() => requestAnimationFrame(resolve))
+                );
+
+            return (async () => {
+                if (!prev || !next) return;
+                while (!prev.disabled) {
+                    prev.click();
+                    await waitFrame();
+                }
+                for (let index = 0; index < targetIndex; index += 1) {
+                    if (next.disabled) break;
+                    next.click();
+                    await waitFrame();
+                }
+            })();
+        }""",
+        slide_index,
+    )
 
 
 async def _screenshot_element(
@@ -191,6 +283,8 @@ async def render_fallbacks(
         )  # 2x DPI for crisp rendering
         await page.goto(file_url, wait_until="networkidle")
         await page.wait_for_selector("section", timeout=10000)
+        await _hide_bespoke_ui(page)
+        await _wait_for_mathjax(page)
 
         for slide_idx, slide in enumerate(presentation.slides):
             has_unsupported = any(
@@ -203,6 +297,7 @@ async def render_fallbacks(
 
             if slide.is_fallback or fallback_mode == "slide":
                 # Take screenshot of entire slide
+                await _navigate_to_slide(page, slide_idx)
                 img_path = await _screenshot_slide(page, slide_idx, output_dir)
                 slide.is_fallback = True
                 slide.fallback_image_path = str(img_path)
@@ -220,6 +315,7 @@ async def render_fallbacks(
                                 slide_idx, el_idx, element, output_dir
                             )
                         else:
+                            await _navigate_to_slide(page, slide_idx)
                             img_path = await _screenshot_element(
                                 page, slide_idx, el_idx, element, output_dir
                             )

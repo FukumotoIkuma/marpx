@@ -2,10 +2,10 @@
     import { extractParagraphsFromContainer } from './containers.js';
     import { extractInlineRuns } from './runs.js';
 
-    export function shouldExtractStandaloneDecoratedText(el, decoration) {
-        if (!hasMeaningfulDecoration(decoration)) return false;
-        const tag = (el.localName || el.tagName).toLowerCase();
-        if (tag === 'code') return false;
+export function shouldExtractStandaloneDecoratedText(el, decoration) {
+    if (!hasMeaningfulDecoration(decoration)) return false;
+    const tag = (el.localName || el.tagName).toLowerCase();
+    if (tag === 'code' || tag === 'mark') return false;
         if (
             [
                 'section', 'blockquote', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td',
@@ -21,10 +21,15 @@
         return extractParagraphsFromContainer(el).length > 0;
     }
 
-    export function extractTextRunsWithHiddenDecorated(el, renderContext = null) {
-        return extractInlineRuns(el, {
-            renderContext,
-            isStandaloneDecoratedFn: (node, decoration) =>
-                shouldExtractStandaloneDecoratedText(node, decoration),
-        });
-    }
+export function extractTextRunsWithHiddenDecorated(
+    el,
+    renderContext = null,
+    includeMathPlaceholders = false,
+) {
+    return extractInlineRuns(el, {
+        renderContext,
+        includeMathPlaceholders,
+        isStandaloneDecoratedFn: (node, decoration) =>
+            shouldExtractStandaloneDecoratedText(node, decoration),
+    });
+}

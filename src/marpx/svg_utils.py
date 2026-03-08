@@ -47,7 +47,12 @@ def _load_svg_bytes(src: str) -> tuple[list[str], bytes | None]:
     return cmd, svg_bytes
 
 
-def rasterize_svg_to_png(src: str | bytes) -> bytes:
+def rasterize_svg_to_png(
+    src: str | bytes,
+    width_px: float | None = None,
+    height_px: float | None = None,
+    scale: float = 1.0,
+) -> bytes:
     """Rasterize SVG bytes or a source path/URL into PNG bytes using rsvg-convert."""
     rsvg_convert = shutil.which("rsvg-convert")
     if rsvg_convert is None:
@@ -57,6 +62,10 @@ def rasterize_svg_to_png(src: str | bytes) -> bytes:
         )
 
     cmd = [rsvg_convert, "--format", "png"]
+    if width_px is not None:
+        cmd.extend(["--width", str(max(int(round(width_px * scale)), 1))])
+    if height_px is not None:
+        cmd.extend(["--height", str(max(int(round(height_px * scale)), 1))])
     svg_bytes: bytes | None
 
     if isinstance(src, bytes):
