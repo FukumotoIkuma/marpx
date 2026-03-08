@@ -147,6 +147,7 @@ class UnsupportedInfo(BaseModel):
 class SlideElement(BaseModel):
     element_type: ElementType
     box: Box
+    content_box: Box | None = None
     z_index: int = 0
 
     # Text content (for heading, paragraph, blockquote, code_block)

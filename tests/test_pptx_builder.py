@@ -110,43 +110,62 @@ def _make_code_block(code: str, language: str = "python") -> SlideElement:
     )
 
 
+def _content_box_from_decoration(box: Box, decoration: BoxDecoration) -> Box:
+    left_inset = decoration.border_left.width_px + decoration.padding.left_px
+    top_inset = decoration.border_top.width_px + decoration.padding.top_px
+    right_inset = decoration.border_right.width_px + decoration.padding.right_px
+    bottom_inset = decoration.border_bottom.width_px + decoration.padding.bottom_px
+    return Box(
+        x=box.x + left_inset,
+        y=box.y + top_inset,
+        width=max(box.width - left_inset - right_inset, 1),
+        height=max(box.height - top_inset - bottom_inset, 1),
+    )
+
+
 def _make_decorated_block(text: str) -> SlideElement:
+    box = Box(x=50, y=100, width=400, height=140)
+    decoration = BoxDecoration(
+        background_color=RGBAColor(r=248, g=244, b=255),
+        border_left=BorderSide(
+            width_px=5,
+            style="solid",
+            color=RGBAColor(r=74, g=58, b=138),
+        ),
+        padding=BoxPadding(top_px=12, right_px=16, bottom_px=12, left_px=16),
+        border_radius_px=4,
+    )
     return SlideElement(
         element_type=ElementType.DECORATED_BLOCK,
-        box=Box(x=50, y=100, width=400, height=140),
+        box=box,
+        content_box=_content_box_from_decoration(box, decoration),
         paragraphs=[Paragraph(runs=[TextRun(text=text)])],
-        decoration=BoxDecoration(
-            background_color=RGBAColor(r=248, g=244, b=255),
-            border_left=BorderSide(
-                width_px=5,
-                style="solid",
-                color=RGBAColor(r=74, g=58, b=138),
-            ),
-            padding=BoxPadding(top_px=12, right_px=16, bottom_px=12, left_px=16),
-            border_radius_px=4,
-        ),
+        decoration=decoration,
     )
 
 
 def _make_decorated_list_block() -> SlideElement:
+    box = Box(x=50, y=100, width=400, height=180)
+    decoration = BoxDecoration(
+        background_color=RGBAColor(r=248, g=244, b=255),
+        border_left=BorderSide(
+            width_px=5,
+            style="solid",
+            color=RGBAColor(r=74, g=58, b=138),
+        ),
+        padding=BoxPadding(top_px=12, right_px=16, bottom_px=12, left_px=16),
+        border_radius_px=4,
+    )
     return SlideElement(
         element_type=ElementType.DECORATED_BLOCK,
-        box=Box(x=50, y=100, width=400, height=180),
+        box=box,
+        content_box=_content_box_from_decoration(box, decoration),
         paragraphs=[
             Paragraph(runs=[TextRun(text="Lead")]),
             Paragraph(runs=[TextRun(text="First")], list_level=0),
             Paragraph(runs=[TextRun(text="Second")], list_level=1),
         ],
-        decoration=BoxDecoration(
-            background_color=RGBAColor(r=248, g=244, b=255),
-            border_left=BorderSide(
-                width_px=5,
-                style="solid",
-                color=RGBAColor(r=74, g=58, b=138),
-            ),
-            padding=BoxPadding(top_px=12, right_px=16, bottom_px=12, left_px=16),
-            border_radius_px=4,
-        ),
+        decoration=decoration,
     )
 
 
@@ -468,6 +487,11 @@ class TestShapeCount:
         assert len(text_shapes) == 2
         assert any(shape.text == "Split Layout" for shape in text_shapes)
         assert any("Text Region" in shape.text for shape in text_shapes)
+        grouped_shape = next(shape for shape in text_shapes if "Text Region" in shape.text)
+        assert grouped_shape.text_frame.margin_left == 0
+        assert grouped_shape.text_frame.margin_right == 0
+        assert grouped_shape.text_frame.margin_top == 0
+        assert grouped_shape.text_frame.margin_bottom == 0
 
     def test_nested_list_preserves_marker_styles_and_spacing(
         self, tmp_path: Path
@@ -596,7 +620,7 @@ class TestShapeCount:
         ]
         assert any("Quoted text" in text for text in texts)
 
-    def test_decorated_block_uses_shape_text_margins(self, tmp_path: Path) -> None:
+    def test_decorated_block_places_textbox_at_content_box(self, tmp_path: Path) -> None:
         element = _make_decorated_block("Quoted text")
         pres = Presentation(
             slides=[Slide(width_px=1280, height_px=720, elements=[element])],
@@ -610,28 +634,33 @@ class TestShapeCount:
         ]
         assert len(text_shapes) == 1
         shape = text_shapes[0]
-        assert shape.left == px_to_emu(50)
-        assert shape.top == px_to_emu(100)
-        assert shape.text_frame.margin_left == px_to_emu(21)
-        assert shape.text_frame.margin_top == px_to_emu(12)
+        assert shape.left == px_to_emu(71)
+        assert shape.top == px_to_emu(112)
+        assert shape.width == px_to_emu(363)
+        assert shape.height == px_to_emu(116)
+        assert shape.text_frame.margin_left == 0
+        assert shape.text_frame.margin_top == 0
 
     def test_decorated_block_left_accent_respects_rounded_corners(
         self, tmp_path: Path
     ) -> None:
+        box = Box(x=50, y=100, width=400, height=140)
+        decoration = BoxDecoration(
+            background_color=RGBAColor(r=248, g=244, b=255),
+            border_left=BorderSide(
+                width_px=6,
+                style="solid",
+                color=RGBAColor(r=74, g=58, b=138),
+            ),
+            padding=BoxPadding(top_px=12, right_px=16, bottom_px=12, left_px=16),
+            border_radius_px=14,
+        )
         element = SlideElement(
             element_type=ElementType.DECORATED_BLOCK,
-            box=Box(x=50, y=100, width=400, height=140),
+            box=box,
+            content_box=_content_box_from_decoration(box, decoration),
             paragraphs=[Paragraph(runs=[TextRun(text="Quoted text")])],
-            decoration=BoxDecoration(
-                background_color=RGBAColor(r=248, g=244, b=255),
-                border_left=BorderSide(
-                    width_px=6,
-                    style="solid",
-                    color=RGBAColor(r=74, g=58, b=138),
-                ),
-                padding=BoxPadding(top_px=12, right_px=16, bottom_px=12, left_px=16),
-                border_radius_px=14,
-            ),
+            decoration=decoration,
         )
         pres = Presentation(
             slides=[Slide(width_px=1280, height_px=720, elements=[element])]
@@ -670,9 +699,21 @@ class TestShapeCount:
     def test_decorated_block_preserves_list_styles_and_order_numbers(
         self, tmp_path: Path
     ) -> None:
+        box = Box(x=50, y=100, width=420, height=220)
+        decoration = BoxDecoration(
+            background_color=RGBAColor(r=248, g=244, b=255),
+            border_left=BorderSide(
+                width_px=5,
+                style="solid",
+                color=RGBAColor(r=74, g=58, b=138),
+            ),
+            padding=BoxPadding(top_px=12, right_px=16, bottom_px=12, left_px=16),
+            border_radius_px=4,
+        )
         element = SlideElement(
             element_type=ElementType.DECORATED_BLOCK,
-            box=Box(x=50, y=100, width=420, height=220),
+            box=box,
+            content_box=_content_box_from_decoration(box, decoration),
             paragraphs=[
                 Paragraph(runs=[TextRun(text="Lead")]),
                 Paragraph(
@@ -693,16 +734,7 @@ class TestShapeCount:
                     space_before_px=7.25,
                 ),
             ],
-            decoration=BoxDecoration(
-                background_color=RGBAColor(r=248, g=244, b=255),
-                border_left=BorderSide(
-                    width_px=5,
-                    style="solid",
-                    color=RGBAColor(r=74, g=58, b=138),
-                ),
-                padding=BoxPadding(top_px=12, right_px=16, bottom_px=12, left_px=16),
-                border_radius_px=4,
-            ),
+            decoration=decoration,
         )
         pres = Presentation(
             slides=[Slide(width_px=1280, height_px=720, elements=[element])]
@@ -725,19 +757,22 @@ class TestShapeCount:
     def test_decoration_opacity_blends_fill_and_accent_colors(
         self, tmp_path: Path
     ) -> None:
+        box = Box(x=50, y=100, width=400, height=160)
+        decoration = BoxDecoration(
+            background_color=RGBAColor(r=255, g=0, b=0),
+            border_left=BorderSide(
+                width_px=6,
+                style="solid",
+                color=RGBAColor(r=0, g=0, b=255),
+            ),
+            opacity=0.5,
+        )
         element = SlideElement(
             element_type=ElementType.DECORATED_BLOCK,
-            box=Box(x=50, y=100, width=400, height=160),
+            box=box,
+            content_box=_content_box_from_decoration(box, decoration),
             paragraphs=[Paragraph(runs=[TextRun(text="Opaque enough")])],
-            decoration=BoxDecoration(
-                background_color=RGBAColor(r=255, g=0, b=0),
-                border_left=BorderSide(
-                    width_px=6,
-                    style="solid",
-                    color=RGBAColor(r=0, g=0, b=255),
-                ),
-                opacity=0.5,
-            ),
+            decoration=decoration,
         )
         pres = Presentation(
             slides=[Slide(width_px=1280, height_px=720, elements=[element])]
@@ -756,18 +791,21 @@ class TestShapeCount:
     def test_blockquote_uses_extracted_padding_and_left_accent(
         self, tmp_path: Path
     ) -> None:
+        box = Box(x=80, y=120, width=420, height=110)
+        decoration = BoxDecoration(
+            border_left=BorderSide(
+                width_px=4,
+                style="solid",
+                color=RGBAColor(r=148, g=163, b=184),
+            ),
+            padding=BoxPadding(left_px=16),
+        )
         element = SlideElement(
             element_type=ElementType.BLOCKQUOTE,
-            box=Box(x=80, y=120, width=420, height=110),
+            box=box,
+            content_box=_content_box_from_decoration(box, decoration),
             paragraphs=[Paragraph(runs=[TextRun(text="Quoted text")])],
-            decoration=BoxDecoration(
-                border_left=BorderSide(
-                    width_px=4,
-                    style="solid",
-                    color=RGBAColor(r=148, g=163, b=184),
-                ),
-                padding=BoxPadding(left_px=16),
-            ),
+            decoration=decoration,
         )
         pres = Presentation(
             slides=[Slide(width_px=1280, height_px=720, elements=[element])]
@@ -784,7 +822,9 @@ class TestShapeCount:
             shape for shape in slide.shapes if shape.width == px_to_emu(4)
         )
 
-        assert text_shape.text_frame.margin_left == px_to_emu(20)
+        assert text_shape.left == px_to_emu(100)
+        assert text_shape.width == px_to_emu(400)
+        assert text_shape.text_frame.margin_left == 0
         assert accent_shape.left == px_to_emu(80)
         assert accent_shape.height == px_to_emu(110)
 

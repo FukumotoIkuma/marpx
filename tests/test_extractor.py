@@ -411,6 +411,32 @@ class TestRenderedLayoutCapture:
         text = "".join(run.text for run in paragraph.paragraphs[0].runs)
         assert text == "Header · Footer · Paginate · Speaker Notes · Background — all directives supported"
 
+    def test_paragraph_preserves_br_line_breaks(self, tmp_path: Path, tmp_output_dir: Path) -> None:
+        md_path = tmp_path / "paragraph-br.md"
+        md_path.write_text(
+            """# Slide
+
+<p>
+  <strong>Heading · List · Table · Code · Image · Badge · Quote</strong><br/>
+  1 枚に全部載せ。これがネイティブ PowerPoint になります。
+</p>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        paragraph = next(
+            e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
+        )
+
+        text = "".join(run.text for run in paragraph.paragraphs[0].runs)
+        assert text == (
+            "Heading · List · Table · Code · Image · Badge · Quote\n"
+            "1 枚に全部載せ。これがネイティブ PowerPoint になります。"
+        )
+
     def test_code_block_preserves_newlines_and_indentation(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:
@@ -625,6 +651,9 @@ style: |
         table = next(e for e in slide.elements if e.element_type == ElementType.TABLE)
 
         assert card.box.width >= table.box.width
+        assert card.content_box is not None
+        assert card.content_box.x > card.box.x
+        assert card.content_box.y > card.box.y
         assert heading.paragraphs[0].runs[0].text == "Left Stack"
         assert "A short paragraph" in paragraph.paragraphs[0].runs[0].text
 
@@ -788,8 +817,11 @@ style: |
         assert len(quotes) == 1
         quote = quotes[0]
         assert quote.decoration is not None
+        assert quote.content_box is not None
         assert quote.decoration.border_left.width_px > 0
         assert quote.decoration.padding.left_px > 0
+        assert quote.content_box.x > quote.box.x
+        assert quote.content_box.width < quote.box.width
 
     def test_extracts_element_z_index(self, tmp_path: Path) -> None:
         html_path = tmp_path / "zindex.html"

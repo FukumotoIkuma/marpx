@@ -161,49 +161,59 @@
         };
     }
 
-    function extractTextRuns(el) {
-        const runs = [];
-        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
-        let node;
-        while (node = walker.nextNode()) {
-            const text = normalizeInlineText(node.textContent || '');
-            if (!text) continue;
-
-            const parent = node.parentElement;
-            const cs = window.getComputedStyle(parent);
-
-            // Check for link
-            let linkUrl = null;
-            let ancestor = parent;
-            while (ancestor && ancestor !== el) {
-                if (ancestor.tagName === 'A' && ancestor.href) {
-                    linkUrl = ancestor.href;
-                    break;
-                }
-                ancestor = ancestor.parentElement;
-            }
-
-            runs.push({
-                text: text,
-                style: styleToRunStyle(cs, parent),
-                linkUrl: linkUrl,
-            });
-        }
-        return trimBoundaryWhitespace(runs);
+    function getContentBox(el, sectionRect) {
+        const rect = el.getBoundingClientRect();
+        const cs = window.getComputedStyle(el);
+        const leftInset = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0);
+        const topInset = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0);
+        const rightInset = (parseFloat(cs.borderRightWidth) || 0) + (parseFloat(cs.paddingRight) || 0);
+        const bottomInset = (parseFloat(cs.borderBottomWidth) || 0) + (parseFloat(cs.paddingBottom) || 0);
+        return {
+            x: rect.left - sectionRect.left + leftInset,
+            y: rect.top - sectionRect.top + topInset,
+            width: Math.max(rect.width - leftInset - rightInset, 1),
+            height: Math.max(rect.height - topInset - bottomInset, 1),
+        };
     }
 
-    function extractExactTextRuns(el) {
+    function _buildTextRun(text, styleEl, linkUrl = null, options = {}) {
+        const { normalizeWhitespace = true, styleOverride = null } = options;
+        const normalizedText = normalizeWhitespace ? normalizeInlineText(text) : text;
+        if (!normalizedText || normalizedText.length === 0) return null;
+        return {
+            text: normalizedText,
+            style: styleOverride || styleToRunStyle(window.getComputedStyle(styleEl), styleEl),
+            linkUrl: linkUrl,
+        };
+    }
+
+    function extractInlineRuns(el, options = {}) {
+        const {
+            normalizeWhitespace = true,
+            trimBoundary = true,
+            includeRootPseudo = false,
+            hideStandaloneDecorated = false,
+        } = options;
         const runs = [];
+
+        function pushRun(text, styleEl, linkUrl = null, styleOverride = null) {
+            const run = _buildTextRun(text, styleEl, linkUrl, {
+                normalizeWhitespace,
+                styleOverride,
+            });
+            if (run) runs.push(run);
+        }
+
+        function pushRootPseudo(pseudo) {
+            const pseudoRuns = extractPseudoRuns(el, pseudo);
+            for (const run of pseudoRuns) {
+                pushRun(run.text, el, run.linkUrl, run.style);
+            }
+        }
 
         function visit(node, styleEl, linkUrl = null) {
             if (node.nodeType === Node.TEXT_NODE) {
-                const text = node.textContent || '';
-                if (text.length === 0) return;
-                runs.push({
-                    text: text,
-                    style: styleToRunStyle(window.getComputedStyle(styleEl), styleEl),
-                    linkUrl: linkUrl,
-                });
+                pushRun(node.textContent || '', styleEl, linkUrl);
                 return;
             }
 
@@ -218,6 +228,28 @@
                 return;
             }
 
+            const decoration = extractDecoration(node);
+            if (
+                hideStandaloneDecorated &&
+                node !== el &&
+                shouldExtractStandaloneDecoratedText(node, decoration)
+            ) {
+                const hiddenRuns = extractInlineRuns(node, {
+                    normalizeWhitespace,
+                    trimBoundary: false,
+                    includeRootPseudo: true,
+                    hideStandaloneDecorated: false,
+                });
+                for (const run of hiddenRuns) {
+                    runs.push({
+                        text: run.text,
+                        style: _hiddenRunStyle(run.style),
+                        linkUrl: run.linkUrl,
+                    });
+                }
+                return;
+            }
+
             let nextLinkUrl = linkUrl;
             if (node.tagName === 'A' && node.href) {
                 nextLinkUrl = node.href;
@@ -228,8 +260,26 @@
             }
         }
 
+        if (includeRootPseudo) {
+            pushRootPseudo('::before');
+        }
         visit(el, el, null);
-        return runs;
+        if (includeRootPseudo) {
+            pushRootPseudo('::after');
+        }
+
+        return trimBoundary ? trimBoundaryWhitespace(runs) : runs;
+    }
+
+    function extractTextRuns(el) {
+        return extractInlineRuns(el);
+    }
+
+    function extractExactTextRuns(el) {
+        return extractInlineRuns(el, {
+            normalizeWhitespace: false,
+            trimBoundary: false,
+        });
     }
 
     function splitRunsIntoParagraphs(runs, alignment, metrics, defaultStyle) {
@@ -286,11 +336,7 @@
     }
 
     function extractTextRunsWithPseudo(el) {
-        return trimBoundaryWhitespace([
-            ...extractPseudoRuns(el, '::before'),
-            ...extractTextRuns(el),
-            ...extractPseudoRuns(el, '::after'),
-        ]);
+        return extractInlineRuns(el, { includeRootPseudo: true });
     }
 
     function _hiddenRunStyle(style) {
@@ -323,59 +369,16 @@
         trimmed[trimmed.length - 1].text = trimmed[
             trimmed.length - 1
         ].text.replace(/\s+$/, '');
+        for (let i = 1; i < trimmed.length; i++) {
+            if (trimmed[i - 1].text.endsWith('\n')) {
+                trimmed[i].text = trimmed[i].text.replace(/^\s+/, '');
+            }
+        }
         return trimmed.filter((run) => run.text.length > 0);
     }
 
     function extractTextRunsWithHiddenDecorated(el) {
-        const runs = [];
-
-        function visit(node, styleEl, linkUrl = null) {
-            if (node.nodeType === Node.TEXT_NODE) {
-                const text = normalizeInlineText(node.textContent || '');
-                if (!text) return;
-                runs.push({
-                    text: text,
-                    style: styleToRunStyle(window.getComputedStyle(styleEl), styleEl),
-                    linkUrl: linkUrl,
-                });
-                return;
-            }
-
-            if (node.nodeType !== Node.ELEMENT_NODE) return;
-
-            if (node.tagName === 'BR') {
-                runs.push({
-                    text: '\n',
-                    style: styleToRunStyle(window.getComputedStyle(styleEl), styleEl),
-                    linkUrl: linkUrl,
-                });
-                return;
-            }
-
-            const decoration = extractDecoration(node);
-            if (shouldExtractStandaloneDecoratedText(node, decoration)) {
-                for (const run of extractTextRunsWithPseudo(node)) {
-                    runs.push({
-                        text: run.text,
-                        style: _hiddenRunStyle(run.style),
-                        linkUrl: run.linkUrl,
-                    });
-                }
-                return;
-            }
-
-            let nextLinkUrl = linkUrl;
-            if (node.tagName === 'A' && node.href) {
-                nextLinkUrl = node.href;
-            }
-
-            for (const child of node.childNodes) {
-                visit(child, node, nextLinkUrl);
-            }
-        }
-
-        visit(el, el, null);
-        return trimBoundaryWhitespace(runs);
+        return extractInlineRuns(el, { hideStandaloneDecorated: true });
     }
 
     function extractParagraphsFromLines(text, style, alignment) {
@@ -440,13 +443,9 @@
         }
 
         function buildTextRunFromNode(node, styleEl) {
-            const text = normalizeInlineText(node.textContent || '');
-            if (!text.trim()) return null;
-            return {
-                text: text,
-                style: styleToRunStyle(window.getComputedStyle(styleEl)),
-                linkUrl: null,
-            };
+            const run = _buildTextRun(node.textContent || '', styleEl);
+            if (!run || !run.text.trim()) return null;
+            return run;
         }
 
         function isInlineLikeElement(child) {
@@ -477,19 +476,13 @@
                 const nestedLists = [];
                 for (const node of item.childNodes) {
                     if (node.nodeType === Node.TEXT_NODE) {
-                        const text = node.textContent.trim();
-                        if (text) {
-                            runs.push({
-                                text,
-                                style: styleToRunStyle(itemCs),
-                                linkUrl: null,
-                            });
-                        }
+                        const run = _buildTextRun(node.textContent || '', item, null);
+                        if (run && run.text.trim()) runs.push(run);
                     } else if (node.nodeType === Node.ELEMENT_NODE) {
                         if (node.tagName === 'UL' || node.tagName === 'OL') {
                             nestedLists.push(node);
                         } else {
-                            runs.push(...extractTextRunsWithPseudo(node));
+                            runs.push(...extractInlineRuns(node, { includeRootPseudo: true }));
                         }
                     }
                 }
@@ -922,6 +915,7 @@
                 slideData.elements.push({
                     type: 'decorated_block',
                     box: getBox(el, slideRect),
+                    contentBox: getContentBox(el, slideRect),
                     zIndex: getZIndex(el),
                     paragraphs: decomposeDecoratedBlock ? [] : extractParagraphsFromContainer(el),
                     decoration: decoration,
@@ -996,12 +990,12 @@
 
             // Blockquote
             if (tag === 'blockquote') {
+                const hasDecoration = hasMeaningfulDecoration(decoration);
                 slideData.elements.push(
                     buildTextElement(el, slideRect, 'blockquote', {
                         runs: extractTextRunsWithPseudo(el),
-                        decoration: hasMeaningfulDecoration(decoration)
-                            ? decoration
-                            : null,
+                        decoration: hasDecoration ? decoration : null,
+                        contentBox: hasDecoration ? getContentBox(el, slideRect) : null,
                     })
                 );
                 return;

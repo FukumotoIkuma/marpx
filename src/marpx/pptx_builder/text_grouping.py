@@ -14,7 +14,11 @@ from marpx.utils import (
     union_boxes,
 )
 
-from .text import GROUPABLE_TEXT_TYPES, _populate_text_frame
+from .text import (
+    GROUPABLE_TEXT_TYPES,
+    _populate_text_frame,
+    _set_text_frame_margins_zero,
+)
 
 
 def _is_groupable_text_element(element: SlideElement) -> bool:
@@ -76,4 +80,5 @@ def _add_grouped_textbox(slide, elements: list[SlideElement]) -> None:
     tf = txbox.text_frame
     tf.word_wrap = True
     tf.vertical_anchor = MSO_VERTICAL_ANCHOR.TOP
+    _set_text_frame_margins_zero(tf)
     _populate_text_frame(tf, elements)

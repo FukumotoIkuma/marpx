@@ -147,8 +147,9 @@ def _build_slide_element(raw: dict) -> SlideElement:
     """Convert raw JS element dict to SlideElement model."""
     etype = ElementType(raw["type"])
     box = Box(**raw["box"])
+    content_box = Box(**raw["contentBox"]) if raw.get("contentBox") else None
 
-    element = SlideElement(element_type=etype, box=box)
+    element = SlideElement(element_type=etype, box=box, content_box=content_box)
     element.z_index = raw.get("zIndex", 0) or 0
 
     if etype in (

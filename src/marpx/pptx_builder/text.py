@@ -9,7 +9,6 @@ from pptx.oxml.ns import qn
 from pptx.util import Emu, Pt
 
 from marpx.models import (
-    BoxDecoration,
     ElementType,
     SlideElement,
     TextRun,
@@ -240,11 +239,17 @@ def _populate_text_frame(text_frame, elements: list[SlideElement]) -> None:
 
 
 def _resolve_textbox_geometry(element: SlideElement) -> tuple[Emu, Emu, Emu, Emu]:
-    """Return the element's outer box for plain text containers."""
-    left_px = element.box.x
-    top_px = element.box.y
-    width_px = max(element.box.width, 1)
-    height_px = max(element.box.height, 1)
+    """Return the element's content box when available, else its outer box."""
+    if element.content_box is not None:
+        source_box = element.content_box
+    elif element.decoration is not None:
+        source_box = _derive_content_box_from_decoration(element)
+    else:
+        source_box = element.box
+    left_px = source_box.x
+    top_px = source_box.y
+    width_px = max(source_box.width, 1)
+    height_px = max(source_box.height, 1)
     return (
         Emu(px_to_emu(left_px)),
         Emu(px_to_emu(top_px)),
@@ -253,22 +258,31 @@ def _resolve_textbox_geometry(element: SlideElement) -> tuple[Emu, Emu, Emu, Emu
     )
 
 
-def _apply_text_frame_padding(text_frame, decoration: BoxDecoration | None) -> None:
-    """Apply extracted CSS padding to a text frame."""
-    if not decoration:
-        return
-    text_frame.margin_top = Emu(
-        px_to_emu(decoration.border_top.width_px + decoration.padding.top_px)
+def _derive_content_box_from_decoration(element: SlideElement):
+    """Derive a content box from an outer box plus extracted border/padding."""
+    decoration = element.decoration
+    assert decoration is not None
+    left_inset = decoration.border_left.width_px + decoration.padding.left_px
+    top_inset = decoration.border_top.width_px + decoration.padding.top_px
+    right_inset = decoration.border_right.width_px + decoration.padding.right_px
+    bottom_inset = decoration.border_bottom.width_px + decoration.padding.bottom_px
+    return element.box.model_copy(
+        update={
+            "x": element.box.x + left_inset,
+            "y": element.box.y + top_inset,
+            "width": max(element.box.width - left_inset - right_inset, 1),
+            "height": max(element.box.height - top_inset - bottom_inset, 1),
+        }
     )
-    text_frame.margin_right = Emu(
-        px_to_emu(decoration.border_right.width_px + decoration.padding.right_px)
-    )
-    text_frame.margin_bottom = Emu(
-        px_to_emu(decoration.border_bottom.width_px + decoration.padding.bottom_px)
-    )
-    text_frame.margin_left = Emu(
-        px_to_emu(decoration.border_left.width_px + decoration.padding.left_px)
-    )
+
+
+def _set_text_frame_margins_zero(text_frame) -> None:
+    """Use extracted box geometry as-is and disable PowerPoint default insets."""
+    zero = Emu(0)
+    text_frame.margin_top = zero
+    text_frame.margin_right = zero
+    text_frame.margin_bottom = zero
+    text_frame.margin_left = zero
 
 
 def _apply_paragraph_layout(pptx_para, para) -> None:
@@ -313,5 +327,5 @@ def _add_textbox(slide, element: SlideElement) -> None:
     tf = text_container.text_frame
     tf.word_wrap = True
     tf.vertical_anchor = MSO_VERTICAL_ANCHOR.TOP
-    _apply_text_frame_padding(tf, element.decoration)
+    _set_text_frame_margins_zero(tf)
     _populate_text_frame(tf, [element])
