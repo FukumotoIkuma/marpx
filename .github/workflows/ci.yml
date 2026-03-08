@@ -7,7 +7,25 @@ on:
     branches: [master]
 
 jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install bundle dependencies
+        working-directory: src/marpx/extract_slides_js
+        run: npm ci --no-audit --no-fund
+      - name: Rebuild extract bundle
+        working-directory: src/marpx/extract_slides_js
+        run: npm run build
+      - name: Verify extract bundle is up to date
+        run: git diff --exit-code -- src/marpx/extract_slides.bundle.js
+
   test:
+    needs: bundle
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +43,7 @@ jobs:
         run: uv run pytest tests/ -x -q
 
   lint:
+    needs: bundle
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
