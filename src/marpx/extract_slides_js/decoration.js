@@ -109,6 +109,7 @@ export function normalizeContentValue(content) {
 
 export function extractPseudoRuns(el, pseudo, renderContext = null) {
     const cs = window.getComputedStyle(el, pseudo);
+    if (['absolute', 'fixed'].includes(cs.position)) return [];
     const content = normalizeContentValue(cs.content);
     if (!content) return [];
     const ctx = renderContext || deriveRenderContext(el);

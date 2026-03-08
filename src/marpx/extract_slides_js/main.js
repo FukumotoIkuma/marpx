@@ -51,7 +51,7 @@ export function extractSlides() {
             slideNumber: slideIndex++,
             background: {
                 color: cs.backgroundColor,
-                backgroundGradient: cs.backgroundImage && cs.backgroundImage.includes('linear-gradient(')
+                backgroundGradient: cs.backgroundImage && cs.backgroundImage.includes('gradient(')
                     ? cs.backgroundImage
                     : null,
                 images: bgImages,

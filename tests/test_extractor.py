@@ -962,6 +962,12 @@ style: |
             "".join(run.text for p in e.paragraphs for run in p.runs) == '"'
             for e in pseudo_blocks
         )
+        quote_paragraph = next(
+            e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
+        )
+        assert "".join(
+            run.text for p in quote_paragraph.paragraphs for run in p.runs
+        ) == "Quoted text"
         badge = next(
             e
             for e in pseudo_blocks
@@ -1388,6 +1394,203 @@ style: |
         num = next(e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK)
         assert num.vertical_align == "middle"
 
+    def test_decoration_only_leaf_block_is_extracted(self, tmp_path: Path, tmp_output_dir: Path) -> None:
+        md_path = tmp_path / "decoration-only-bar.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  .bar {
+    width: 40px;
+    height: 100px;
+    background: linear-gradient(180deg, #3b82f6, #1d4ed8);
+    border-radius: 4px 4px 0 0;
+  }
+---
+
+# Slide
+
+<div class="bar"></div>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        bar = next(e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK)
+        assert bar.decoration is not None
+        assert bar.decoration.background_gradient is not None
+        assert bar.paragraphs == []
+
+    def test_decorated_block_with_grandchild_decorated_blocks_decomposes(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "nested-grandchild-bars.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  .panel {
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid #334155;
+  }
+  .bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    height: 120px;
+  }
+  .bar {
+    width: 40px;
+    border-radius: 4px 4px 0 0;
+    background: linear-gradient(180deg, #3b82f6, #1d4ed8);
+  }
+  .b1 { height: 60%; }
+  .b2 { height: 80%; }
+---
+
+# Slide
+
+<div class="panel">
+  <h4>Revenue by Month</h4>
+  <div class="bar-chart">
+    <div class="bar b1"></div>
+    <div class="bar b2"></div>
+  </div>
+</div>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        decorated = [
+            e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
+        ]
+        assert len(decorated) >= 3
+        panel = max(decorated, key=lambda e: e.box.width * e.box.height)
+        bars = [
+            e for e in decorated
+            if e is not panel and e.decoration and e.decoration.background_gradient
+        ]
+        assert panel.paragraphs == []
+        assert len(bars) == 2
+        assert all(bar.paragraphs == [] for bar in bars)
+        assert any(
+            e.element_type == ElementType.HEADING
+            or (
+                e.element_type == ElementType.PARAGRAPH
+                and any("Revenue by Month" in run.text for p in e.paragraphs for run in p.runs)
+            )
+            for e in slide.elements
+        )
+
+    def test_presentational_list_recurses_into_children(self, tmp_path: Path, tmp_output_dir: Path) -> None:
+        md_path = tmp_path / "presentational-list.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  .stat-list { list-style: none; padding: 0; margin: 0; }
+  .stat-list li { display: flex; justify-content: space-between; }
+  .val { color: #60a5fa; font-weight: 600; }
+---
+
+# Slide
+
+<ul class="stat-list">
+  <li><span>Conversion</span><span class="val">12.4%</span></li>
+</ul>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        texts = [
+            "".join(run.text for p in e.paragraphs for run in p.runs)
+            for e in slide.elements
+            if e.element_type == ElementType.PARAGRAPH
+        ]
+        assert "Conversion" in texts
+
+    def test_presentational_list_rows_with_decoration_extract_as_blocks(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "presentational-list-rows.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  .panel {
+    background: #1e293b;
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid #334155;
+  }
+  .stat-list { list-style: none; padding: 0; margin: 0; }
+  .stat-list li {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #334155;
+  }
+  .val { color: #60a5fa; font-weight: 600; }
+---
+
+# Slide
+
+<div class="panel">
+  <h4>Top Metrics</h4>
+  <ul class="stat-list">
+    <li><span>Conversion</span><span class="val">12.4%</span></li>
+    <li><span>Bounce Rate</span><span class="val">23.1%</span></li>
+  </ul>
+</div>
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        decorated = [
+            e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
+        ]
+        panel = max(decorated, key=lambda e: e.box.width * e.box.height)
+        rows = [
+            e for e in decorated
+            if e is not panel and e.decoration and e.decoration.border_bottom.width_px > 0
+        ]
+
+        assert panel.paragraphs == []
+        assert len(rows) == 2
+        assert all(row.paragraphs == [] for row in rows)
+
+        headings = [
+            "".join(run.text for p in e.paragraphs for run in p.runs)
+            for e in slide.elements
+            if e.element_type == ElementType.HEADING
+        ]
+        paragraphs = [
+            "".join(run.text for p in e.paragraphs for run in p.runs)
+            for e in slide.elements
+            if e.element_type == ElementType.PARAGRAPH
+        ]
+        assert "Top Metrics" in headings
+        assert "Conversion" in paragraphs
+        assert "12.4%" in paragraphs
+        assert "Bounce Rate" in paragraphs
+        assert "23.1%" in paragraphs
+
     def test_backdrop_filter_block_stays_native(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:
@@ -1452,6 +1655,32 @@ style: |
 
         assert slide.background.background_gradient is not None
         assert slide.background.background_gradient.startswith("linear-gradient(")
+
+    def test_slide_radial_gradient_background_is_extracted(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "slide-bg-radial-gradient.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  section {
+    background: radial-gradient(ellipse at 30% 50%, #312e81, #0f172a 70%);
+    color: white;
+  }
+---
+
+# Slide
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        assert slide.background.background_gradient is not None
+        assert slide.background.background_gradient.startswith("radial-gradient(")
 
     def test_decorated_badge_is_extracted_as_separate_element(
         self, tmp_path: Path, tmp_output_dir: Path

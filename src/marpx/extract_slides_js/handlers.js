@@ -217,9 +217,13 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
 
 function _isLeafTextBlock(el) {
     if (el.children.length > 0) return false;
-    const display = window.getComputedStyle(el).display || '';
-    if (display.startsWith('inline')) return false;
     return !!el.textContent && el.textContent.trim().length > 0;
+}
+
+function _isPresentationalList(el) {
+    const cs = window.getComputedStyle(el);
+    const listStyleType = (cs.listStyleType || '').toLowerCase();
+    return listStyleType === 'none';
 }
 
 export function handleBlockquote(el, slideRect, slideData, decoration, renderContext) {
@@ -395,6 +399,12 @@ export function processElement(el, slideRect, slideData, parentContext = null) {
 
     // Lists
     if (tag === 'ul' || tag === 'ol') {
+        if (_isPresentationalList(el)) {
+            for (const child of el.children) {
+                processElement(child, slideRect, slideData, renderContext);
+            }
+            return;
+        }
         handleList(el, slideRect, slideData, tag, renderContext);
         return;
     }

@@ -1,4 +1,4 @@
-"""Helpers for parsing and rendering simple CSS linear gradients."""
+"""Helpers for parsing and rendering simple CSS gradients."""
 
 from __future__ import annotations
 
@@ -22,6 +22,13 @@ class GradientStop:
 @dataclass(frozen=True)
 class ParsedLinearGradient:
     angle_deg: float
+    stops: tuple[GradientStop, ...]
+
+
+@dataclass(frozen=True)
+class ParsedRadialGradient:
+    center_x: float
+    center_y: float
     stops: tuple[GradientStop, ...]
 
 
@@ -126,6 +133,118 @@ def render_linear_gradient_png(
     return buf.getvalue()
 
 
+def parse_radial_gradient(css_gradient: str) -> ParsedRadialGradient | None:
+    """Parse a simple CSS radial-gradient() string."""
+    gradient = css_gradient.strip()
+    if not gradient.lower().startswith("radial-gradient(") or not gradient.endswith(")"):
+        return None
+
+    inner = gradient[len("radial-gradient(") : -1]
+    parts = _split_top_level_commas(inner)
+    if len(parts) < 2:
+        return None
+
+    descriptor = parts[0].strip().lower()
+    stop_parts = parts
+    center_x = 0.5
+    center_y = 0.5
+    if "at " in descriptor:
+        parsed_center = _parse_radial_center(descriptor)
+        if parsed_center is not None:
+            center_x, center_y = parsed_center
+            stop_parts = parts[1:]
+
+    raw_stops: list[tuple[RGBAColor, float | None]] = []
+    for part in stop_parts:
+        parsed = _parse_gradient_stop(part)
+        if parsed is None:
+            return None
+        raw_stops.append(parsed)
+
+    stops = _resolve_stop_positions(raw_stops)
+    return ParsedRadialGradient(
+        center_x=center_x,
+        center_y=center_y,
+        stops=tuple(stops),
+    )
+
+
+def render_radial_gradient_png(
+    css_gradient: str,
+    width_px: int,
+    height_px: int,
+    border_radius_px: float = 0.0,
+) -> bytes | None:
+    """Render a simple radial gradient rectangle to PNG."""
+    parsed = parse_radial_gradient(css_gradient)
+    if parsed is None:
+        return None
+
+    width = max(int(round(width_px)), 1)
+    height = max(int(round(height_px)), 1)
+    image = Image.new("RGBA", (width, height))
+    pixels = image.load()
+
+    cx = parsed.center_x
+    cy = parsed.center_y
+    rx = max(cx, 1.0 - cx, 1e-6)
+    ry = max(cy, 1.0 - cy, 1e-6)
+
+    for y in range(height):
+        yn = 0.5 if height == 1 else y / (height - 1)
+        dy = (yn - cy) / ry
+        for x in range(width):
+            xn = 0.5 if width == 1 else x / (width - 1)
+            dx = (xn - cx) / rx
+            t = math.sqrt((dx * dx) + (dy * dy))
+            color = _interpolate_stops(parsed.stops, t)
+            pixels[x, y] = (
+                color.r,
+                color.g,
+                color.b,
+                int(round(color.a * 255)),
+            )
+
+    if border_radius_px > 0:
+        mask = Image.new("L", (width, height), 0)
+        radius = min(border_radius_px, width / 2, height / 2)
+        ImageDraw.Draw(mask).rounded_rectangle(
+            (0, 0, width - 1, height - 1),
+            radius=int(round(radius)),
+            fill=255,
+        )
+        image.putalpha(mask)
+
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def render_gradient_png(
+    css_gradient: str,
+    width_px: int,
+    height_px: int,
+    border_radius_px: float = 0.0,
+) -> bytes | None:
+    """Render a supported CSS gradient rectangle to PNG."""
+    gradient = css_gradient.strip().lower()
+    if gradient.startswith("linear-gradient("):
+        return render_linear_gradient_png(
+            css_gradient,
+            width_px,
+            height_px,
+            border_radius_px=border_radius_px,
+        )
+    if gradient.startswith("radial-gradient("):
+        return render_radial_gradient_png(
+            css_gradient,
+            width_px,
+            height_px,
+            border_radius_px=border_radius_px,
+        )
+    return None
+
+
 def _split_top_level_commas(value: str) -> list[str]:
     parts: list[str] = []
     current: list[str] = []
@@ -175,6 +294,16 @@ def _parse_gradient_direction(value: str) -> float | None:
         ("left", "top"): 315.0,
     }
     return mapping.get(tuple(tokens))
+
+
+def _parse_radial_center(value: str) -> tuple[float, float] | None:
+    match = re.search(r"\bat\s+([0-9.]+)%\s+([0-9.]+)%", value)
+    if match:
+        return (
+            max(0.0, min(float(match.group(1)) / 100.0, 1.0)),
+            max(0.0, min(float(match.group(2)) / 100.0, 1.0)),
+        )
+    return None
 
 
 def _parse_gradient_stop(value: str) -> tuple[RGBAColor, float | None] | None:

@@ -1447,6 +1447,39 @@ class TestCodeBlock:
         assert "<a:noFill/>" in textbox._element.xml
 
 
+class TestDecorationRendering:
+    def test_non_uniform_bottom_border_renders_as_separate_shape(
+        self, tmp_path: Path
+    ) -> None:
+        element = SlideElement(
+            element_type=ElementType.DECORATED_BLOCK,
+            box=Box(x=50, y=100, width=300, height=40),
+            paragraphs=[],
+            decoration=BoxDecoration(
+                border_bottom=BorderSide(
+                    width_px=1,
+                    style="solid",
+                    color=RGBAColor(r=51, g=65, b=85),
+                ),
+            ),
+        )
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[element])]
+        )
+
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+
+        assert len(slide.shapes) == 2
+        border_shape = next(
+            shape
+            for shape in slide.shapes
+            if 'val="334155"' in shape._element.xml
+        )
+        assert border_shape.height == px_to_emu(1)
+        assert border_shape.width == px_to_emu(300)
+
+
 class TestImagePlacement:
     """Verify CSS object-fit placement."""
 
@@ -1838,6 +1871,26 @@ class TestSolidBackground:
                     elements=[_make_heading("Gradient Slide")],
                     background=Background(
                         background_gradient="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+                    ),
+                )
+            ],
+        )
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+
+        assert any(shape.shape_type == 13 for shape in slide.shapes)
+
+    def test_slide_radial_gradient_background_renders_picture(
+        self, tmp_path: Path
+    ) -> None:
+        pres = Presentation(
+            slides=[
+                Slide(
+                    width_px=1280,
+                    height_px=720,
+                    elements=[_make_heading("Gradient Slide")],
+                    background=Background(
+                        background_gradient="radial-gradient(ellipse at 30% 50%, #312e81, #0f172a 70%)"
                     ),
                 )
             ],

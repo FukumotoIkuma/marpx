@@ -15,7 +15,7 @@ from marpx.utils import px_to_emu
 from ._helpers import _set_fill_color
 from .background import _add_background_image
 from .decoration import _add_code_block, _add_fallback_image
-from marpx.gradient_utils import render_linear_gradient_png
+from marpx.gradient_utils import render_gradient_png
 from .directives import _add_footer, _add_header, _add_page_number
 from .image import MissingDependencyError, _add_image
 from .table import _add_table
@@ -34,7 +34,7 @@ def _set_slide_background(
 ) -> None:
     """Set solid background color on a slide."""
     if background.background_gradient:
-        gradient_bytes = render_linear_gradient_png(
+        gradient_bytes = render_gradient_png(
             background.background_gradient,
             max(int(round(slide_width_px)), 1),
             max(int(round(slide_height_px)), 1),

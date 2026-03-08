@@ -155,6 +155,8 @@ def _add_decoration_shape(slide, box: Box, decoration: BoxDecoration):
         accent_color = _with_opacity(accent_border.color, decoration.opacity)
         _set_fill_color(accent_shape.fill, accent_color)
         accent_shape.line.fill.background()
+    elif not uniform_border:
+        _add_side_border_shapes(slide, box, decoration)
 
     for shadow in decoration.box_shadows:
         if not shadow.inset or shadow.color.a <= 0:
@@ -319,6 +321,63 @@ def _is_left_accent_only(decoration: BoxDecoration) -> bool:
         side.width_px == 0 or side.style == "none" or side.color is None
         for side in other_sides
     )
+
+
+def _add_side_border_shapes(slide, box: Box, decoration: BoxDecoration) -> None:
+    """Render visible non-uniform borders as separate thin rectangle shapes."""
+    sides = [
+        (
+            decoration.border_top,
+            box.x,
+            box.y,
+            box.width,
+            decoration.border_top.width_px,
+        ),
+        (
+            decoration.border_right,
+            box.x + box.width - decoration.border_right.width_px,
+            box.y,
+            decoration.border_right.width_px,
+            box.height,
+        ),
+        (
+            decoration.border_bottom,
+            box.x,
+            box.y + box.height - decoration.border_bottom.width_px,
+            box.width,
+            decoration.border_bottom.width_px,
+        ),
+        (
+            decoration.border_left,
+            box.x,
+            box.y,
+            decoration.border_left.width_px,
+            box.height,
+        ),
+    ]
+
+    for border, x, y, width, height in sides:
+        if (
+            border.width_px <= 0
+            or border.style == "none"
+            or border.color is None
+            or width <= 0
+            or height <= 0
+        ):
+            continue
+        border_shape = slide.shapes.add_shape(
+            MSO_AUTO_SHAPE_TYPE.RECTANGLE,
+            Emu(px_to_emu(x)),
+            Emu(px_to_emu(y)),
+            Emu(px_to_emu(width)),
+            Emu(px_to_emu(height)),
+        )
+        _remove_theme_style(border_shape)
+        _set_fill_color(
+            border_shape.fill,
+            _with_opacity(border.color, decoration.opacity),
+        )
+        border_shape.line.fill.background()
 
 
 def _resolve_left_accent_geometry(

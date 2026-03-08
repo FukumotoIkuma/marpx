@@ -9,38 +9,84 @@
     import { extractListItemContent, extractParagraphsFromContainer } from './containers.js';
     import { shouldExtractStandaloneDecoratedText } from './classify.js';
 
-    export function isDecoratedBlockContainer(el) {
-        const tag = (el.localName || el.tagName).toLowerCase();
-        if (
-            [
-                'section', 'blockquote', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td',
-                'th', 'img', 'pre', 'marp-pre', 'script', 'style', 'link', 'meta',
-                'header', 'footer'
-            ].includes(tag)
-        ) {
-            return false;
-        }
-        const display = window.getComputedStyle(el).display;
-        return !display.startsWith('inline');
+export function isDecoratedBlockContainer(el) {
+    const tag = (el.localName || el.tagName).toLowerCase();
+    const cs = window.getComputedStyle(el);
+    const parentListStyleType = el.parentElement
+        ? (window.getComputedStyle(el.parentElement).listStyleType || '').toLowerCase()
+        : '';
+    const isPresentationalListNode = (
+        (tag === 'li' && (cs.display !== 'list-item' || parentListStyleType === 'none')) ||
+        ((tag === 'ul' || tag === 'ol') && (cs.listStyleType || '').toLowerCase() === 'none')
+    );
+    if (
+        [
+            'section', 'blockquote', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td',
+            'th', 'img', 'pre', 'marp-pre', 'script', 'style', 'link', 'meta',
+            'header', 'footer'
+        ].includes(tag) &&
+        !isPresentationalListNode
+    ) {
+        return false;
     }
+    return !cs.display.startsWith('inline');
+}
 
     export function shouldExtractDecoratedBlock(el, decoration, renderContext = null) {
         if (!hasMeaningfulDecoration(decoration)) return false;
         if (!isDecoratedBlockContainer(el)) return false;
         const paragraphs = extractParagraphsFromContainer(el, renderContext);
-        return paragraphs.length > 0 || shouldDecomposeDecoratedBlock(el);
+        return (
+            paragraphs.length > 0 ||
+            shouldDecomposeDecoratedBlock(el) ||
+            el.children.length === 0
+        );
     }
 
-    export function shouldDecomposeDecoratedBlock(el) {
-        const hasUnsupportedDescendant = Array.from(el.querySelectorAll('*')).some(
-            (node) => !!isUnsupported(node)
-        );
-        if (hasUnsupportedDescendant) return true;
-        return Array.from(el.children).some((child) =>
-            shouldExtractStandaloneDecoratedText(child, extractDecoration(child)) ||
+export function shouldDecomposeDecoratedBlock(el) {
+    const cs = window.getComputedStyle(el);
+    const display = (cs.display || '').toLowerCase();
+    const flexDirection = (cs.flexDirection || 'row').toLowerCase();
+    if (
+        (display === 'flex' || display === 'inline-flex') &&
+        flexDirection !== 'column' &&
+        flexDirection !== 'column-reverse' &&
+        el.children.length > 1
+    ) {
+        return true;
+    }
+    if (
+        (display === 'grid' || display === 'inline-grid') &&
+        el.children.length > 1
+    ) {
+        return true;
+    }
+    const hasUnsupportedDescendant = Array.from(el.querySelectorAll('*')).some(
+        (node) => !!isUnsupported(node)
+    );
+    if (hasUnsupportedDescendant) return true;
+    const hasDecoratedDescendant = Array.from(el.querySelectorAll('*')).some((node) => {
+        const tag = (node.localName || node.tagName).toLowerCase();
+        if (['table', 'img', 'pre', 'marp-pre'].includes(tag)) return true;
+        const decoration = extractDecoration(node, deriveRenderContext(node));
+        return (
+            shouldExtractStandaloneDecoratedText(node, decoration) ||
             (
-                isDecoratedBlockContainer(child) &&
-                hasMeaningfulDecoration(
+                isDecoratedBlockContainer(node) &&
+                hasMeaningfulDecoration(decoration) &&
+                (
+                    extractParagraphsFromContainer(node, deriveRenderContext(node)).length > 0 ||
+                    node.children.length === 0
+                )
+            )
+        );
+    });
+    if (hasDecoratedDescendant) return true;
+    return Array.from(el.children).some((child) =>
+        shouldExtractStandaloneDecoratedText(child, extractDecoration(child)) ||
+        (
+            isDecoratedBlockContainer(child) &&
+            hasMeaningfulDecoration(
                     extractDecoration(child, deriveRenderContext(child))
                 )
             ) ||
