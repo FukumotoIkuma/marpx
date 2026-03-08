@@ -1977,6 +1977,30 @@ class TestSolidBackground:
 
         assert any(shape.shape_type == 13 for shape in slide.shapes)
 
+    def test_slide_multi_layer_gradient_background_renders_picture(
+        self, tmp_path: Path
+    ) -> None:
+        pres = Presentation(
+            slides=[
+                Slide(
+                    width_px=1280,
+                    height_px=720,
+                    elements=[_make_heading("Gradient Slide")],
+                    background=Background(
+                        background_gradient=(
+                            "radial-gradient(120% 80%, rgba(0, 255, 255, 0.12) 0%, transparent 50%), "
+                            "radial-gradient(80% 60% at 20% 80%, rgba(255, 0, 255, 0.1) 0%, transparent 50%), "
+                            "linear-gradient(135deg, #0a0a2e 0%, #050510 100%)"
+                        )
+                    ),
+                )
+            ],
+        )
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+
+        assert any(shape.shape_type == 13 for shape in slide.shapes)
+
 
 class TestOutputFile:
     """Verify the PPTX file is written to disk."""

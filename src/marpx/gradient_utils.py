@@ -86,6 +86,22 @@ def render_linear_gradient_png(
     border_radius_px: float = 0.0,
 ) -> bytes | None:
     """Render a simple linear gradient rectangle to PNG."""
+    image = _render_linear_gradient_image(
+        css_gradient,
+        width_px,
+        height_px,
+        border_radius_px=border_radius_px,
+    )
+    return _encode_png(image) if image is not None else None
+
+
+def _render_linear_gradient_image(
+    css_gradient: str,
+    width_px: int,
+    height_px: int,
+    border_radius_px: float = 0.0,
+) -> Image.Image | None:
+    """Render a simple linear gradient rectangle to a PIL image."""
     parsed = parse_linear_gradient(css_gradient)
     if parsed is None:
         return None
@@ -128,9 +144,7 @@ def render_linear_gradient_png(
         )
         image.putalpha(mask)
 
-    buf = io.BytesIO()
-    image.save(buf, format="PNG")
-    return buf.getvalue()
+    return image
 
 
 def parse_radial_gradient(css_gradient: str) -> ParsedRadialGradient | None:
@@ -150,11 +164,11 @@ def parse_radial_gradient(css_gradient: str) -> ParsedRadialGradient | None:
     stop_parts = parts
     center_x = 0.5
     center_y = 0.5
-    if "at " in descriptor:
+    if _looks_like_radial_descriptor(descriptor):
         parsed_center = _parse_radial_center(descriptor)
         if parsed_center is not None:
             center_x, center_y = parsed_center
-            stop_parts = parts[1:]
+        stop_parts = parts[1:]
 
     raw_stops: list[tuple[RGBAColor, float | None]] = []
     for part in stop_parts:
@@ -178,6 +192,22 @@ def render_radial_gradient_png(
     border_radius_px: float = 0.0,
 ) -> bytes | None:
     """Render a simple radial gradient rectangle to PNG."""
+    image = _render_radial_gradient_image(
+        css_gradient,
+        width_px,
+        height_px,
+        border_radius_px=border_radius_px,
+    )
+    return _encode_png(image) if image is not None else None
+
+
+def _render_radial_gradient_image(
+    css_gradient: str,
+    width_px: int,
+    height_px: int,
+    border_radius_px: float = 0.0,
+) -> Image.Image | None:
+    """Render a simple radial gradient rectangle to a PIL image."""
     parsed = parse_radial_gradient(css_gradient)
     if parsed is None:
         return None
@@ -217,9 +247,7 @@ def render_radial_gradient_png(
         )
         image.putalpha(mask)
 
-    buf = io.BytesIO()
-    image.save(buf, format="PNG")
-    return buf.getvalue()
+    return image
 
 
 def render_gradient_png(
@@ -229,22 +257,32 @@ def render_gradient_png(
     border_radius_px: float = 0.0,
 ) -> bytes | None:
     """Render a supported CSS gradient rectangle to PNG."""
-    gradient = css_gradient.strip().lower()
-    if gradient.startswith("linear-gradient("):
-        return render_linear_gradient_png(
-            css_gradient,
-            width_px,
-            height_px,
+    layers = [
+        layer.strip()
+        for layer in _split_top_level_commas(css_gradient)
+        if layer.strip() and layer.strip().lower() != "none"
+    ]
+    if not layers:
+        return None
+
+    width = max(int(round(width_px)), 1)
+    height = max(int(round(height_px)), 1)
+    composite = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    rendered_any = False
+
+    for layer in reversed(layers):
+        image = _render_gradient_layer_image(
+            layer,
+            width,
+            height,
             border_radius_px=border_radius_px,
         )
-    if gradient.startswith("radial-gradient("):
-        return render_radial_gradient_png(
-            css_gradient,
-            width_px,
-            height_px,
-            border_radius_px=border_radius_px,
-        )
-    return None
+        if image is None:
+            continue
+        composite.alpha_composite(image)
+        rendered_any = True
+
+    return _encode_png(composite) if rendered_any else None
 
 
 def _split_top_level_commas(value: str) -> list[str]:
@@ -268,6 +306,17 @@ def _split_top_level_commas(value: str) -> list[str]:
 
 def _looks_like_direction(value: str) -> bool:
     return value.startswith("to ") or value.endswith("deg")
+
+
+def _looks_like_radial_descriptor(value: str) -> bool:
+    normalized = value.strip().lower()
+    if not normalized:
+        return False
+    if "at " in normalized:
+        return True
+    if normalized.startswith(("circle", "ellipse", "closest-", "farthest-")):
+        return True
+    return _parse_gradient_stop(normalized) is None
 
 
 def _parse_gradient_direction(value: str) -> float | None:
@@ -319,7 +368,54 @@ def _parse_gradient_stop(value: str) -> tuple[RGBAColor, float | None] | None:
         position = max(0.0, min(float(match.group(1)[:-1]) / 100.0, 1.0))
         stop = stop[: match.start()].strip()
 
-    return parse_css_color(stop), position
+    color = _try_parse_css_color(stop)
+    if color is None:
+        return None
+    return color, position
+
+
+def _render_gradient_layer_image(
+    css_gradient: str,
+    width_px: int,
+    height_px: int,
+    border_radius_px: float = 0.0,
+) -> Image.Image | None:
+    gradient = css_gradient.strip().lower()
+    if gradient.startswith("linear-gradient("):
+        return _render_linear_gradient_image(
+            css_gradient,
+            width_px,
+            height_px,
+            border_radius_px=border_radius_px,
+        )
+    if gradient.startswith("radial-gradient("):
+        return _render_radial_gradient_image(
+            css_gradient,
+            width_px,
+            height_px,
+            border_radius_px=border_radius_px,
+        )
+    return None
+
+
+def _encode_png(image: Image.Image) -> bytes:
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _try_parse_css_color(value: str) -> RGBAColor | None:
+    normalized = value.strip()
+    if not normalized:
+        return None
+    lower = normalized.lower()
+    if re.fullmatch(r"rgba?\([^()]+\)", lower):
+        return parse_css_color(normalized)
+    if re.fullmatch(r"#[0-9a-f]{3}(?:[0-9a-f]{3})?(?:[0-9a-f]{2})?", lower):
+        return parse_css_color(normalized)
+    if re.fullmatch(r"[a-z]+", lower):
+        return parse_css_color(normalized)
+    return None
 
 
 def _resolve_stop_positions(
