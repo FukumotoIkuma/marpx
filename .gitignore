@@ -18,5 +18,4 @@ output/
 tmp-*
 .env
 input.md
-*.bundle.js
 .tmp*/
