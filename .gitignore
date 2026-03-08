@@ -19,5 +19,4 @@ tmp-*
 .env
 input.md
 *.bundle.js
-package-lock.json
 .tmp*/
