@@ -30,34 +30,34 @@ class TestCssAngleToOoxmlAngle:
     """Tests for css_angle_to_ooxml_angle conversion."""
 
     def test_zero_degrees(self) -> None:
-        # CSS 0deg → OOXML 90deg → 90 * 60000 = 5400000
+        # CSS 0deg (bottom-to-top) → OOXML 270deg → 270 * 60000 = 16200000
         result = css_angle_to_ooxml_angle(0.0)
-        assert result == 5400000
+        assert result == 16200000
 
     def test_90_degrees(self) -> None:
-        # CSS 90deg → OOXML 0deg → 0
+        # CSS 90deg (left-to-right) → OOXML 0deg → 0
         result = css_angle_to_ooxml_angle(90.0)
         assert result == 0
 
     def test_180_degrees(self) -> None:
-        # CSS 180deg → OOXML 270deg → 270 * 60000 = 16200000
+        # CSS 180deg (top-to-bottom) → OOXML 90deg → 90 * 60000 = 5400000
         result = css_angle_to_ooxml_angle(180.0)
-        assert result == 16200000
+        assert result == 5400000
 
     def test_270_degrees(self) -> None:
-        # CSS 270deg → OOXML 180deg → 180 * 60000 = 10800000
+        # CSS 270deg (right-to-left) → OOXML 180deg → 180 * 60000 = 10800000
         result = css_angle_to_ooxml_angle(270.0)
         assert result == 10800000
 
     def test_arbitrary_angle_45(self) -> None:
-        # CSS 45deg → OOXML (90-45)=45deg → 45 * 60000 = 2700000
+        # CSS 45deg → OOXML 315deg → 315 * 60000 = 18900000
         result = css_angle_to_ooxml_angle(45.0)
-        assert result == 2700000
+        assert result == 18900000
 
     def test_arbitrary_angle_135(self) -> None:
-        # CSS 135deg → OOXML (90-135) % 360 = 315deg → 315 * 60000 = 18900000
+        # CSS 135deg → OOXML 45deg → 45 * 60000 = 2700000
         result = css_angle_to_ooxml_angle(135.0)
-        assert result == 18900000
+        assert result == 2700000
 
 
 # ---------------------------------------------------------------------------

@@ -36,7 +36,7 @@ class ParsedRadialGradient:
 
 def css_angle_to_ooxml_angle(angle_deg: float) -> int:
     """Convert CSS linear-gradient angle to OOXML a:lin angle units."""
-    normalized = (90.0 - angle_deg) % 360.0
+    normalized = (angle_deg - 90.0) % 360.0
     return int(round(normalized * 60000))
 
 
