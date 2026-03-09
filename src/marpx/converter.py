@@ -14,15 +14,108 @@ from marpx.capabilities import (
     should_fallback_slide,
 )
 from marpx.marp_renderer import render_to_html
-from marpx.extractor import close_sync_browser, extract_presentation_sync
+from marpx.extractor import SyncBrowserManager, extract_presentation_sync
 from marpx.fallback_renderer import render_fallbacks_sync
+from marpx.pipeline import ElementRenderInfo, PipelineContext, SlideRenderInfo
 from marpx.pptx_builder.builder import build_pptx
+from marpx.models import Presentation
 
 logger = logging.getLogger(__name__)
 
 
 class ConversionError(Exception):
     """Raised when the conversion pipeline fails."""
+
+
+def _classify_presentation(
+    presentation: Presentation,
+    *,
+    prefer_editable: bool = False,
+) -> dict[int, SlideRenderInfo]:
+    """Classify all elements in the presentation and return render info.
+
+    This is a pure function that does NOT mutate the presentation model.
+    It returns a mapping of slide index to SlideRenderInfo containing
+    capability decisions for each element.
+
+    Args:
+        presentation: Extracted presentation data.
+        prefer_editable: If True, skip full-slide fallback even when
+            the heuristic recommends it.
+
+    Returns:
+        Mapping of slide index to SlideRenderInfo.
+    """
+    slide_render_info: dict[int, SlideRenderInfo] = {}
+
+    for slide_idx, slide in enumerate(presentation.slides):
+        decisions = classify_slide(slide)
+        native_count = sum(
+            1 for d in decisions.values() if d.capability == Capability.NATIVE
+        )
+        fallback_count = len(decisions) - native_count
+        logger.info(
+            "Slide %d: %d native, %d fallback elements",
+            slide.slide_number,
+            native_count,
+            fallback_count,
+        )
+
+        element_info: dict[int, ElementRenderInfo] = {}
+        for i, element in enumerate(slide.elements):
+            decision = decisions.get(i) or classify_element(element)
+            element_info[i] = ElementRenderInfo(
+                capability=decision.capability.value,
+                reason=decision.reason,
+            )
+            if decision.reason:
+                logger.debug(
+                    "Slide %d, element %d (%s): %s — %s",
+                    slide.slide_number,
+                    i,
+                    element.element_type.value,
+                    decision.capability.value,
+                    decision.reason,
+                )
+
+        slide_info = SlideRenderInfo(element_render_info=element_info)
+
+        if should_fallback_slide(slide):
+            logger.info(
+                "Slide %d: marked for full-slide fallback",
+                slide.slide_number,
+            )
+            if not prefer_editable:
+                slide_info.is_fallback = True
+
+        slide_render_info[slide_idx] = slide_info
+
+    return slide_render_info
+
+
+def _apply_render_info_to_models(
+    presentation: Presentation,
+    slide_render_info: dict[int, SlideRenderInfo],
+) -> None:
+    """Write render info back to models for backward compatibility.
+
+    Downstream components (builder, fallback_renderer) currently read
+    ``element.capability`` and ``slide.is_fallback`` from the models.
+    This bridge function keeps them working while we migrate to
+    PipelineContext-based data flow.
+    """
+    for slide_idx, slide in enumerate(presentation.slides):
+        slide_info = slide_render_info.get(slide_idx)
+        if slide_info is None:
+            continue
+
+        if slide_info.is_fallback:
+            slide.is_fallback = True
+
+        for el_idx, element in enumerate(slide.elements):
+            el_info = slide_info.element_render_info.get(el_idx)
+            if el_info is not None:
+                element.capability = el_info.capability
 
 
 def convert(
@@ -64,6 +157,13 @@ def convert(
     # Create temp directory for intermediate files
     temp_dir = Path(tempfile.mkdtemp(prefix="marpx_"))
 
+    # Initialise pipeline context
+    ctx = PipelineContext(
+        markdown_path=markdown_path,
+        output_path=output_path,
+        temp_dir=temp_dir,
+    )
+
     try:
         # Step 1: Render Markdown to HTML
         logger.info("Step 1: Rendering Markdown to HTML...")
@@ -72,69 +172,49 @@ def convert(
             output_dir=temp_dir,
             theme=theme,
         )
+        ctx.html_path = html_path
         logger.info("HTML generated: %s", html_path)
 
         # Step 2: Extract presentation data from HTML
+        # Use SyncBrowserManager so the browser is closed automatically
+        # before the fallback renderer starts its own async Playwright.
         logger.info("Step 2: Extracting slide data with Playwright...")
-        presentation = extract_presentation_sync(html_path)
+        with SyncBrowserManager() as browser:
+            presentation = extract_presentation_sync(html_path, _browser=browser)
+        ctx.presentation = presentation
         logger.info(
             "Extracted %d slides, default size: %.0fx%.0f",
             len(presentation.slides),
             presentation.default_width_px,
             presentation.default_height_px,
         )
-        # Fallback rendering uses asyncio + async Playwright; close the shared
-        # sync extractor browser first to avoid event-loop conflicts.
-        close_sync_browser()
 
-        # Step 2.5: Classify element capabilities and write back to each element
-        for slide in presentation.slides:
-            decisions = classify_slide(slide)
-            native_count = sum(
-                1 for d in decisions.values() if d.capability == Capability.NATIVE
-            )
-            fallback_count = len(decisions) - native_count
-            logger.info(
-                "Slide %d: %d native, %d fallback elements",
-                slide.slide_number,
-                native_count,
-                fallback_count,
-            )
+        # Step 2.5: Classify element capabilities
+        ctx.slide_render_info = _classify_presentation(
+            presentation, prefer_editable=prefer_editable
+        )
 
-            # Write capability string back to each SlideElement so that
-            # downstream components (builder, fallback_renderer) share a
-            # single authoritative classification instead of re-deriving it.
-            for i, element in enumerate(slide.elements):
-                decision = decisions.get(i) or classify_element(element)
-                element.capability = decision.capability.value
-                if decision.reason:
-                    logger.debug(
-                        "Slide %d, element %d (%s): %s — %s",
-                        slide.slide_number,
-                        i,
-                        element.element_type.value,
-                        decision.capability.value,
-                        decision.reason,
-                    )
-
-            if should_fallback_slide(slide):
-                logger.info(
-                    "Slide %d: marked for full-slide fallback",
-                    slide.slide_number,
-                )
-                if not prefer_editable:
-                    slide.is_fallback = True
+        # Write classifications back to models for backward compatibility
+        _apply_render_info_to_models(presentation, ctx.slide_render_info)
 
         # Step 3: Render fallback images for unsupported content
         logger.info("Step 3: Rendering fallback images...")
         fallback_dir = temp_dir / "fallbacks"
         presentation = render_fallbacks_sync(
-            html_path, presentation, fallback_dir, fallback_mode
+            html_path,
+            presentation,
+            fallback_dir,
+            fallback_mode,
+            slide_render_info=ctx.slide_render_info,
         )
 
         # Step 4: Build PPTX
         logger.info("Step 4: Building PPTX...")
-        result = build_pptx(presentation, output_path)
+        result = build_pptx(
+            presentation,
+            output_path,
+            slide_render_info=ctx.slide_render_info,
+        )
         logger.info("PPTX generated: %s", result)
 
         return result

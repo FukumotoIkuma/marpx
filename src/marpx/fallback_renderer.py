@@ -14,6 +14,7 @@ from marpx.models import (
     SlideElement,
     UnsupportedInfo,
 )
+from marpx.pipeline import ElementRenderInfo, SlideRenderInfo
 from marpx.svg_utils import rasterize_svg_to_png
 
 logger = logging.getLogger(__name__)
@@ -250,6 +251,8 @@ async def render_fallbacks(
     presentation: Presentation,
     output_dir: str | Path,
     fallback_mode: str = "subtree",
+    *,
+    slide_render_info: dict[int, SlideRenderInfo] | None = None,
 ) -> Presentation:
     """Render fallback images for unsupported content.
 
@@ -258,6 +261,9 @@ async def render_fallbacks(
         presentation: Extracted presentation model.
         output_dir: Directory for fallback images.
         fallback_mode: "subtree" for element-level, "slide" for slide-level fallback.
+        slide_render_info: Optional rendering metadata from the classification
+            stage.  When provided, fallback image paths are also written here
+            (in addition to the model, for backward compatibility).
 
     Returns:
         Updated Presentation with fallback image paths set.
@@ -307,6 +313,11 @@ async def render_fallbacks(
                 img_path = await _screenshot_slide(page, slide_idx, output_dir)
                 slide.is_fallback = True
                 slide.fallback_image_path = str(img_path)
+                # Write to SlideRenderInfo if provided
+                if slide_render_info is not None:
+                    sri = slide_render_info.setdefault(slide_idx, SlideRenderInfo())
+                    sri.is_fallback = True
+                    sri.fallback_image_path = str(img_path)
                 # Remove individual elements since we're using slide-level fallback
                 slide.elements = []
             else:
@@ -338,6 +349,19 @@ async def render_fallbacks(
                                 tag_name=tag_name,
                             )
                         element.unsupported_info.fallback_image_path = str(img_path)
+                        # Write to SlideRenderInfo if provided
+                        if slide_render_info is not None:
+                            sri = slide_render_info.setdefault(
+                                slide_idx, SlideRenderInfo()
+                            )
+                            eri = sri.element_render_info.get(el_idx)
+                            if eri is not None:
+                                eri.fallback_image_path = str(img_path)
+                            else:
+                                sri.element_render_info[el_idx] = ElementRenderInfo(
+                                    capability="subtree_fallback",
+                                    fallback_image_path=str(img_path),
+                                )
 
         await browser.close()
 
@@ -349,10 +373,18 @@ def render_fallbacks_sync(
     presentation: Presentation,
     output_dir: str | Path,
     fallback_mode: str = "subtree",
+    *,
+    slide_render_info: dict[int, SlideRenderInfo] | None = None,
 ) -> Presentation:
     """Synchronous wrapper for render_fallbacks."""
     from marpx.async_utils import run_coroutine_sync
 
     return run_coroutine_sync(
-        render_fallbacks(html_path, presentation, output_dir, fallback_mode)
+        render_fallbacks(
+            html_path,
+            presentation,
+            output_dir,
+            fallback_mode,
+            slide_render_info=slide_render_info,
+        )
     )

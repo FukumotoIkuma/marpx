@@ -10,6 +10,7 @@ from pptx import Presentation as PptxPresentation
 from pptx.util import Emu
 
 from marpx.models import Background, ElementType, Presentation
+from marpx.pipeline import SlideRenderInfo
 from marpx.utils import px_to_emu
 
 from ._helpers import _set_fill_color
@@ -54,12 +55,20 @@ def _set_slide_background(
         _set_fill_color(fill, background.color)
 
 
-def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
+def build_pptx(
+    presentation: Presentation,
+    output_path: str | Path,
+    *,
+    slide_render_info: dict[int, SlideRenderInfo] | None = None,
+) -> Path:
     """Build a PPTX file from a Presentation model.
 
     Args:
         presentation: Normalized presentation data.
         output_path: Path for the output .pptx file.
+        slide_render_info: Optional rendering metadata from the pipeline.
+            When provided, capability and fallback decisions are read from
+            here (with model fields as fallback for backward compatibility).
 
     Returns:
         Path to the generated PPTX file.
@@ -81,17 +90,24 @@ def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
         pptx.slide_width = Emu(px_to_emu(first_slide.width_px))
         pptx.slide_height = Emu(px_to_emu(first_slide.height_px))
 
-    for slide_data in presentation.slides:
+    for slide_idx, slide_data in enumerate(presentation.slides):
         # Add blank slide
         layout = pptx.slide_layouts[6]  # Blank layout
         pptx_slide = pptx.slides.add_slide(layout)
 
-        # Handle full-slide fallback
-        is_full_slide_fallback = bool(
-            slide_data.is_fallback and slide_data.fallback_image_path
+        # Resolve slide-level fallback from render info or model
+        _sri = slide_render_info.get(slide_idx) if slide_render_info else None
+        _is_fallback = _sri.is_fallback if _sri is not None else slide_data.is_fallback
+        _fallback_path = (
+            _sri.fallback_image_path
+            if _sri is not None and _sri.fallback_image_path
+            else slide_data.fallback_image_path
         )
+
+        # Handle full-slide fallback
+        is_full_slide_fallback = bool(_is_fallback and _fallback_path)
         if is_full_slide_fallback:
-            img_path = Path(slide_data.fallback_image_path)
+            img_path = Path(_fallback_path)
             if img_path.exists():
                 pptx_slide.shapes.add_picture(
                     str(img_path),
@@ -129,6 +145,11 @@ def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
 
             # Add elements sorted by z-index, grouping adjacent plain text content
             skipped_count = 0
+            # Build element-id → original-index map so we can look up render
+            # info after sorting by z-index.
+            _el_original_idx: dict[int, int] = {
+                id(el): idx for idx, el in enumerate(slide_data.elements)
+            }
             sorted_elements = sorted(slide_data.elements, key=lambda e: e.z_index)
             for group in _group_adjacent_text_elements(sorted_elements):
                 if len(group) > 1 and all(
@@ -139,15 +160,24 @@ def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
 
                 element = group[0]
                 try:
+                    # Resolve capability from render info or model.
+                    _el_cap = element.capability
+                    if _sri is not None:
+                        _orig_idx = _el_original_idx.get(id(element))
+                        if _orig_idx is not None:
+                            _eri = _sri.element_render_info.get(_orig_idx)
+                            if _eri is not None:
+                                _el_cap = _eri.capability
+
                     # Capability-driven dispatch.
                     # When capability is set (by the converter pipeline) it is
                     # authoritative.  When capability is None the element was
                     # not classified (e.g. created directly in tests or via an
                     # older pipeline version), so we fall back to the legacy
                     # element_type-based routing for backward compatibility.
-                    if element.capability == "subtree_fallback":
+                    if _el_cap == "subtree_fallback":
                         _add_fallback_image(pptx_slide, element)
-                    elif element.capability == "native" or element.capability is None:
+                    elif _el_cap == "native" or _el_cap is None:
                         # native path (or legacy unclassified path)
                         if element.element_type in (
                             ElementType.HEADING,

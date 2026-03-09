@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import atexit
 import logging
+import warnings
 from pathlib import Path
+from types import TracebackType
 
 from playwright.async_api import async_playwright
 from playwright.sync_api import sync_playwright
@@ -50,6 +52,42 @@ TEXTBOX_MERGE_TYPES: tuple[ElementType, ...] = (
     ElementType.PARAGRAPH,
     ElementType.BLOCKQUOTE,
 )
+
+
+class SyncBrowserManager:
+    """Context manager for the shared sync Playwright browser.
+
+    Usage::
+
+        with SyncBrowserManager() as browser:
+            page = browser.new_page()
+            ...
+
+    On exit the browser and Playwright instance are closed, replacing the
+    need to call ``close_sync_browser()`` manually.
+    """
+
+    def __init__(self) -> None:
+        self._pw = None
+        self._browser = None
+
+    def __enter__(self):
+        self._pw = sync_playwright().start()
+        self._browser = self._pw.chromium.launch()
+        return self._browser
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        if self._browser is not None:
+            self._browser.close()
+            self._browser = None
+        if self._pw is not None:
+            self._pw.stop()
+            self._pw = None
 
 
 def _build_text_style(raw_style: dict) -> TextStyle:
@@ -430,7 +468,16 @@ def _close_sync_browser() -> None:
 
 
 def close_sync_browser() -> None:
-    """Public wrapper to close the shared sync Playwright browser."""
+    """Public wrapper to close the shared sync Playwright browser.
+
+    .. deprecated::
+        Use :class:`SyncBrowserManager` as a context manager instead.
+    """
+    warnings.warn(
+        "close_sync_browser() is deprecated; use SyncBrowserManager instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     _close_sync_browser()
 
 
@@ -519,12 +566,25 @@ async def extract_presentation(html_path: str | Path) -> Presentation:
     return _build_presentation_from_raw(raw_slides, raw_notes)
 
 
-def extract_presentation_sync(html_path: str | Path) -> Presentation:
-    """Synchronous wrapper for extract_presentation."""
+def extract_presentation_sync(
+    html_path: str | Path,
+    *,
+    _browser=None,
+) -> Presentation:
+    """Synchronous extraction of presentation data.
+
+    Args:
+        html_path: Path to the Marp-generated HTML file.
+        _browser: Optional pre-existing Playwright browser instance.
+            When provided, the shared global browser is NOT used and the
+            caller is responsible for the browser lifecycle (e.g. via
+            :class:`SyncBrowserManager`).  When *None* (default), the
+            legacy shared-global browser is used for backward compatibility.
+    """
     html_path = Path(html_path).resolve()
     file_url = html_path.as_uri()
     extract_js = load_extract_bundle()
-    browser = _get_sync_browser()
+    browser = _browser if _browser is not None else _get_sync_browser()
     page = browser.new_page()
     try:
         page.goto(file_url, wait_until="networkidle")

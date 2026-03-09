@@ -126,8 +126,9 @@ Marp MD --> marp-cli HTML --> Playwright 抽出 --> 正規化モデル --> pytho
 |-----------|------|
 | `cli.py` | CLI エントリーポイント |
 | `converter.py` | 変換パイプラインのオーケストレーション |
+| `pipeline.py` | パイプラインコンテキスト・レンダリングメタデータ（`PipelineContext`, `SlideRenderInfo`, `ElementRenderInfo`） |
 | `marp_renderer.py` | marp-cli による Markdown → HTML 変換 |
-| `extractor.py` | Playwright による DOM 抽出・モデル構築 |
+| `extractor.py` | Playwright による DOM 抽出・モデル構築（`SyncBrowserManager` コンテキストマネージャ含む） |
 | `extract_slides.bundle.js` | 実行時に Playwright へ渡されるブラウザ内抽出バンドル |
 | `extract_slides_js/` | 抽出ロジックの分割ソース（entry/runs/paragraphs/blocks/handlers など） |
 | `extract_notes.js` | ブラウザ内で実行されるスピーカーノート抽出 JavaScript |
