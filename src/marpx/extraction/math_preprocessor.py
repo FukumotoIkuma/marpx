@@ -18,6 +18,8 @@ def preprocess_math_latex(markdown: str) -> str:
     # State tracking
     in_frontmatter = False
     in_code_block = False
+    fence_char = ""
+    fence_len = 0
 
     i = 0
     while i < len(lines):
@@ -38,11 +40,29 @@ def preprocess_math_latex(markdown: str) -> str:
             continue
 
         # Track fenced code blocks
-        if re.match(r"^(`{3,}|~{3,})", line.strip()):
-            in_code_block = not in_code_block
-            result.append(line)
-            i += 1
-            continue
+        stripped = line.strip()
+        fence_match = re.match(r"^(`{3,}|~{3,})", stripped)
+        if fence_match:
+            if not in_code_block:
+                in_code_block = True
+                fence_char = fence_match.group(1)[0]
+                fence_len = len(fence_match.group(1))
+                result.append(line)
+                i += 1
+                continue
+            else:
+                # Closing fence: must match character type, have >= length,
+                # and no content after
+                closing_match = re.match(r"^(`{3,}|~{3,})\s*$", stripped)
+                if (
+                    closing_match
+                    and closing_match.group(1)[0] == fence_char
+                    and len(closing_match.group(1)) >= fence_len
+                ):
+                    in_code_block = False
+                result.append(line)
+                i += 1
+                continue
 
         if in_code_block:
             result.append(line)
@@ -65,8 +85,8 @@ def preprocess_math_latex(markdown: str) -> str:
                     after = inner_match.group(2)
                     escaped = html.escape(latex_content, quote=True)
                     result.append(
-                        f'{indent}<div data-latex="{escaped}">'
-                        f"$${latex_content}$${after}</div>"
+                        f'{indent}<marpx-math data-latex="{escaped}">'
+                        f"$${latex_content}$$</marpx-math>{after}"
                     )
                     i += 1
                     continue
@@ -74,7 +94,8 @@ def preprocess_math_latex(markdown: str) -> str:
             # Multi-line display math
             math_lines = [line]
             j = i + 1
-            while j < len(lines):
+            max_lookahead = min(i + 100, len(lines))
+            while j < max_lookahead:
                 math_lines.append(lines[j])
                 if "$$" in lines[j] and j != i:
                     break
@@ -87,10 +108,10 @@ def preprocess_math_latex(markdown: str) -> str:
             if dm_match:
                 latex_content = dm_match.group(1).strip()
                 escaped = html.escape(latex_content, quote=True)
-                result.append(f'{indent}<div data-latex="{escaped}">')
+                result.append(f'{indent}<marpx-math data-latex="{escaped}">')
                 for ml in math_lines:
                     result.append(ml)
-                result.append("</div>")
+                result.append("</marpx-math>")
                 i = j + 1
                 continue
             else:
@@ -108,7 +129,7 @@ def preprocess_math_latex(markdown: str) -> str:
 
 
 def _process_inline_math(line: str) -> str:
-    """Replace $...$ with <span data-latex="...">$...$</span> in a single line."""
+    """Replace $...$ with <marpx-math data-latex="...">$...$</marpx-math>."""
     # Protect inline code spans first
     code_spans: list[str] = []
 
@@ -116,7 +137,7 @@ def _process_inline_math(line: str) -> str:
         code_spans.append(m.group(0))
         return f"\x00CODE{len(code_spans) - 1}\x00"
 
-    protected = re.sub(r"`[^`]+`", _save_code, line)
+    protected = re.sub(r"(`+)(.+?)\1", _save_code, line)
 
     # Find inline math: $...$ (not $$)
     # Rules: opening $ must not be followed by space, closing $ must not be
@@ -125,7 +146,7 @@ def _process_inline_math(line: str) -> str:
     def _replace_inline(m: re.Match) -> str:
         latex = m.group(1)
         escaped = html.escape(latex, quote=True)
-        return f'<span data-latex="{escaped}">${latex}$</span>'
+        return f'<marpx-math data-latex="{escaped}">${latex}$</marpx-math>'
 
     # Match $...$ but not $$, not \$, not $ followed by space,
     # not preceded-by-space $
