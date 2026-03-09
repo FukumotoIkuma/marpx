@@ -182,6 +182,7 @@ class UnsupportedInfo(BaseModel):
     reason: str
     tag_name: str = ""
     svg_markup: str | None = None
+    latex_source: str | None = None
 
 
 # ---------------------------------------------------------------------------

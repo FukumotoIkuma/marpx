@@ -64,8 +64,14 @@ def classify_element(element: SlideElement) -> CapabilityDecision:
     if element.element_type in _NATIVE_TYPES:
         return CapabilityDecision(Capability.NATIVE)
 
-    # Math elements -> subtree fallback (screenshot)
+    # Math elements -> native if LaTeX source available, else subtree fallback
     if element.element_type == ElementType.MATH:
+        if (
+            isinstance(element, UnsupportedElement)
+            and element.unsupported_info
+            and element.unsupported_info.latex_source
+        ):
+            return CapabilityDecision(Capability.NATIVE)
         reason = ""
         if isinstance(element, UnsupportedElement) and element.unsupported_info:
             reason = element.unsupported_info.reason

@@ -97,13 +97,27 @@ def render_to_html(
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Pre-process to embed data-latex attributes for math expressions
+    from marpx.extraction.math_preprocessor import preprocess_math_latex
+
+    original_content = markdown_path.read_text(encoding="utf-8")
+    preprocessed = preprocess_math_latex(original_content)
+
+    # If pre-processing changed the content, write to temp file
+    if preprocessed != original_content:
+        preprocessed_path = output_dir / f"{markdown_path.stem}_preprocessed.md"
+        preprocessed_path.write_text(preprocessed, encoding="utf-8")
+        effective_md_path = preprocessed_path
+    else:
+        effective_md_path = markdown_path
+
     html_path = output_dir / f"{markdown_path.stem}.html"
 
     npx = find_npx()
     cmd = [
         npx,
         MARP_CLI_PACKAGE,
-        str(markdown_path),
+        str(effective_md_path),
         "--html",
         "--output",
         str(html_path),

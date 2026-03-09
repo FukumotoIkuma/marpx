@@ -12,6 +12,7 @@ from pptx.util import Emu
 from marpx.models import (
     Background,
     CodeBlockElement,
+    ElementType,
     ImageElement,
     ListElement,
     Presentation,
@@ -26,6 +27,7 @@ from marpx.utils.common import px_to_emu
 from ._helpers import _set_fill_color
 from .background import _add_background_image
 from .fallback import _add_fallback_image
+from .math import _add_math_equation
 from marpx.utils.gradient import render_gradient_png
 from .directives import _add_footer, _add_header, _add_page_number
 from .image import MissingDependencyError, _add_image
@@ -175,6 +177,16 @@ def build_pptx(
                         _add_fallback_image(
                             pptx_slide, element, el_info.fallback_image_path
                         )
+                    elif (
+                        isinstance(element, UnsupportedElement)
+                        and element.element_type == ElementType.MATH
+                    ):
+                        if not _add_math_equation(pptx_slide, element):
+                            # Fall back to image if OMML conversion failed
+                            fallback_path = (
+                                el_info.fallback_image_path if el_info else None
+                            )
+                            _add_fallback_image(pptx_slide, element, fallback_path)
                     elif isinstance(element, (TextElement, ListElement)):
                         _add_textbox(pptx_slide, element)
                     elif isinstance(element, ImageElement):

@@ -147,6 +147,11 @@ export function handleUnsupported(el, slideRect, slideData, unsup, parentContext
 export function handleMath(el, slideRect, slideData, tag, parentContext = null) {
     const svg = el.querySelector('svg');
     const renderContext = _resolveRenderContext(el, parentContext);
+
+    // Extract LaTeX source from data-latex attribute on wrapper element
+    const latexWrapper = el.closest('[data-latex]');
+    const latexSource = latexWrapper ? latexWrapper.getAttribute('data-latex') : null;
+
     slideData.elements.push({
         type: 'math',
         box: getBox(el, slideRect, renderContext),
@@ -156,6 +161,7 @@ export function handleMath(el, slideRect, slideData, tag, parentContext = null) 
         rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
         rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
         projectedCorners: getProjectedCorners(el, slideRect, renderContext),
+        latexSource: latexSource,
         unsupportedInfo: {
             reason: 'Math expression (MathJax)',
             tagName: tag,

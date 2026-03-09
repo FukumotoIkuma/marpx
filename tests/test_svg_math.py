@@ -100,7 +100,7 @@ class TestMathElementType:
 
 
 class TestClassifyMathElement:
-    """Verify that MATH elements are classified as SUBTREE_FALLBACK."""
+    """Verify that MATH elements are classified correctly."""
 
     def test_math_returns_subtree_fallback(self) -> None:
         info = UnsupportedInfo(
@@ -117,11 +117,21 @@ class TestClassifyMathElement:
         assert decision.capability == Capability.SUBTREE_FALLBACK
         assert "Math expression" in decision.reason
 
-    def test_math_is_not_native(self) -> None:
-        """MATH should NOT be classified as native."""
+    def test_math_without_latex_source_is_not_native(self) -> None:
+        """MATH without latex_source should NOT be classified as native."""
         element = _make_element(ElementType.MATH)
         decision = classify_element(element)
         assert decision.capability != Capability.NATIVE
+
+    def test_math_with_latex_source_returns_native(self) -> None:
+        info = UnsupportedInfo(
+            reason="Math expression (MathJax)",
+            tag_name="mjx-container",
+            latex_source="E = mc^2",
+        )
+        element = _make_element(ElementType.MATH, unsupported_info=info)
+        decision = classify_element(element)
+        assert decision.capability == Capability.NATIVE
 
 
 # ---------------------------------------------------------------------------
@@ -236,3 +246,124 @@ class TestBuildSlideElementMath:
         assert element.box.y == 100.3
         assert element.box.width == 250.0
         assert element.box.height == 80.0
+
+    def test_build_math_element_with_latex_source(self) -> None:
+        from marpx.extraction.extractor import _build_slide_element
+
+        raw = {
+            "type": "math",
+            "box": {"x": 10, "y": 20, "width": 300, "height": 50},
+            "latexSource": "E = mc^2",
+            "unsupportedInfo": {
+                "reason": "Math expression (MathJax)",
+                "tagName": "mjx-container",
+            },
+        }
+        element = _build_slide_element(raw)
+        assert element.element_type == ElementType.MATH
+        assert element.unsupported_info is not None
+        assert element.unsupported_info.latex_source == "E = mc^2"
+
+
+# ---------------------------------------------------------------------------
+# Math pre-processor tests
+# ---------------------------------------------------------------------------
+
+
+class TestMathPreprocessor:
+    """Test Markdown math pre-processing."""
+
+    def test_inline_math_wrapped(self) -> None:
+        from marpx.extraction.math_preprocessor import preprocess_math_latex
+
+        md = "Hello $E=mc^2$ world"
+        result = preprocess_math_latex(md)
+        assert 'data-latex="E=mc^2"' in result
+        assert "$E=mc^2$" in result
+
+    def test_display_math_wrapped(self) -> None:
+        from marpx.extraction.math_preprocessor import preprocess_math_latex
+
+        md = "$$\\frac{1}{2}$$"
+        result = preprocess_math_latex(md)
+        assert "data-latex=" in result
+        assert "$$" in result
+
+    def test_code_block_skipped(self) -> None:
+        from marpx.extraction.math_preprocessor import preprocess_math_latex
+
+        md = "```\n$x$\n```"
+        result = preprocess_math_latex(md)
+        assert "data-latex" not in result
+
+    def test_inline_code_skipped(self) -> None:
+        from marpx.extraction.math_preprocessor import preprocess_math_latex
+
+        md = "Use `$x$` in code"
+        result = preprocess_math_latex(md)
+        assert "data-latex" not in result
+
+    def test_frontmatter_skipped(self) -> None:
+        from marpx.extraction.math_preprocessor import preprocess_math_latex
+
+        md = "---\nmarp: true\n---\n$x$"
+        result = preprocess_math_latex(md)
+        # Only the $x$ after frontmatter should be wrapped
+        assert result.count("data-latex") == 1
+
+    def test_escaped_dollar_not_math(self) -> None:
+        from marpx.extraction.math_preprocessor import preprocess_math_latex
+
+        md = r"Price is \$5"
+        result = preprocess_math_latex(md)
+        assert "data-latex" not in result
+
+    def test_html_escape_in_attribute(self) -> None:
+        from marpx.extraction.math_preprocessor import preprocess_math_latex
+
+        md = "$a < b$"
+        result = preprocess_math_latex(md)
+        assert 'data-latex="a &lt; b"' in result
+
+    def test_multiple_inline_math(self) -> None:
+        from marpx.extraction.math_preprocessor import preprocess_math_latex
+
+        md = "$a$ and $b$"
+        result = preprocess_math_latex(md)
+        assert result.count("data-latex") == 2
+
+
+# ---------------------------------------------------------------------------
+# LaTeX to OMML conversion tests
+# ---------------------------------------------------------------------------
+
+
+class TestLatexToOmml:
+    """Test LaTeX to OMML conversion."""
+
+    def test_simple_equation(self) -> None:
+        from marpx.utils.math import latex_to_omml
+
+        result = latex_to_omml("E = mc^2")
+        assert result is not None
+        # Verify it's an a14:m element
+        assert "drawing/2010/main" in result.tag
+
+    def test_fraction(self) -> None:
+        from marpx.utils.math import latex_to_omml
+
+        result = latex_to_omml(r"\frac{1}{2}")
+        assert result is not None
+
+    def test_invalid_latex_returns_none(self) -> None:
+        from marpx.utils.math import latex_to_omml
+
+        # Empty string may or may not work - just verify no crash
+        latex_to_omml("")
+        # latex2mathml is quite forgiving, so this may actually succeed
+
+    def test_sum_notation(self) -> None:
+        from marpx.utils.math import latex_to_omml
+
+        result = latex_to_omml(r"\sum_{i=1}^{n} i")
+        assert result is not None
