@@ -1184,6 +1184,24 @@ function getParagraphMetrics(el, fallbackCs = null, renderContext = null) {
 }
 
 // containers.js
+function isInlineLikeElement(child) {
+  const display = window.getComputedStyle(child).display;
+  return display.startsWith("inline") || display === "contents" || child.tagName === "BR";
+}
+function hasUnsupportedBlockDescendants(child) {
+  const tag = child.tagName.toLowerCase();
+  if (tag === "table" || tag === "img" || tag === "pre" || tag === "marp-pre" || tag === "blockquote") {
+    return true;
+  }
+  return !!child.querySelector("table, img, pre, marp-pre, blockquote");
+}
+function buildTextRunFromNode(node, styleEl, renderContext) {
+  const run = _buildTextRun(node.textContent || "", styleEl, null, {
+    renderContext
+  });
+  if (!run || !run.text.trim()) return null;
+  return run;
+}
 function extractListItemContent(item, listEl, level, currentOrder, renderContext = null) {
   const itemCs = window.getComputedStyle(item);
   const itemContext = renderContext ? deriveRenderContext(item, renderContext, itemCs) : deriveRenderContext(item, null, itemCs);
@@ -1254,24 +1272,6 @@ function extractParagraphsFromContainer(el, renderContext = null) {
       resolveHorizontalAlign(window.getComputedStyle(child)) || alignment
     );
   }
-  function buildTextRunFromNode(node, styleEl) {
-    const run = _buildTextRun(node.textContent || "", styleEl, null, {
-      renderContext: containerContext
-    });
-    if (!run || !run.text.trim()) return null;
-    return run;
-  }
-  function isInlineLikeElement(child) {
-    const display = window.getComputedStyle(child).display;
-    return display.startsWith("inline") || display === "contents" || child.tagName === "BR";
-  }
-  function hasUnsupportedBlockDescendants(child) {
-    const tag = child.tagName.toLowerCase();
-    if (tag === "table" || tag === "img" || tag === "pre" || tag === "marp-pre" || tag === "blockquote") {
-      return true;
-    }
-    return !!child.querySelector("table, img, pre, marp-pre, blockquote");
-  }
   function pushListParagraphs(listEl, level, listContext) {
     const listItems = Array.from(listEl.children).filter((child) => child.tagName === "LI");
     let orderedIndex = listEl.tagName === "OL" ? listEl.start || 1 : 1;
@@ -1305,7 +1305,7 @@ function extractParagraphsFromContainer(el, renderContext = null) {
   }
   for (const child of el.childNodes) {
     if (child.nodeType === Node.TEXT_NODE) {
-      const run = buildTextRunFromNode(child, el);
+      const run = buildTextRunFromNode(child, el, containerContext);
       if (run) {
         inlineRuns.push(run);
       }
