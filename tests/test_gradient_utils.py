@@ -433,6 +433,36 @@ class TestParseRepeatingLinearGradient:
             is None
         )
 
+    def test_non_zero_first_stop(self) -> None:
+        """Stops starting at a non-zero position should parse correctly."""
+        result = parse_repeating_linear_gradient(
+            "repeating-linear-gradient(red 10%, blue 30%)"
+        )
+        assert result is not None
+        assert len(result.stops) == 2
+        assert result.stops[0].position == pytest.approx(0.10)
+        assert result.stops[1].position == pytest.approx(0.30)
+
+    def test_px_stops_parsed(self) -> None:
+        """Pixel-unit stops should be parsed and stored with px unit."""
+        result = parse_repeating_linear_gradient(
+            "repeating-linear-gradient(red 0px, blue 20px)"
+        )
+        assert result is not None
+        assert len(result.stops) == 2
+        assert result.stops[0].position == pytest.approx(0.0)
+        assert result.stops[0].unit == "px"
+        assert result.stops[1].position == pytest.approx(20.0)
+        assert result.stops[1].unit == "px"
+
+    def test_implicit_stops_degenerate(self) -> None:
+        """All-implicit stops produce cycle=1.0 which degenerates to solid."""
+        result = parse_repeating_linear_gradient("repeating-linear-gradient(red, blue)")
+        assert result is not None
+        # Stops are distributed at 0.0 and 1.0 (cycle = 1.0, degenerate)
+        assert result.stops[0].position == pytest.approx(0.0)
+        assert result.stops[-1].position == pytest.approx(1.0)
+
 
 # ---------------------------------------------------------------------------
 # TestRenderRepeatingLinearGradientPng
@@ -535,3 +565,72 @@ class TestRepresentativeGradientColorRepeating:
         assert color.r == 255
         assert color.g == 0
         assert color.b == 0
+
+
+# ---------------------------------------------------------------------------
+# TestRepeatingLinearGradientEdgeCases
+# ---------------------------------------------------------------------------
+class TestRepeatingLinearGradientEdgeCases:
+    """Tests for critical edge cases in repeating-linear-gradient rendering."""
+
+    def test_non_zero_first_stop_cycle_correct(self) -> None:
+        """red 10%, blue 30% should produce cycle=0.20, giving 5 cycles."""
+        import io
+
+        from PIL import Image
+
+        # 5 cycles in vertical 100px (each cycle = 20%)
+        result = render_repeating_linear_gradient_png(
+            "repeating-linear-gradient(to bottom, red 10%, blue 30%)", 1, 100
+        )
+        assert result is not None
+        img = Image.open(io.BytesIO(result)).convert("RGBA")
+        # At y=0 (0%), start of first cycle → should be red
+        top = img.getpixel((0, 0))
+        assert top[0] > 200, f"Expected red at y=0, got R={top[0]}"
+        # At y=20 (20%), start of second cycle → should be red again
+        y20 = img.getpixel((0, 20))
+        assert y20[0] > 200, f"Expected red at y=20, got R={y20[0]}"
+        # At y=40 (40%), start of third cycle → should be red again
+        y40 = img.getpixel((0, 40))
+        assert y40[0] > 200, f"Expected red at y=40, got R={y40[0]}"
+
+    def test_px_stops_render(self) -> None:
+        """Pixel-unit stops should render correctly."""
+        import io
+
+        from PIL import Image
+
+        # 20px cycle on a 100px vertical gradient = 5 cycles
+        result = render_repeating_linear_gradient_png(
+            "repeating-linear-gradient(to bottom, red 0px, blue 20px)", 1, 100
+        )
+        assert result is not None
+        img = Image.open(io.BytesIO(result)).convert("RGBA")
+        # At y=0, should be red (start of first cycle)
+        top = img.getpixel((0, 0))
+        assert top[0] > 200, f"Expected red at y=0, got R={top[0]}"
+        # At y=20 (start of second cycle), should be red again
+        y20 = img.getpixel((0, 20))
+        assert y20[0] > 200, f"Expected red at y=20, got R={y20[0]}"
+
+    def test_implicit_stops_degenerate_to_solid(self) -> None:
+        """All-implicit stops → cycle=1.0 → degenerate to solid last color.
+
+        Per CSS spec, when the repeating cycle covers the full [0, 1] range,
+        there is no visible repetition. This implementation degenerates to a
+        solid fill using the last declared stop color (blue).
+        """
+        import io
+
+        from PIL import Image
+
+        result = render_repeating_linear_gradient_png(
+            "repeating-linear-gradient(red, blue)", 10, 10
+        )
+        assert result is not None
+        img = Image.open(io.BytesIO(result)).convert("RGBA")
+        # All pixels should be the last color (blue) since it degenerates
+        center = img.getpixel((5, 5))
+        assert center[2] == 255, f"Expected blue solid, got B={center[2]}"
+        assert center[0] == 0, f"Expected no red, got R={center[0]}"

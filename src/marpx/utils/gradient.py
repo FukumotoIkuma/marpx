@@ -17,6 +17,7 @@ from marpx.utils.common import parse_css_color
 class GradientStop:
     color: RGBAColor
     position: float
+    unit: str = "%"  # "%" for relative positions, "px" for pixel positions
 
 
 @dataclass(frozen=True)
@@ -57,28 +58,7 @@ def parse_linear_gradient(css_gradient: str) -> ParsedLinearGradient | None:
         return None
 
     inner = gradient[len("linear-gradient(") : -1]
-    parts = _split_top_level_commas(inner)
-    if len(parts) < 2:
-        return None
-
-    angle_deg = 180.0
-    stop_parts = parts
-    first = parts[0].strip().lower()
-    if _looks_like_direction(first):
-        parsed_angle = _parse_gradient_direction(first)
-        if parsed_angle is not None:
-            angle_deg = parsed_angle
-            stop_parts = parts[1:]
-
-    raw_stops: list[tuple[RGBAColor, float | None]] = []
-    for part in stop_parts:
-        parsed = _parse_gradient_stop(part)
-        if parsed is None:
-            return None
-        raw_stops.append(parsed)
-
-    stops = _resolve_stop_positions(raw_stops)
-    return ParsedLinearGradient(angle_deg=angle_deg, stops=tuple(stops))
+    return _parse_linear_gradient_inner(inner)
 
 
 def parse_repeating_linear_gradient(
@@ -96,6 +76,11 @@ def parse_repeating_linear_gradient(
         return None
 
     inner = gradient[len("repeating-linear-gradient(") : -1]
+    return _parse_linear_gradient_inner(inner)
+
+
+def _parse_linear_gradient_inner(inner: str) -> ParsedLinearGradient | None:
+    """Shared parsing logic for linear-gradient and repeating-linear-gradient."""
     parts = _split_top_level_commas(inner)
     if len(parts) < 2:
         return None
@@ -109,7 +94,7 @@ def parse_repeating_linear_gradient(
             angle_deg = parsed_angle
             stop_parts = parts[1:]
 
-    raw_stops: list[tuple[RGBAColor, float | None]] = []
+    raw_stops: list[tuple[RGBAColor, float | None, str]] = []
     for part in stop_parts:
         parsed = _parse_gradient_stop(part)
         if parsed is None:
@@ -163,6 +148,134 @@ def _render_linear_gradient_image(
     if parsed is None:
         return None
 
+    return _render_linear_gradient_from_parsed(
+        parsed, width_px, height_px, border_radius_px
+    )
+
+
+def _render_repeating_linear_gradient_image(
+    css_gradient: str,
+    width_px: int,
+    height_px: int,
+    border_radius_px: float = 0.0,
+) -> Image.Image | None:
+    """Render a repeating linear gradient rectangle to a PIL image.
+
+    The approach expands the declared color stops to cover the full gradient
+    line by repeating them cyclically, then renders exactly like a normal
+    linear gradient.
+    """
+    parsed = parse_repeating_linear_gradient(css_gradient)
+    if parsed is None:
+        return None
+
+    if not parsed.stops:
+        return None
+
+    width = max(int(round(width_px)), 1)
+    height = max(int(round(height_px)), 1)
+
+    # Resolve px stops to relative positions based on the gradient line length.
+    stops = _resolve_px_stops(parsed.stops, parsed.angle_deg, width, height)
+
+    first_position = stops[0].position
+    last_position = stops[-1].position
+
+    # Cycle length is the distance between first and last stops.
+    cycle = last_position - first_position
+
+    # CSS spec: if cycle is zero or negative (degenerate), the gradient should
+    # show the last declared color as a solid fill. Also, when all stops are
+    # implicit (distributed across [0, 1]), cycle=1.0 means no repetition;
+    # per CSS spec this degenerates to a solid color (the last stop color).
+    if cycle <= 1e-9 or cycle >= 1.0 - 1e-9:
+        solid_color = stops[-1].color
+        expanded_stops = (
+            GradientStop(color=solid_color, position=0.0),
+            GradientStop(color=solid_color, position=1.0),
+        )
+        expanded_parsed = ParsedLinearGradient(
+            angle_deg=parsed.angle_deg, stops=expanded_stops
+        )
+        return _render_linear_gradient_from_parsed(
+            expanded_parsed, width_px, height_px, border_radius_px
+        )
+
+    # Expand stops to fill [0, 1] by repeating the cycle.
+    # Use i * cycle + (stop.position - first_position) to avoid floating-point
+    # seam accumulation from incremental offsets.
+    expanded: list[GradientStop] = []
+    num_cycles = max(int(math.ceil(1.0 / cycle)), 1)
+    for i in range(num_cycles):
+        for stop in stops:
+            pos = i * cycle + (stop.position - first_position)
+            if pos > 1.0 + 1e-9:
+                break
+            expanded.append(GradientStop(color=stop.color, position=min(pos, 1.0)))
+
+    if not expanded:
+        expanded = list(stops)
+
+    # Ensure we cover 0.0 and 1.0
+    if expanded[0].position > 1e-9:
+        expanded.insert(0, GradientStop(color=expanded[0].color, position=0.0))
+    if expanded[-1].position < 1.0 - 1e-9:
+        expanded.append(GradientStop(color=expanded[-1].color, position=1.0))
+
+    expanded_parsed = ParsedLinearGradient(
+        angle_deg=parsed.angle_deg, stops=tuple(expanded)
+    )
+
+    return _render_linear_gradient_from_parsed(
+        expanded_parsed, width_px, height_px, border_radius_px
+    )
+
+
+def _resolve_px_stops(
+    stops: tuple[GradientStop, ...],
+    angle_deg: float,
+    width: int,
+    height: int,
+) -> tuple[GradientStop, ...]:
+    """Convert any px-unit stops to relative [0, 1] positions.
+
+    The gradient line length is computed from the angle and image dimensions,
+    matching the CSS spec definition.
+    """
+    has_px = any(s.unit == "px" for s in stops)
+    if not has_px:
+        return stops
+
+    # Compute gradient line length per CSS spec.
+    radians = math.radians(angle_deg)
+    dx = math.sin(radians)
+    dy = -math.cos(radians)
+    corners = (
+        (0.0, 0.0),
+        (float(width), 0.0),
+        (0.0, float(height)),
+        (float(width), float(height)),
+    )
+    projections = [x * dx + y * dy for x, y in corners]
+    grad_line_length = max(max(projections) - min(projections), 1e-6)
+
+    resolved: list[GradientStop] = []
+    for stop in stops:
+        if stop.unit == "px":
+            pos = stop.position / grad_line_length
+            resolved.append(GradientStop(color=stop.color, position=pos))
+        else:
+            resolved.append(GradientStop(color=stop.color, position=stop.position))
+    return tuple(resolved)
+
+
+def _render_linear_gradient_from_parsed(
+    parsed: ParsedLinearGradient,
+    width_px: int,
+    height_px: int,
+    border_radius_px: float = 0.0,
+) -> Image.Image:
+    """Shared rendering logic for linear and repeating-linear gradients."""
     width = max(int(round(width_px)), 1)
     height = max(int(round(height_px)), 1)
     image = Image.new("RGBA", (width, height))
@@ -184,92 +297,6 @@ def _render_linear_gradient_image(
             xn = 0.5 if width == 1 else x / (width - 1)
             t = ((xn * dx + yn * dy) - min_proj) / span
             color = _interpolate_stops(parsed.stops, t)
-            pixels[x, y] = (
-                color.r,
-                color.g,
-                color.b,
-                int(round(color.a * 255)),
-            )
-
-    if border_radius_px > 0:
-        mask = Image.new("L", (width, height), 0)
-        radius = min(border_radius_px, width / 2, height / 2)
-        ImageDraw.Draw(mask).rounded_rectangle(
-            (0, 0, width - 1, height - 1),
-            radius=int(round(radius)),
-            fill=255,
-        )
-        image.putalpha(mask)
-
-    return image
-
-
-def _render_repeating_linear_gradient_image(
-    css_gradient: str,
-    width_px: int,
-    height_px: int,
-    border_radius_px: float = 0.0,
-) -> Image.Image | None:
-    """Render a repeating linear gradient rectangle to a PIL image.
-
-    The approach expands the declared color stops to cover the full gradient
-    line by repeating them cyclically, then renders exactly like a normal
-    linear gradient.
-    """
-    parsed = parse_repeating_linear_gradient(css_gradient)
-    if parsed is None:
-        return None
-
-    width = max(int(round(width_px)), 1)
-    height = max(int(round(height_px)), 1)
-
-    # Determine the cycle length from the last stop position.
-    cycle = parsed.stops[-1].position if parsed.stops else 1.0
-    if cycle <= 0:
-        cycle = 1.0
-
-    # Expand stops to fill [0, 1] by repeating the cycle.
-    expanded: list[GradientStop] = []
-    num_cycles = max(int(math.ceil(1.0 / cycle)), 1)
-    for i in range(num_cycles):
-        offset = i * cycle
-        for stop in parsed.stops:
-            pos = offset + stop.position
-            if pos > 1.0 + 1e-9:
-                break
-            expanded.append(GradientStop(color=stop.color, position=min(pos, 1.0)))
-
-    if not expanded:
-        expanded = list(parsed.stops)
-
-    # Ensure we cover 0.0 and 1.0
-    if expanded[0].position > 1e-9:
-        expanded.insert(0, GradientStop(color=expanded[0].color, position=0.0))
-    if expanded[-1].position < 1.0 - 1e-9:
-        expanded.append(GradientStop(color=expanded[-1].color, position=1.0))
-
-    expanded_parsed = ParsedLinearGradient(
-        angle_deg=parsed.angle_deg, stops=tuple(expanded)
-    )
-
-    image = Image.new("RGBA", (width, height))
-    radians = math.radians(expanded_parsed.angle_deg)
-    dx = math.sin(radians)
-    dy = -math.cos(radians)
-
-    corners = ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0))
-    projections = [x * dx + y * dy for x, y in corners]
-    min_proj = min(projections)
-    max_proj = max(projections)
-    span = max(max_proj - min_proj, 1e-6)
-
-    pixels = image.load()
-    for y in range(height):
-        yn = 0.5 if height == 1 else y / (height - 1)
-        for x in range(width):
-            xn = 0.5 if width == 1 else x / (width - 1)
-            t = ((xn * dx + yn * dy) - min_proj) / span
-            color = _interpolate_stops(expanded_parsed.stops, t)
             pixels[x, y] = (
                 color.r,
                 color.g,
@@ -313,7 +340,7 @@ def parse_radial_gradient(css_gradient: str) -> ParsedRadialGradient | None:
             center_x, center_y = parsed_center
         stop_parts = parts[1:]
 
-    raw_stops: list[tuple[RGBAColor, float | None]] = []
+    raw_stops: list[tuple[RGBAColor, float | None, str]] = []
     for part in stop_parts:
         parsed = _parse_gradient_stop(part)
         if parsed is None:
@@ -500,21 +527,39 @@ def _parse_radial_center(value: str) -> tuple[float, float] | None:
     return None
 
 
-def _parse_gradient_stop(value: str) -> tuple[RGBAColor, float | None] | None:
+def _parse_gradient_stop(
+    value: str,
+) -> tuple[RGBAColor, float | None, str] | None:
+    """Parse a single gradient stop, returning (color, position, unit).
+
+    *unit* is ``"%"`` for percentage values, ``"px"`` for pixel values,
+    or ``"%"`` when position is ``None`` (implicit).
+    """
     stop = value.strip()
     if not stop:
         return None
 
-    match = re.search(r"\s+([0-9.]+%)\s*$", stop)
-    position = None
+    position: float | None = None
+    unit = "%"
+
+    # Try percentage first
+    match = re.search(r"\s+([0-9.]+)%\s*$", stop)
     if match:
-        position = max(0.0, min(float(match.group(1)[:-1]) / 100.0, 1.0))
+        position = max(0.0, min(float(match.group(1)) / 100.0, 1.0))
+        unit = "%"
         stop = stop[: match.start()].strip()
+    else:
+        # Try pixel value
+        match_px = re.search(r"\s+([0-9.]+)px\s*$", stop)
+        if match_px:
+            position = float(match_px.group(1))
+            unit = "px"
+            stop = stop[: match_px.start()].strip()
 
     color = _try_parse_css_color(stop)
     if color is None:
         return None
-    return color, position
+    return color, position, unit
 
 
 def _render_gradient_layer_image(
@@ -569,21 +614,27 @@ def _try_parse_css_color(value: str) -> RGBAColor | None:
 
 
 def _resolve_stop_positions(
-    raw_stops: list[tuple[RGBAColor, float | None]],
+    raw_stops: list[tuple[RGBAColor, float | None, str]],
 ) -> list[GradientStop]:
     count = len(raw_stops)
     if count == 1:
-        color, _ = raw_stops[0]
+        color, _, unit = raw_stops[0]
         return [
-            GradientStop(color=color, position=0.0),
-            GradientStop(color=color, position=1.0),
+            GradientStop(color=color, position=0.0, unit=unit),
+            GradientStop(color=color, position=1.0, unit=unit),
         ]
 
-    positions = [pos for _, pos in raw_stops]
+    positions = [pos for _, pos, _ in raw_stops]
+    units = [unit for _, _, unit in raw_stops]
+
+    # Check if any stop uses px – if so, all resolved stops keep px unit
+    has_px = any(u == "px" for u in units)
+    resolved_unit = "px" if has_px else "%"
+
     if all(pos is None for pos in positions):
         return [
-            GradientStop(color=color, position=index / (count - 1))
-            for index, (color, _) in enumerate(raw_stops)
+            GradientStop(color=color, position=index / (count - 1), unit=resolved_unit)
+            for index, (color, _, _) in enumerate(raw_stops)
         ]
 
     if positions[0] is None:
@@ -604,8 +655,10 @@ def _resolve_stop_positions(
             last_known = index
 
     resolved: list[GradientStop] = []
-    for (color, _), position in zip(raw_stops, positions, strict=True):
-        resolved.append(GradientStop(color=color, position=float(position)))
+    for (color, _, _), position in zip(raw_stops, positions, strict=True):
+        resolved.append(
+            GradientStop(color=color, position=float(position), unit=resolved_unit)
+        )
     return resolved
 
 
