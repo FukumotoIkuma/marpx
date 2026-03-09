@@ -116,6 +116,86 @@ def _apply_round_rect_radius(
         shape.adjustments[0] = _round_rect_adjustment(width, height, radius)
 
 
+def _replace_with_round_rect_custgeom(
+    shape, w_emu: int, h_emu: int, radius_emu: int
+) -> None:
+    """Replace a shape's preset geometry with a custGeom rounded rectangle.
+
+    Unlike ``prstGeom="roundRect"``, this custom geometry sets the text
+    rectangle to the full shape bounds so that PowerPoint does not apply
+    an automatic text-area inset based on the corner radius.
+    """
+    sp_pr = shape._element.spPr
+
+    prst_geom = sp_pr.find(qn("a:prstGeom"))
+    if prst_geom is not None:
+        sp_pr.remove(prst_geom)
+
+    r = min(radius_emu, w_emu // 2, h_emu // 2)
+
+    cust_geom = etree.SubElement(sp_pr, qn("a:custGeom"))
+    etree.SubElement(cust_geom, qn("a:avLst"))
+    etree.SubElement(cust_geom, qn("a:gdLst"))
+    etree.SubElement(cust_geom, qn("a:ahLst"))
+    etree.SubElement(cust_geom, qn("a:cxnLst"))
+
+    # Text rectangle = full shape bounds (no geometry inset)
+    rect = etree.SubElement(cust_geom, qn("a:rect"))
+    rect.set("l", "0")
+    rect.set("t", "0")
+    rect.set("r", str(w_emu))
+    rect.set("b", str(h_emu))
+
+    path_lst = etree.SubElement(cust_geom, qn("a:pathLst"))
+    path = etree.SubElement(
+        path_lst,
+        qn("a:path"),
+        attrib={"w": str(w_emu), "h": str(h_emu)},
+    )
+
+    # Draw rounded rectangle: moveTo top-left+r, then lines+arcs clockwise
+    _move = etree.SubElement(path, qn("a:moveTo"))
+    etree.SubElement(_move, qn("a:pt"), attrib={"x": str(r), "y": "0"})
+
+    # Top edge → top-right corner
+    _ln = etree.SubElement(path, qn("a:lnTo"))
+    etree.SubElement(_ln, qn("a:pt"), attrib={"x": str(w_emu - r), "y": "0"})
+    _arc = etree.SubElement(path, qn("a:arcTo"))
+    _arc.set("wR", str(r))
+    _arc.set("hR", str(r))
+    _arc.set("stAng", "16200000")  # 270°
+    _arc.set("swAng", "5400000")  # +90°
+
+    # Right edge → bottom-right corner
+    _ln = etree.SubElement(path, qn("a:lnTo"))
+    etree.SubElement(_ln, qn("a:pt"), attrib={"x": str(w_emu), "y": str(h_emu - r)})
+    _arc = etree.SubElement(path, qn("a:arcTo"))
+    _arc.set("wR", str(r))
+    _arc.set("hR", str(r))
+    _arc.set("stAng", "0")
+    _arc.set("swAng", "5400000")
+
+    # Bottom edge → bottom-left corner
+    _ln = etree.SubElement(path, qn("a:lnTo"))
+    etree.SubElement(_ln, qn("a:pt"), attrib={"x": str(r), "y": str(h_emu)})
+    _arc = etree.SubElement(path, qn("a:arcTo"))
+    _arc.set("wR", str(r))
+    _arc.set("hR", str(r))
+    _arc.set("stAng", "5400000")  # 90°
+    _arc.set("swAng", "5400000")
+
+    # Left edge → top-left corner
+    _ln = etree.SubElement(path, qn("a:lnTo"))
+    etree.SubElement(_ln, qn("a:pt"), attrib={"x": "0", "y": str(r)})
+    _arc = etree.SubElement(path, qn("a:arcTo"))
+    _arc.set("wR", str(r))
+    _arc.set("hR", str(r))
+    _arc.set("stAng", "10800000")  # 180°
+    _arc.set("swAng", "5400000")
+
+    etree.SubElement(path, qn("a:close"))
+
+
 def _apply_round_rect_radius_to_geom(
     prst_geom, width: int | float, height: int | float, radius: int | float
 ) -> None:
@@ -265,12 +345,10 @@ def _create_background_shape(
     bg_shape = slide.shapes.add_shape(shape_type, left, top, width, height)
     _remove_theme_style(bg_shape)
     if decoration.border_radius_px > 0:
-        _apply_round_rect_radius(
-            bg_shape,
-            px_to_emu(box.width),
-            px_to_emu(box.height),
-            px_to_emu(decoration.border_radius_px),
-        )
+        w_emu = int(px_to_emu(box.width))
+        h_emu = int(px_to_emu(box.height))
+        r_emu = int(px_to_emu(decoration.border_radius_px))
+        _replace_with_round_rect_custgeom(bg_shape, w_emu, h_emu, r_emu)
 
     if decoration.background_gradient and not _set_shape_gradient_fill(
         bg_shape, decoration.background_gradient

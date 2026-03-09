@@ -365,7 +365,11 @@ def _set_text_frame_margins_zero(text_frame) -> None:
 
 
 def _set_text_frame_margins_from_element(text_frame, element: BaseSlideElement) -> None:
-    """Apply content-box insets as text-frame margins on the element's outer box."""
+    """Apply content-box insets as text-frame margins on the element's outer box.
+
+    The decoration shape uses custGeom with a full-bounds text rectangle,
+    so no geometry inset compensation is needed.
+    """
     if element.content_box is not None:
         content_box = element.content_box
     elif element.decoration is not None:
@@ -374,18 +378,19 @@ def _set_text_frame_margins_from_element(text_frame, element: BaseSlideElement) 
         _set_text_frame_margins_zero(text_frame)
         return
 
-    left = max(content_box.x - element.box.x, 0)
-    top = max(content_box.y - element.box.y, 0)
-    right = max(
+    left_px = max(content_box.x - element.box.x, 0)
+    top_px = max(content_box.y - element.box.y, 0)
+    right_px = max(
         (element.box.x + element.box.width) - (content_box.x + content_box.width), 0
     )
-    bottom = max(
+    bottom_px = max(
         (element.box.y + element.box.height) - (content_box.y + content_box.height), 0
     )
-    text_frame.margin_left = Emu(px_to_emu(left))
-    text_frame.margin_top = Emu(px_to_emu(top))
-    text_frame.margin_right = Emu(px_to_emu(right))
-    text_frame.margin_bottom = Emu(px_to_emu(bottom))
+
+    text_frame.margin_left = Emu(px_to_emu(left_px))
+    text_frame.margin_top = Emu(px_to_emu(top_px))
+    text_frame.margin_right = Emu(px_to_emu(right_px))
+    text_frame.margin_bottom = Emu(px_to_emu(bottom_px))
 
 
 def _apply_paragraph_layout(
@@ -418,11 +423,6 @@ def _apply_spacing(
 def _add_textbox(slide, element: TextElement | ListElement) -> None:
     """Add a textbox or decorated text container."""
     if element.decoration:
-        use_shape_text_frame = (
-            abs(element.rotation_3d_x_deg) > 0.01
-            or abs(element.rotation_3d_y_deg) > 0.01
-            or abs(element.rotation_3d_z_deg) > 0.01
-        )
         scene3d_x_deg, scene3d_y_deg, scene3d_z_deg = _resolve_scene3d_rotations(
             element
         )
@@ -439,13 +439,7 @@ def _add_textbox(slide, element: TextElement | ListElement) -> None:
         )
         if not has_content:
             return
-        if use_shape_text_frame:
-            text_container = bg_shape
-        else:
-            left, top, width, height = _resolve_textbox_geometry(element)
-            text_container = slide.shapes.add_textbox(left, top, width, height)
-            text_container.fill.background()
-            text_container.line.fill.background()
+        text_container = bg_shape
     else:
         left, top, width, height = _resolve_textbox_geometry(element)
         text_container = slide.shapes.add_textbox(left, top, width, height)
@@ -456,11 +450,7 @@ def _add_textbox(slide, element: TextElement | ListElement) -> None:
         element.vertical_align,
         MSO_VERTICAL_ANCHOR.TOP,
     )
-    if element.decoration and (
-        abs(element.rotation_3d_x_deg) > 0.01
-        or abs(element.rotation_3d_y_deg) > 0.01
-        or abs(element.rotation_3d_z_deg) > 0.01
-    ):
+    if element.decoration:
         _set_text_frame_margins_from_element(tf, element)
     else:
         _set_text_frame_margins_zero(tf)

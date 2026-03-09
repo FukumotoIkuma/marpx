@@ -561,8 +561,8 @@ class TestShapeCount:
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
         shape = next(shape for shape in slide.shapes if shape.text == "")
-        assert 'prst="roundRect"' in shape._element.xml
-        assert 'a:gd name="adj" fmla="val 16000"' in shape._element.xml
+        assert "a:custGeom" in shape._element.xml
+        assert "a:arcTo" in shape._element.xml
 
     def test_full_width_heading_does_not_merge_with_narrow_column_text(
         self, tmp_path: Path
@@ -731,7 +731,7 @@ class TestShapeCount:
         )
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
-        assert len(slide.shapes) == 3
+        assert len(slide.shapes) == 2  # bg shape (with text) + accent bar
         texts = [
             para.text
             for shape in slide.shapes
@@ -740,7 +740,7 @@ class TestShapeCount:
         ]
         assert any("Quoted text" in text for text in texts)
 
-    def test_decorated_block_places_textbox_at_content_box(
+    def test_decorated_block_places_text_in_decoration_shape(
         self, tmp_path: Path
     ) -> None:
         element = _make_decorated_block("Quoted text")
@@ -756,12 +756,16 @@ class TestShapeCount:
         ]
         assert len(text_shapes) == 1
         shape = text_shapes[0]
-        assert shape.left == px_to_emu(71)
-        assert shape.top == px_to_emu(112)
-        assert shape.width == px_to_emu(363)
-        assert shape.height == px_to_emu(116)
-        assert shape.text_frame.margin_left == 0
-        assert shape.text_frame.margin_top == 0
+        # Text lives in the decoration shape at element.box coordinates
+        assert shape.left == px_to_emu(50)
+        assert shape.top == px_to_emu(100)
+        assert shape.width == px_to_emu(400)
+        assert shape.height == px_to_emu(140)
+        # Margins represent content_box insets (border + padding)
+        assert shape.text_frame.margin_left == px_to_emu(
+            21
+        )  # 5px border + 16px padding
+        assert shape.text_frame.margin_top == px_to_emu(12)  # 0px border + 12px padding
 
     def test_decorated_block_with_3d_rotation_uses_scene3d_on_shape(
         self, tmp_path: Path
@@ -1009,17 +1013,15 @@ class TestShapeCount:
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
 
-        bg_shape = next(
-            shape for shape in slide.shapes if shape.has_text_frame and shape.text == ""
-        )
-        assert "a:gradFill" in bg_shape._element.xml
-        assert 'val="FF0000"' in bg_shape._element.xml
-        assert 'val="0000FF"' in bg_shape._element.xml
-        assert 'a:lin ang="18900000"' in bg_shape._element.xml
-        assert any(
-            shape.has_text_frame and "Gradient card" in shape.text
+        grad_shape = next(
+            shape
             for shape in slide.shapes
+            if shape.has_text_frame and "Gradient card" in shape.text
         )
+        assert "a:gradFill" in grad_shape._element.xml
+        assert 'val="FF0000"' in grad_shape._element.xml
+        assert 'val="0000FF"' in grad_shape._element.xml
+        assert 'a:lin ang="18900000"' in grad_shape._element.xml
 
     def test_horizontal_linear_gradient_decoration_maps_to_ooxml_zero_angle(
         self, tmp_path: Path
@@ -1193,9 +1195,9 @@ class TestShapeCount:
             shape for shape in slide.shapes if shape.width == px_to_emu(4)
         )
 
-        assert text_shape.left == px_to_emu(100)
-        assert text_shape.width == px_to_emu(400)
-        assert text_shape.text_frame.margin_left == 0
+        assert text_shape.left == px_to_emu(80)
+        assert text_shape.width == px_to_emu(420)
+        assert text_shape.text_frame.margin_left == px_to_emu(20)
         assert accent_shape.left == px_to_emu(80)
         assert accent_shape.height == px_to_emu(110)
 
@@ -1542,7 +1544,8 @@ class TestCodeBlock:
             shape for shape in slide.shapes if shape.has_text_frame and shape.text != ""
         )
 
-        assert 'prst="roundRect"' in background_shape._element.xml
+        assert "a:custGeom" in background_shape._element.xml
+        assert "a:arcTo" in background_shape._element.xml
         assert textbox.left > px_to_emu(50)
         assert textbox.top > px_to_emu(100)
         assert "<a:noFill/>" in textbox._element.xml
@@ -1717,14 +1720,10 @@ class TestImageRendering:
         )
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
-        assert len(slide.shapes) == 2
-        text_shape = next(
-            shape
-            for shape in slide.shapes
-            if shape.has_text_frame and shape.text == "inline code"
-        )
-        assert text_shape.has_text_frame
-        assert any(shape.has_text_frame and shape.text == "" for shape in slide.shapes)
+        assert len(slide.shapes) == 1
+        shape = slide.shapes[0]
+        assert shape.has_text_frame
+        assert shape.text == "inline code"
 
     def test_image_with_decoration_is_inset_inside_border(self, tmp_path: Path) -> None:
         image_path = tmp_path / "sample image.png"
