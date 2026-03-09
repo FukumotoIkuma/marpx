@@ -12,9 +12,7 @@ import {
     resolveEffectiveZIndex,
 } from './entry.js';
 import {
-    extractTextRuns,
     extractExactTextRuns,
-    extractTextRunsWithPseudo,
     extractInlineRuns,
 } from './runs.js';
 import {
