@@ -1,5 +1,5 @@
 import { extractBackgroundImages, extractDirectives } from './backgrounds.js';
-import { extractBlockPseudoElements } from './decoration.js';
+import { extractBlockPseudoElements, resetProcessedPseudoElements } from './pseudo.js';
 import { processElement } from './handlers.js';
 import { createRenderContext, clearRenderContextCache } from './render-context.js';
 
@@ -35,8 +35,8 @@ export function extractSlides() {
             continue;
         }
 
-        // Clear memoized render contexts from the previous slide to prevent
-        // stale cached values when the DOM is shared across slides.
+        // Reset per-slide caches
+        resetProcessedPseudoElements();
         clearRenderContextCache();
 
         const sectionRect = section.getBoundingClientRect();

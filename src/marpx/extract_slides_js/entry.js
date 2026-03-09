@@ -34,8 +34,6 @@ export {
 export {
     extractDecoration,
     hasMeaningfulDecoration,
-    extractPseudoRuns,
-    extractBlockPseudoElements,
     normalizeContentValue,
 } from './decoration.js';
 
