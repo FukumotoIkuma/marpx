@@ -170,129 +170,179 @@ def _build_decoration(raw: dict | None) -> BoxDecoration | None:
     return decoration
 
 
+def _build_common_kwargs(raw: dict) -> dict:
+    """Extract layout/transform fields shared by every element type."""
+    return dict(
+        box=Box(**raw["box"]),
+        content_box=Box(**raw["contentBox"]) if raw.get("contentBox") else None,
+        z_index=raw.get("zIndex", 0) or 0,
+        vertical_align=raw.get("verticalAlign", "top"),
+        rotation_deg=raw.get("rotationDeg", 0.0) or 0.0,
+        rotation_3d_x_deg=raw.get("rotation3dXDeg", 0.0) or 0.0,
+        rotation_3d_y_deg=raw.get("rotation3dYDeg", 0.0) or 0.0,
+        rotation_3d_z_deg=raw.get("rotation3dZDeg", 0.0) or 0.0,
+        projected_corners=[Point(**c) for c in raw.get("projectedCorners", [])],
+    )
+
+
+def _build_list_items(raw: dict) -> list[ListItem]:
+    """Build ListItem objects from raw JS list element dict."""
+    items = []
+    for item_raw in raw.get("listItems", []):
+        items.append(
+            ListItem(
+                runs=_build_text_runs(item_raw.get("runs", [])),
+                level=item_raw.get("level", 0),
+                order_number=item_raw.get("orderNumber"),
+                list_style_type=item_raw.get("listStyleType"),
+                alignment=item_raw.get("alignment", "left"),
+                line_height_px=item_raw.get("lineHeightPx"),
+                space_before_px=item_raw.get("spaceBeforePx", 0.0),
+                space_after_px=item_raw.get("spaceAfterPx", 0.0),
+            )
+        )
+    return items
+
+
+def _build_table_rows(raw: dict) -> list[TableRow]:
+    """Build TableRow objects from raw JS table element dict."""
+    rows = []
+    for row_raw in raw.get("tableRows", []):
+        cells = []
+        for cell_raw in row_raw.get("cells", []):
+            cell_runs = _build_text_runs(cell_raw.get("runs", []))
+            bg = None
+            if cell_raw.get("backgroundColor"):
+                parsed_bg = parse_css_color(cell_raw["backgroundColor"])
+                if parsed_bg.a > 0:
+                    bg = parsed_bg
+            raw_padding = cell_raw.get("padding", {})
+            cells.append(
+                TableCell(
+                    paragraphs=[Paragraph(runs=cell_runs)],
+                    colspan=cell_raw.get("colspan", 1),
+                    rowspan=cell_raw.get("rowspan", 1),
+                    is_header=cell_raw.get("isHeader", False),
+                    background=bg,
+                    background_gradient=cell_raw.get("backgroundGradient"),
+                    padding=BoxPadding(
+                        top_px=raw_padding.get("topPx", 0.0),
+                        right_px=raw_padding.get("rightPx", 0.0),
+                        bottom_px=raw_padding.get("bottomPx", 0.0),
+                        left_px=raw_padding.get("leftPx", 0.0),
+                    ),
+                    border_top=_build_border_side(cell_raw.get("borderTop")),
+                    border_right=_build_border_side(cell_raw.get("borderRight")),
+                    border_bottom=_build_border_side(cell_raw.get("borderBottom")),
+                    border_left=_build_border_side(cell_raw.get("borderLeft")),
+                    width_px=cell_raw.get("widthPx"),
+                )
+            )
+        rows.append(TableRow(cells=cells))
+    return rows
+
+
 def _build_slide_element(raw: dict) -> SlideElement:
     """Convert raw JS element dict to SlideElement model."""
     etype = ElementType(raw["type"])
-    box = Box(**raw["box"])
-    content_box = Box(**raw["contentBox"]) if raw.get("contentBox") else None
+    common = _build_common_kwargs(raw)
 
-    element = SlideElement(element_type=etype, box=box, content_box=content_box)
-    element.z_index = raw.get("zIndex", 0) or 0
-    element.vertical_align = raw.get("verticalAlign", "top")
-    element.rotation_deg = raw.get("rotationDeg", 0.0) or 0.0
-    element.rotation_3d_x_deg = raw.get("rotation3dXDeg", 0.0) or 0.0
-    element.rotation_3d_y_deg = raw.get("rotation3dYDeg", 0.0) or 0.0
-    element.rotation_3d_z_deg = raw.get("rotation3dZDeg", 0.0) or 0.0
-    element.projected_corners = [
-        Point(**corner) for corner in raw.get("projectedCorners", [])
-    ]
-
-    if etype in (
-        ElementType.HEADING,
-        ElementType.PARAGRAPH,
-        ElementType.BLOCKQUOTE,
-    ):
-        if "paragraphs" in raw:
-            element.paragraphs = _build_paragraphs(raw.get("paragraphs", []))
-        else:
-            element.paragraphs = _build_paragraphs([raw])
-        element.decoration = _build_decoration(raw.get("decoration"))
-
-        if etype == ElementType.HEADING:
-            element.heading_level = raw.get("headingLevel", 1)
-
-    elif etype == ElementType.CODE_BLOCK:
-        element.paragraphs = _build_paragraphs(raw.get("paragraphs", []))
-        element.code_language = raw.get("codeLanguage")
-        element.decoration = _build_decoration(raw.get("decoration"))
-        if raw.get("codeBackground"):
-            element.code_background = parse_css_color(raw["codeBackground"])
-
-    elif etype == ElementType.DECORATED_BLOCK:
-        element.paragraphs = _build_paragraphs(raw.get("paragraphs", []))
-        element.decoration = _build_decoration(raw.get("decoration"))
-
-    elif etype in (ElementType.UNORDERED_LIST, ElementType.ORDERED_LIST):
-        for item_raw in raw.get("listItems", []):
-            runs = _build_text_runs(item_raw.get("runs", []))
-            element.list_items.append(
-                ListItem(
-                    runs=runs,
-                    level=item_raw.get("level", 0),
-                    order_number=item_raw.get("orderNumber"),
-                    list_style_type=item_raw.get("listStyleType"),
-                    alignment=item_raw.get("alignment", "left"),
-                    line_height_px=item_raw.get("lineHeightPx"),
-                    space_before_px=item_raw.get("spaceBeforePx", 0.0),
-                    space_after_px=item_raw.get("spaceAfterPx", 0.0),
-                )
-            )
-
-    elif etype == ElementType.IMAGE:
-        element.image_src = raw.get("imageSrc")
-        element.image_natural_width_px = raw.get("imageNaturalWidthPx")
-        element.image_natural_height_px = raw.get("imageNaturalHeightPx")
-        element.object_fit = raw.get("objectFit")
-        element.object_position = raw.get("objectPosition")
-        element.image_opacity = raw.get("imageOpacity", 1.0)
-        element.decoration = _build_decoration(raw.get("decoration"))
-
-    elif etype == ElementType.TABLE:
-        element.decoration = _build_decoration(raw.get("decoration"))
-        for row_raw in raw.get("tableRows", []):
-            cells = []
-            for cell_raw in row_raw.get("cells", []):
-                colspan = cell_raw.get("colspan", 1)
-                rowspan = cell_raw.get("rowspan", 1)
-
-                cell_runs = _build_text_runs(cell_raw.get("runs", []))
-                bg = None
-                if cell_raw.get("backgroundColor"):
-                    parsed_bg = parse_css_color(cell_raw["backgroundColor"])
-                    if parsed_bg.a > 0:
-                        bg = parsed_bg
-                raw_padding = cell_raw.get("padding", {})
-
-                cells.append(
-                    TableCell(
-                        paragraphs=[Paragraph(runs=cell_runs)],
-                        colspan=colspan,
-                        rowspan=rowspan,
-                        is_header=cell_raw.get("isHeader", False),
-                        background=bg,
-                        background_gradient=cell_raw.get("backgroundGradient"),
-                        padding=BoxPadding(
-                            top_px=raw_padding.get("topPx", 0.0),
-                            right_px=raw_padding.get("rightPx", 0.0),
-                            bottom_px=raw_padding.get("bottomPx", 0.0),
-                            left_px=raw_padding.get("leftPx", 0.0),
-                        ),
-                        border_top=_build_border_side(cell_raw.get("borderTop")),
-                        border_right=_build_border_side(cell_raw.get("borderRight")),
-                        border_bottom=_build_border_side(cell_raw.get("borderBottom")),
-                        border_left=_build_border_side(cell_raw.get("borderLeft")),
-                        width_px=cell_raw.get("widthPx"),
-                    )
-                )
-            element.table_rows.append(TableRow(cells=cells))
-
-    elif etype == ElementType.MATH:
-        info = raw.get("unsupportedInfo", {})
-        element.unsupported_info = UnsupportedInfo(
-            reason=info.get("reason", "Math expression"),
-            tag_name=info.get("tagName", "mjx-container"),
-            svg_markup=info.get("svgMarkup"),
+    if etype == ElementType.HEADING:
+        paragraphs = (
+            _build_paragraphs(raw["paragraphs"])
+            if "paragraphs" in raw
+            else _build_paragraphs([raw])
+        )
+        return SlideElement.make_heading(
+            **common,
+            paragraphs=paragraphs,
+            heading_level=raw.get("headingLevel", 1),
+            decoration=_build_decoration(raw.get("decoration")),
         )
 
-    elif etype == ElementType.UNSUPPORTED:
-        info = raw.get("unsupportedInfo", {})
-        element.unsupported_info = UnsupportedInfo(
-            reason=info.get("reason", "Unknown"),
-            tag_name=info.get("tagName", ""),
-            svg_markup=info.get("svgMarkup"),
+    if etype in (ElementType.PARAGRAPH, ElementType.BLOCKQUOTE):
+        paragraphs = (
+            _build_paragraphs(raw["paragraphs"])
+            if "paragraphs" in raw
+            else _build_paragraphs([raw])
+        )
+        return SlideElement.make_paragraph(
+            **common,
+            element_type=etype,
+            paragraphs=paragraphs,
+            decoration=_build_decoration(raw.get("decoration")),
         )
 
-    return element
+    if etype == ElementType.DECORATED_BLOCK:
+        return SlideElement.make_decorated_block(
+            **common,
+            paragraphs=_build_paragraphs(raw.get("paragraphs", [])),
+            decoration=_build_decoration(raw.get("decoration")),
+        )
+
+    if etype in (ElementType.UNORDERED_LIST, ElementType.ORDERED_LIST):
+        return SlideElement.make_list(
+            **common,
+            element_type=etype,
+            list_items=_build_list_items(raw),
+        )
+
+    if etype == ElementType.CODE_BLOCK:
+        code_background = (
+            parse_css_color(raw["codeBackground"]) if raw.get("codeBackground") else None
+        )
+        return SlideElement.make_code_block(
+            **common,
+            paragraphs=_build_paragraphs(raw.get("paragraphs", [])),
+            code_language=raw.get("codeLanguage"),
+            code_background=code_background,
+            decoration=_build_decoration(raw.get("decoration")),
+        )
+
+    if etype == ElementType.IMAGE:
+        return SlideElement.make_image(
+            **common,
+            image_src=raw.get("imageSrc"),
+            image_natural_width_px=raw.get("imageNaturalWidthPx"),
+            image_natural_height_px=raw.get("imageNaturalHeightPx"),
+            object_fit=raw.get("objectFit"),
+            object_position=raw.get("objectPosition"),
+            image_opacity=raw.get("imageOpacity", 1.0),
+            decoration=_build_decoration(raw.get("decoration")),
+        )
+
+    if etype == ElementType.TABLE:
+        return SlideElement.make_table(
+            **common,
+            table_rows=_build_table_rows(raw),
+            decoration=_build_decoration(raw.get("decoration")),
+        )
+
+    if etype == ElementType.MATH:
+        info = raw.get("unsupportedInfo", {})
+        return SlideElement.make_math(
+            **common,
+            unsupported_info=UnsupportedInfo(
+                reason=info.get("reason", "Math expression"),
+                tag_name=info.get("tagName", "mjx-container"),
+                svg_markup=info.get("svgMarkup"),
+            ),
+        )
+
+    if etype == ElementType.UNSUPPORTED:
+        info = raw.get("unsupportedInfo", {})
+        return SlideElement.make_unsupported(
+            **common,
+            unsupported_info=UnsupportedInfo(
+                reason=info.get("reason", "Unknown"),
+                tag_name=info.get("tagName", ""),
+                svg_markup=info.get("svgMarkup"),
+            ),
+        )
+
+    # Fallback for any future element types not yet handled
+    logger.warning("Unhandled element type %r; returning bare SlideElement", etype)
+    return SlideElement(element_type=etype, **common)
 
 
 def _build_presentation_from_raw(
