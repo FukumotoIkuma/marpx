@@ -11,8 +11,8 @@ uv sync
 uv run playwright install chromium
 ```
 
-`src/marpx/extract_slides.bundle.js` は Playwright が実行時に読む静的 bundle です。  
-抽出ロジック本体は `src/marpx/extract_slides_js/` 配下の分割ソースにあります。
+`src/marpx/extraction/extract_slides.bundle.js` は Playwright が実行時に読む静的 bundle です。
+抽出ロジック本体は `src/marpx/extraction/js/` 配下の分割ソースにあります。
 
 - `pytest` 実行時は、分割ソースが bundle より新しければ自動で再生成されます
 - CLI で分割ソースを反映したい場合は `uv run marpx --dev ...` を使います
@@ -20,7 +20,7 @@ uv run playwright install chromium
 - bundle を手動で再生成したい場合:
 
 ```bash
-cd src/marpx/extract_slides_js
+cd src/marpx/extraction/js
 npm run build
 ```
 
