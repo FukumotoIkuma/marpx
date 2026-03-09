@@ -10,6 +10,7 @@ import {
     getProjectedCorners,
     resolveVerticalAlign,
     resolveEffectiveZIndex,
+    findLatexSourceFromSibling,
 } from './entry.js';
 import {
     extractExactTextRuns,
@@ -159,11 +160,7 @@ export function handleMath(el, slideRect, slideData, tag, parentContext = null) 
     if (latexWrapper) {
         latexSource = latexWrapper.getAttribute('data-latex');
     } else {
-        // Check for preceding marpx-math-source sibling (block math)
-        const prev = el.previousElementSibling;
-        if (prev && (prev.localName || prev.tagName).toLowerCase() === 'marpx-math-source' && prev.hasAttribute('data-latex')) {
-            latexSource = prev.getAttribute('data-latex');
-        }
+        latexSource = findLatexSourceFromSibling(el);
     }
 
     slideData.elements.push({
@@ -303,7 +300,10 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
             .filter(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim())
             .length;
         const directMath = mathEls.filter(m => m.parentElement === el);
-        if (nonMathText === 0 && el.children.length === directMath.length) {
+        const mathSourceCount = Array.from(el.children)
+            .filter(c => (c.localName || c.tagName).toLowerCase() === 'marpx-math-source')
+            .length;
+        if (nonMathText === 0 && el.children.length === directMath.length + mathSourceCount) {
             handleMath(el, slideRect, slideData, 'mjx-container', renderContext);
             return;
         }

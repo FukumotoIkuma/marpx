@@ -2,7 +2,7 @@
     import { styleToRunStyle } from './style.js';
     import { extractPseudoRuns } from './pseudo.js';
     import { extractDecoration } from './decoration.js';
-    import { normalizeInlineText } from './entry.js';
+    import { normalizeInlineText, findLatexSourceFromSibling } from './entry.js';
     import { detectVisualLineBreaks, insertLineBreaksIntoRuns } from './line-breaks.js';
 
     export function _buildTextRun(text, styleEl, linkUrl = null, options = {}) {
@@ -91,11 +91,7 @@
                     ? latexWrapper.getAttribute('data-latex')
                     : (node.getAttribute('data-latex') || null);
                 if (!latexSource) {
-                    // Check for preceding marpx-math-source sibling (block math)
-                    const prev = node.previousElementSibling;
-                    if (prev && (prev.localName || prev.tagName).toLowerCase() === 'marpx-math-source' && prev.hasAttribute('data-latex')) {
-                        latexSource = prev.getAttribute('data-latex');
-                    }
+                    latexSource = findLatexSourceFromSibling(node);
                 }
                 const mathRun = {
                     runType: 'math',

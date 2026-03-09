@@ -1013,6 +1013,26 @@ function getProjectedCorners(el, sectionRect, renderContext = null) {
 function normalizeInlineText(text) {
   return text.replace(/\s+/g, " ");
 }
+function findLatexSourceFromSibling(el) {
+  const prev = el.previousElementSibling;
+  if (prev && (prev.localName || prev.tagName).toLowerCase() === "marpx-math-source" && prev.hasAttribute("data-latex")) {
+    return prev.getAttribute("data-latex");
+  }
+  const parent = el.parentElement;
+  if (parent) {
+    const parentPrev = parent.previousElementSibling;
+    if (parentPrev && (parentPrev.localName || parentPrev.tagName).toLowerCase() === "marpx-math-source" && parentPrev.hasAttribute("data-latex")) {
+      return parentPrev.getAttribute("data-latex");
+    }
+    if (parentPrev) {
+      const source = parentPrev.querySelector && parentPrev.querySelector("marpx-math-source[data-latex]");
+      if (source) {
+        return source.getAttribute("data-latex");
+      }
+    }
+  }
+  return null;
+}
 
 // line-breaks.js
 var Y_THRESHOLD = 2;
@@ -1207,10 +1227,7 @@ function extractInlineRuns(el, options = {}) {
       const latexWrapper = node.closest("[data-latex]");
       let latexSource = latexWrapper ? latexWrapper.getAttribute("data-latex") : node.getAttribute("data-latex") || null;
       if (!latexSource) {
-        const prev = node.previousElementSibling;
-        if (prev && (prev.localName || prev.tagName).toLowerCase() === "marpx-math-source" && prev.hasAttribute("data-latex")) {
-          latexSource = prev.getAttribute("data-latex");
-        }
+        latexSource = findLatexSourceFromSibling(node);
       }
       const mathRun = {
         runType: "math",
@@ -1979,10 +1996,7 @@ function handleMath(el, slideRect, slideData, tag, parentContext = null) {
   if (latexWrapper) {
     latexSource = latexWrapper.getAttribute("data-latex");
   } else {
-    const prev = el.previousElementSibling;
-    if (prev && (prev.localName || prev.tagName).toLowerCase() === "marpx-math-source" && prev.hasAttribute("data-latex")) {
-      latexSource = prev.getAttribute("data-latex");
-    }
+    latexSource = findLatexSourceFromSibling(el);
   }
   slideData.elements.push({
     type: "math",
@@ -2100,7 +2114,8 @@ function handleParagraph(el, slideRect, slideData, renderContext) {
   if (mathEls.length > 0 && decoratedEls.length === 0 && unsupportedEls.length === 0) {
     const nonMathText = Array.from(el.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim()).length;
     const directMath = mathEls.filter((m) => m.parentElement === el);
-    if (nonMathText === 0 && el.children.length === directMath.length) {
+    const mathSourceCount = Array.from(el.children).filter((c) => (c.localName || c.tagName).toLowerCase() === "marpx-math-source").length;
+    if (nonMathText === 0 && el.children.length === directMath.length + mathSourceCount) {
       handleMath(el, slideRect, slideData, "mjx-container", renderContext);
       return;
     }

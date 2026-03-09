@@ -88,6 +88,7 @@ def preprocess_math_latex(markdown: str) -> str:
                         f'{indent}<marpx-math-source data-latex="{escaped}"'
                         f' style="display:none"></marpx-math-source>'
                     )
+                    result.append("")  # blank line to end HTML block context
                     result.append(f"{indent}$${latex_content}$${after}")
                     i += 1
                     continue
