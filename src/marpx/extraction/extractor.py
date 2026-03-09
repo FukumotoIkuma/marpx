@@ -352,6 +352,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
                 reason=info.get("reason", "Math expression"),
                 tag_name=info.get("tagName", "mjx-container"),
                 svg_markup=info.get("svgMarkup"),
+                latex_source=raw.get("latexSource"),
             ),
         )
 
