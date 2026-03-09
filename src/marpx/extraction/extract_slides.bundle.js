@@ -1066,13 +1066,19 @@ function extractInlineRuns(el, options = {}) {
       return;
     }
     if (includeMathPlaceholders && node.tagName === "MJX-CONTAINER") {
-      const placeholderRun = buildMathPlaceholderRun(
-        node,
-        styleEl,
-        linkUrl,
-        currentContext
-      );
-      if (placeholderRun) runs.push(placeholderRun);
+      const latexWrapper = node.closest("[data-latex]");
+      const latexSource = latexWrapper ? latexWrapper.getAttribute("data-latex") : node.getAttribute("data-latex") || null;
+      const mathRun = {
+        runType: "math",
+        latexSource,
+        style: styleToRunStyle(
+          window.getComputedStyle(styleEl),
+          styleEl,
+          currentContext
+        ),
+        linkUrl
+      };
+      runs.push(mathRun);
       return;
     }
     const decoration = extractDecoration(node, nodeContext);
@@ -1940,9 +1946,6 @@ function handleParagraph(el, slideRect, slideData, renderContext) {
       renderContext
     })
   );
-  for (const mathEl of mathEls) {
-    handleMath(mathEl, slideRect, slideData, "mjx-container", renderContext);
-  }
   for (const child of decoratedEls) {
     processElement(child, slideRect, slideData, renderContext);
   }

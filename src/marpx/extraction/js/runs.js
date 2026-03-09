@@ -101,13 +101,21 @@
             }
 
             if (includeMathPlaceholders && node.tagName === 'MJX-CONTAINER') {
-                const placeholderRun = buildMathPlaceholderRun(
-                    node,
-                    styleEl,
-                    linkUrl,
-                    currentContext,
-                );
-                if (placeholderRun) runs.push(placeholderRun);
+                const latexWrapper = node.closest('[data-latex]');
+                const latexSource = latexWrapper
+                    ? latexWrapper.getAttribute('data-latex')
+                    : (node.getAttribute('data-latex') || null);
+                const mathRun = {
+                    runType: 'math',
+                    latexSource: latexSource,
+                    style: styleToRunStyle(
+                        window.getComputedStyle(styleEl),
+                        styleEl,
+                        currentContext,
+                    ),
+                    linkUrl: linkUrl,
+                };
+                runs.push(mathRun);
                 return;
             }
 

@@ -302,9 +302,8 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
     );
 
     // Extract standalone children as separate elements
-    for (const mathEl of mathEls) {
-        handleMath(mathEl, slideRect, slideData, 'mjx-container', renderContext);
-    }
+    // NOTE: inline math is now emitted as math runs within the paragraph,
+    // so we do NOT extract them as separate elements here.
     for (const child of decoratedEls) {
         processElement(child, slideRect, slideData, renderContext);
     }
