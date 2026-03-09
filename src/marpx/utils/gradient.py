@@ -7,6 +7,7 @@ import math
 import re
 from dataclasses import dataclass
 
+import numpy as np
 from PIL import Image, ImageDraw
 
 from marpx.models import RGBAColor
@@ -278,7 +279,6 @@ def _render_linear_gradient_from_parsed(
     """Shared rendering logic for linear and repeating-linear gradients."""
     width = max(int(round(width_px)), 1)
     height = max(int(round(height_px)), 1)
-    image = Image.new("RGBA", (width, height))
 
     radians = math.radians(parsed.angle_deg)
     dx = math.sin(radians)
@@ -290,19 +290,23 @@ def _render_linear_gradient_from_parsed(
     max_proj = max(projections)
     span = max(max_proj - min_proj, 1e-6)
 
-    pixels = image.load()
-    for y in range(height):
-        yn = 0.5 if height == 1 else y / (height - 1)
-        for x in range(width):
-            xn = 0.5 if width == 1 else x / (width - 1)
-            t = ((xn * dx + yn * dy) - min_proj) / span
-            color = _interpolate_stops(parsed.stops, t)
-            pixels[x, y] = (
-                color.r,
-                color.g,
-                color.b,
-                int(round(color.a * 255)),
-            )
+    # Build coordinate grids using NumPy
+    if width == 1:
+        xn = np.full((height, width), 0.5, dtype=np.float64)
+    else:
+        xn = np.linspace(0.0, 1.0, width, dtype=np.float64).reshape(1, width)
+        xn = np.broadcast_to(xn, (height, width))
+
+    if height == 1:
+        yn = np.full((height, width), 0.5, dtype=np.float64)
+    else:
+        yn = np.linspace(0.0, 1.0, height, dtype=np.float64).reshape(height, 1)
+        yn = np.broadcast_to(yn, (height, width))
+
+    t_values = ((xn * dx + yn * dy) - min_proj) / span
+
+    rgba = _interpolate_stops_vectorized(parsed.stops, t_values)
+    image = Image.fromarray(rgba, "RGBA")
 
     if border_radius_px > 0:
         mask = Image.new("L", (width, height), 0)
@@ -384,28 +388,31 @@ def _render_radial_gradient_image(
 
     width = max(int(round(width_px)), 1)
     height = max(int(round(height_px)), 1)
-    image = Image.new("RGBA", (width, height))
-    pixels = image.load()
 
     cx = parsed.center_x
     cy = parsed.center_y
     rx = max(cx, 1.0 - cx, 1e-6)
     ry = max(cy, 1.0 - cy, 1e-6)
 
-    for y in range(height):
-        yn = 0.5 if height == 1 else y / (height - 1)
-        dy = (yn - cy) / ry
-        for x in range(width):
-            xn = 0.5 if width == 1 else x / (width - 1)
-            dx = (xn - cx) / rx
-            t = math.sqrt((dx * dx) + (dy * dy))
-            color = _interpolate_stops(parsed.stops, t)
-            pixels[x, y] = (
-                color.r,
-                color.g,
-                color.b,
-                int(round(color.a * 255)),
-            )
+    # Build coordinate grids using NumPy
+    if width == 1:
+        xn = np.full((height, width), 0.5, dtype=np.float64)
+    else:
+        xn = np.linspace(0.0, 1.0, width, dtype=np.float64).reshape(1, width)
+        xn = np.broadcast_to(xn, (height, width))
+
+    if height == 1:
+        yn = np.full((height, width), 0.5, dtype=np.float64)
+    else:
+        yn = np.linspace(0.0, 1.0, height, dtype=np.float64).reshape(height, 1)
+        yn = np.broadcast_to(yn, (height, width))
+
+    dx_arr = (xn - cx) / rx
+    dy_arr = (yn - cy) / ry
+    t_values = np.sqrt(dx_arr * dx_arr + dy_arr * dy_arr)
+
+    rgba = _interpolate_stops_vectorized(parsed.stops, t_values)
+    image = Image.fromarray(rgba, "RGBA")
 
     if border_radius_px > 0:
         mask = Image.new("L", (width, height), 0)
@@ -660,6 +667,59 @@ def _resolve_stop_positions(
             GradientStop(color=color, position=float(position), unit=resolved_unit)
         )
     return resolved
+
+
+def _interpolate_stops_vectorized(
+    stops: tuple[GradientStop, ...],
+    t_values: np.ndarray,
+) -> np.ndarray:
+    """Vectorized interpolation across all gradient stops.
+
+    Takes a 2-D array of *t* values (shape ``(H, W)``) and returns an
+    ``(H, W, 4)`` uint8 RGBA array – no per-pixel Python loop or Pydantic
+    construction required.
+    """
+    shape = t_values.shape
+    t = np.clip(t_values, 0.0, 1.0)
+
+    # Pre-extract stop positions and RGBA channels into arrays.
+    n_stops = len(stops)
+    positions = np.array([s.position for s in stops], dtype=np.float64)
+    # Colors: r, g, b as float64 for interpolation; a as float64 [0, 1].
+    colors = np.array(
+        [[s.color.r, s.color.g, s.color.b, s.color.a] for s in stops],
+        dtype=np.float64,
+    )
+
+    # For each pixel find the right-side stop index via searchsorted.
+    # searchsorted gives the index where t would be inserted to keep order.
+    flat_t = t.ravel()
+    idx = np.searchsorted(positions, flat_t, side="right")
+    # Clamp: if idx==0 use first stop; if idx>=n_stops use last stop.
+    idx = np.clip(idx, 1, n_stops - 1)
+
+    lo = idx - 1
+    hi = idx
+
+    pos_lo = positions[lo]
+    pos_hi = positions[hi]
+    span = np.maximum(pos_hi - pos_lo, 1e-6)
+    ratio = np.clip((flat_t - pos_lo) / span, 0.0, 1.0)
+
+    # Interpolate each channel.
+    c_lo = colors[lo]  # (N, 4)
+    c_hi = colors[hi]  # (N, 4)
+    ratio_4 = ratio[:, np.newaxis]  # (N, 1) for broadcasting
+    interp = c_lo + (c_hi - c_lo) * ratio_4  # (N, 4)
+
+    # Round RGB channels, convert alpha from [0,1] to [0,255].
+    result = np.empty_like(interp)
+    result[:, 0] = np.round(interp[:, 0])
+    result[:, 1] = np.round(interp[:, 1])
+    result[:, 2] = np.round(interp[:, 2])
+    result[:, 3] = np.round(interp[:, 3] * 255.0)
+
+    return result.reshape(shape[0], shape[1], 4).astype(np.uint8)
 
 
 def _interpolate_stops(stops: tuple[GradientStop, ...], position: float) -> RGBAColor:

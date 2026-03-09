@@ -26,6 +26,8 @@ dependencies = [
     "pydantic>=2",
     "Pillow",
     "rich",
+    "numpy>=2.4.3",
+    "latex2mathml",
     "latex2mathml",
 ]
 
