@@ -26,6 +26,7 @@ from marpx.models import (
     Paragraph,
     Point,
     Presentation,
+    RGBAColor,
     Slide,
     SlideElement,
     TableCell,
@@ -33,6 +34,7 @@ from marpx.models import (
     TableRow,
     TextElement,
     TextRun,
+    TextShadow,
     TextStyle,
     UnsupportedElement,
     UnsupportedInfo,
@@ -86,6 +88,23 @@ def _build_text_style(raw_style: dict) -> TextStyle:
         parsed_bg = parse_css_color(raw_bg)
         if parsed_bg.a > 0:
             background_color = parsed_bg
+    text_shadows = None
+    raw_shadows = raw_style.get("textShadow")
+    if raw_shadows:
+        text_shadows = [
+            TextShadow(
+                offset_x_px=s.get("offsetXPx", 0),
+                offset_y_px=s.get("offsetYPx", 0),
+                blur_radius_px=s.get("blurRadiusPx", 0),
+                color=RGBAColor(
+                    r=int(s.get("color", {}).get("r", 0)),
+                    g=int(s.get("color", {}).get("g", 0)),
+                    b=int(s.get("color", {}).get("b", 0)),
+                    a=float(s.get("color", {}).get("a", 1.0)),
+                ),
+            )
+            for s in raw_shadows
+        ]
     return TextStyle(
         font_family=safe_font_family(raw_style.get("fontFamily", "Arial")),
         font_size_px=raw_style.get("fontSizePx", 16.0),
@@ -96,6 +115,7 @@ def _build_text_style(raw_style: dict) -> TextStyle:
         color=color,
         background_color=background_color,
         text_gradient=raw_style.get("textGradient"),
+        text_shadows=text_shadows,
     )
 
 

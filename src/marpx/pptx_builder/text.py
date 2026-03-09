@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from lxml import etree
 from pptx.dml.color import RGBColor
 from pptx.enum.text import MSO_VERTICAL_ANCHOR, PP_ALIGN
@@ -17,6 +19,7 @@ from marpx.models import (
     SlideElement,
     TextElement,
     TextRun,
+    TextShadow,
     TextStyle,
 )
 from marpx.utils.gradient import parse_linear_gradient
@@ -120,6 +123,88 @@ def _apply_text_style(run, style: TextStyle) -> None:
             r_pr.append(highlight)
         else:
             insert_before.addprevious(highlight)
+    if style.text_shadows:
+        _apply_text_shadow(r_pr, style.text_shadows)
+
+
+def _apply_text_shadow(r_pr, text_shadows: list[TextShadow]) -> None:
+    """Apply text-shadow as PowerPoint glow and/or outer shadow effects."""
+    if not text_shadows:
+        return
+
+    # Classify shadows
+    _OFFSET_THRESHOLD = 1.0  # px
+    glow_candidates: list[TextShadow] = []
+    shadow_candidates: list[TextShadow] = []
+    for ts in text_shadows:
+        if (
+            abs(ts.offset_x_px) <= _OFFSET_THRESHOLD
+            and abs(ts.offset_y_px) <= _OFFSET_THRESHOLD
+        ):
+            glow_candidates.append(ts)
+        else:
+            shadow_candidates.append(ts)
+
+    if not glow_candidates and not shadow_candidates:
+        return
+
+    # Create effectLst
+    effect_lst = etree.SubElement(r_pr, qn("a:effectLst"))
+
+    # Add glow (pick largest blur radius)
+    if glow_candidates:
+        best_glow = max(glow_candidates, key=lambda g: g.blur_radius_px)
+        glow_el = etree.SubElement(effect_lst, qn("a:glow"))
+        glow_el.set("rad", str(px_to_emu(best_glow.blur_radius_px)))
+        _add_shadow_color(glow_el, best_glow.color)
+
+    # Add outer shadow (pick first)
+    if shadow_candidates:
+        shadow = shadow_candidates[0]
+        outer_shdw = etree.SubElement(effect_lst, qn("a:outerShdw"))
+        blur_emu = px_to_emu(shadow.blur_radius_px)
+        dist_emu = px_to_emu(math.hypot(shadow.offset_x_px, shadow.offset_y_px))
+        angle_rad = math.atan2(shadow.offset_y_px, shadow.offset_x_px)
+        angle_60k = int(angle_rad * 180 / math.pi * 60000) % 21600000
+        outer_shdw.set("blurRad", str(blur_emu))
+        outer_shdw.set("dist", str(dist_emu))
+        outer_shdw.set("dir", str(angle_60k))
+        outer_shdw.set("rotWithShape", "0")
+        _add_shadow_color(outer_shdw, shadow.color)
+
+    # Insert effectLst before latin/ea/cs/highlight elements (OOXML ordering)
+    _reorder_effect_lst(r_pr, effect_lst)
+
+
+def _add_shadow_color(parent_el, color) -> None:
+    """Add srgbClr with alpha to a glow or shadow element."""
+    srgb = etree.SubElement(parent_el, qn("a:srgbClr"))
+    srgb.set("val", f"{color.r:02X}{color.g:02X}{color.b:02X}")
+    if color.a < 1.0:
+        alpha_el = etree.SubElement(srgb, qn("a:alpha"))
+        alpha_el.set("val", str(int(color.a * 100000)))
+
+
+def _reorder_effect_lst(r_pr, effect_lst) -> None:
+    """Ensure effectLst is positioned correctly in rPr element order."""
+    _AFTER_TAGS = {
+        qn("a:highlight"),
+        qn("a:latin"),
+        qn("a:ea"),
+        qn("a:cs"),
+        qn("a:sym"),
+        qn("a:hlinkClick"),
+        qn("a:hlinkMouseOver"),
+    }
+    insert_before = None
+    for child in r_pr:
+        if child is effect_lst:
+            continue
+        if child.tag in _AFTER_TAGS:
+            insert_before = child
+            break
+    if insert_before is not None:
+        insert_before.addprevious(effect_lst)
 
 
 def _set_run_gradient_fill(r_pr, css_gradient: str) -> None:
