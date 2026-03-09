@@ -8,7 +8,7 @@ from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
 from pptx.oxml.ns import qn
 from pptx.util import Emu
 
-from marpx.models import Box, BoxDecoration, BoxPadding, BoxShadow, RGBAColor
+from marpx.models import Box, BoxDecoration, BoxPadding, RGBAColor
 from marpx.pptx_builder.decoration.shapes import (
     _apply_picture_fill,
     _create_background_shape,
@@ -33,31 +33,6 @@ def _make_shape(slide, width_emu=914400, height_emu=914400):
         Emu(width_emu),
         Emu(height_emu),
     )
-
-
-def _default_border():
-    return BoxShadow(
-        color=RGBAColor(r=0, g=0, b=0, a=0.0),
-        offset_x_px=0,
-        offset_y_px=0,
-        blur_radius_px=0,
-        spread_px=0,
-    )
-
-
-def _default_decoration(**kwargs):
-    defaults = {
-        "background_color": RGBAColor(r=255, g=255, b=255, a=1.0),
-        "background_gradient": None,
-        "opacity": 1.0,
-        "border_radius_px": 0,
-        "border_top": BoxDecoration.__dataclass_fields__["border_top"].default
-        if hasattr(BoxDecoration, "__dataclass_fields__")
-        else None,
-        "clip_path": None,
-    }
-    defaults.update(kwargs)
-    return defaults
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +137,13 @@ class TestSetShapeGradientFillRadial:
         )
         assert result is True
 
+    def test_malformed_radial_gradient_returns_false(self) -> None:
+        """render_gradient_png returns None for malformed input; should return False."""
+        slide = _make_slide()
+        shape = _make_shape(slide)
+        result = _set_shape_gradient_fill(shape, "radial-gradient()", slide=slide)
+        assert result is False
+
 
 # ---------------------------------------------------------------------------
 # TestApplyPictureFill
@@ -174,7 +156,7 @@ class TestApplyPictureFill:
         shape = _make_shape(slide)
         png_bytes = render_gradient_png("radial-gradient(red, blue)", 100, 100)
         assert png_bytes is not None
-        _apply_picture_fill(shape, slide, png_bytes, 914400, 914400)
+        _apply_picture_fill(shape, slide, png_bytes)
         sp_pr = shape._element.spPr
         blip_fill = sp_pr.find(qn("a:blipFill"))
         assert blip_fill is not None

@@ -324,11 +324,11 @@ def _set_shape_gradient_fill(shape, css_gradient: str, slide=None) -> bool:
     if png_bytes is None:
         return False
 
-    _apply_picture_fill(shape, slide, png_bytes, w_emu, h_emu)
+    _apply_picture_fill(shape, slide, png_bytes)
     return True
 
 
-def _apply_picture_fill(shape, slide, png_bytes: bytes, w_emu: int, h_emu: int) -> None:
+def _apply_picture_fill(shape, slide, png_bytes: bytes) -> None:
     """Replace a shape's fill with a picture (blipFill) from PNG bytes."""
     # Register the image with the slide's part to get a relationship ID
     slide_part = slide.part
