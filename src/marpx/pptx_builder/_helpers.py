@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 from lxml import etree
 from pptx.dml.color import RGBColor
 from pptx.oxml.ns import qn
 
+from marpx.gradient_utils import css_angle_to_ooxml_angle, parse_linear_gradient
 from marpx.models import BoxShadow, RGBAColor
 from marpx.utils import blend_alpha, px_to_emu
 
@@ -72,6 +74,67 @@ def _set_blip_alpha(blip, alpha: float) -> None:
         return
     alpha_node = etree.SubElement(blip, qn("a:alphaModFix"))
     alpha_node.set("amt", str(int(round(bounded_alpha * 100000))))
+
+
+def _build_gradient_fill_xml(
+    parent_node,
+    parsed_gradient,
+    *,
+    extra_attrs: dict[str, Any] | None = None,
+    extra_children: list | None = None,
+) -> etree._Element:
+    """Build an ``a:gradFill`` subtree and append it to *parent_node*.
+
+    Parameters
+    ----------
+    parent_node:
+        The lxml element that will receive the new ``a:gradFill`` child.
+        Pass ``None`` to create a detached element (caller must attach it).
+    parsed_gradient:
+        A ``ParsedGradient`` object returned by ``parse_linear_gradient()``.
+    extra_attrs:
+        Optional dict of additional attributes to set on the ``a:gradFill``
+        element (e.g. ``{"flip": "none"}``).  ``rotWithShape`` is always set
+        to ``"1"`` and cannot be overridden here.
+    extra_children:
+        Optional list of lxml elements to append after ``a:lin`` (e.g. an
+        ``a:tileRect`` element).
+
+    Returns
+    -------
+    etree._Element
+        The created ``a:gradFill`` element.
+    """
+    if parent_node is not None:
+        grad_fill = etree.SubElement(parent_node, qn("a:gradFill"))
+    else:
+        grad_fill = etree.Element(qn("a:gradFill"))
+
+    if extra_attrs:
+        for attr_name, attr_val in extra_attrs.items():
+            grad_fill.set(attr_name, attr_val)
+    grad_fill.set("rotWithShape", "1")
+
+    gs_lst = etree.SubElement(grad_fill, qn("a:gsLst"))
+    for stop in parsed_gradient.stops:
+        gs = etree.SubElement(gs_lst, qn("a:gs"))
+        gs.set("pos", str(int(round(stop.position * 100000))))
+        srgb = etree.SubElement(gs, qn("a:srgbClr"))
+        srgb.set("val", f"{stop.color.r:02X}{stop.color.g:02X}{stop.color.b:02X}")
+        if stop.color.a < 1.0:
+            etree.SubElement(srgb, qn("a:alpha")).set(
+                "val", str(int(round(stop.color.a * 100000)))
+            )
+
+    lin = etree.SubElement(grad_fill, qn("a:lin"))
+    lin.set("ang", str(css_angle_to_ooxml_angle(parsed_gradient.angle_deg)))
+    lin.set("scaled", "0")
+
+    if extra_children:
+        for child in extra_children:
+            grad_fill.append(child)
+
+    return grad_fill
 
 
 def _set_outer_shadow(
