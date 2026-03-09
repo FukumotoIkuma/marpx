@@ -3,6 +3,7 @@
     import { extractPseudoRuns } from './pseudo.js';
     import { extractDecoration } from './decoration.js';
     import { normalizeInlineText } from './entry.js';
+    import { detectVisualLineBreaks, insertLineBreaksIntoRuns } from './line-breaks.js';
 
     export function _buildTextRun(text, styleEl, linkUrl = null, options = {}) {
         const {
@@ -26,6 +27,7 @@
             includeRootPseudo = false,
             isStandaloneDecoratedFn = null,
             includeMathRuns = false,
+            detectVisualBreaks = false,
             renderContext = null,
         } = options;
         const runs = [];
@@ -141,6 +143,14 @@
         visit(el, el, null, rootContext);
         if (includeRootPseudo) {
             pushRootPseudo('::after');
+        }
+
+        // Detect CSS visual line breaks and insert \n into runs
+        if (detectVisualBreaks && runs.length > 0) {
+            const breakPositions = detectVisualLineBreaks(el);
+            if (breakPositions.length > 0) {
+                insertLineBreaksIntoRuns(runs, breakPositions);
+            }
         }
 
         return trimBoundary ? trimBoundaryWhitespace(runs) : runs;

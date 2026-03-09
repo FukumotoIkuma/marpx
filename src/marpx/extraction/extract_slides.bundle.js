@@ -1014,6 +1014,86 @@ function normalizeInlineText(text) {
   return text.replace(/\s+/g, " ");
 }
 
+// line-breaks.js
+var Y_THRESHOLD = 2;
+function detectVisualLineBreaks(element) {
+  const outerRange = document.createRange();
+  outerRange.selectNodeContents(element);
+  const outerRects = outerRange.getClientRects();
+  if (outerRects.length <= 1) return [];
+  const treeWalker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT
+  );
+  let globalOffset = 0;
+  const breakPositions = [];
+  let lastTop = null;
+  while (treeWalker.nextNode()) {
+    const textNode = treeWalker.currentNode;
+    const text = textNode.textContent;
+    if (!text || text.length === 0) continue;
+    let i = 0;
+    while (i < text.length) {
+      while (i < text.length && text[i] === " ") i++;
+      if (i >= text.length) break;
+      let wordEnd = text.indexOf(" ", i);
+      if (wordEnd === -1) wordEnd = text.length;
+      const wordRange = document.createRange();
+      wordRange.setStart(textNode, i);
+      wordRange.setEnd(textNode, wordEnd);
+      const wordRect = wordRange.getBoundingClientRect();
+      if (wordRect.height > 0) {
+        if (lastTop !== null && wordRect.top - lastTop > Y_THRESHOLD) {
+          const breakPos = globalOffset + i;
+          if (breakPos > 0) {
+            breakPositions.push(breakPos);
+          }
+        }
+        lastTop = wordRect.top;
+      }
+      i = wordEnd;
+    }
+    globalOffset += text.length;
+  }
+  return breakPositions;
+}
+function insertLineBreaksIntoRuns(runs, breakPositions) {
+  if (!breakPositions || breakPositions.length === 0) return;
+  let bpIdx = 0;
+  let cumOffset = 0;
+  for (let r = 0; r < runs.length && bpIdx < breakPositions.length; r++) {
+    const run = runs[r];
+    if (run.runType === "math" || !run.text) {
+      continue;
+    }
+    const runStart = cumOffset;
+    const runEnd = cumOffset + run.text.length;
+    const localBreaks = [];
+    while (bpIdx < breakPositions.length && breakPositions[bpIdx] < runEnd) {
+      const localPos = breakPositions[bpIdx] - runStart;
+      if (localPos >= 0 && localPos <= run.text.length) {
+        localBreaks.push(localPos);
+      }
+      bpIdx++;
+    }
+    if (localBreaks.length > 0) {
+      let newText = run.text;
+      for (let i = localBreaks.length - 1; i >= 0; i--) {
+        let pos = localBreaks[i];
+        if (pos > 0 && newText[pos - 1] === " ") {
+          newText = newText.slice(0, pos - 1) + "\n" + newText.slice(pos);
+        } else if (pos < newText.length && newText[pos] === " ") {
+          newText = newText.slice(0, pos) + "\n" + newText.slice(pos + 1);
+        } else {
+          newText = newText.slice(0, pos) + "\n" + newText.slice(pos);
+        }
+      }
+      run.text = newText;
+    }
+    cumOffset = runEnd;
+  }
+}
+
 // runs.js
 function _buildTextRun(text, styleEl, linkUrl = null, options = {}) {
   const {
@@ -1036,6 +1116,7 @@ function extractInlineRuns(el, options = {}) {
     includeRootPseudo = false,
     isStandaloneDecoratedFn = null,
     includeMathRuns = false,
+    detectVisualBreaks = false,
     renderContext = null
   } = options;
   const runs = [];
@@ -1121,6 +1202,12 @@ function extractInlineRuns(el, options = {}) {
   visit(el, el, null, rootContext);
   if (includeRootPseudo) {
     pushRootPseudo("::after");
+  }
+  if (detectVisualBreaks && runs.length > 0) {
+    const breakPositions = detectVisualLineBreaks(el);
+    if (breakPositions.length > 0) {
+      insertLineBreaksIntoRuns(runs, breakPositions);
+    }
   }
   return trimBoundary ? trimBoundaryWhitespace(runs) : runs;
 }
@@ -1488,6 +1575,7 @@ function extractTextRunsWithHiddenDecorated(el, renderContext = null, includeMat
   return extractInlineRuns(el, {
     renderContext,
     includeMathRuns,
+    detectVisualBreaks: true,
     isStandaloneDecoratedFn: (node, decoration) => shouldExtractStandaloneDecoratedText(node, decoration) || (extraStandaloneFn ? extraStandaloneFn(node) : false)
   });
 }
@@ -1921,7 +2009,10 @@ function handleHeading(el, slideRect, slideData, tag, renderContext) {
   slideData.elements.push(
     buildTextElement(el, slideRect, "heading", {
       headingLevel: level,
-      runs: extractTextRuns(el, renderContext),
+      runs: extractInlineRuns(el, {
+        detectVisualBreaks: true,
+        renderContext
+      }),
       renderContext
     })
   );
@@ -1950,7 +2041,11 @@ function handleParagraph(el, slideRect, slideData, renderContext) {
         renderContext,
         mathEls.length > 0,
         _isInlineStandaloneUnsupported
-      ) : extractTextRunsWithPseudo(el, renderContext, false),
+      ) : extractInlineRuns(el, {
+        includeRootPseudo: true,
+        detectVisualBreaks: true,
+        renderContext
+      }),
       renderContext
     })
   );

@@ -30,6 +30,7 @@ export function extractTextRunsWithHiddenDecorated(
     return extractInlineRuns(el, {
         renderContext,
         includeMathRuns,
+        detectVisualBreaks: true,
         isStandaloneDecoratedFn: (node, decoration) =>
             shouldExtractStandaloneDecoratedText(node, decoration) ||
             (extraStandaloneFn ? extraStandaloneFn(node) : false),
