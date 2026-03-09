@@ -365,7 +365,11 @@ def _set_text_frame_margins_zero(text_frame) -> None:
 
 
 def _set_text_frame_margins_from_element(text_frame, element: BaseSlideElement) -> None:
-    """Apply content-box insets as text-frame margins on the element's outer box."""
+    """Apply content-box insets as text-frame margins on the element's outer box.
+
+    The decoration shape uses custGeom with a full-bounds text rectangle,
+    so no geometry inset compensation is needed.
+    """
     if element.content_box is not None:
         content_box = element.content_box
     elif element.decoration is not None:
@@ -374,18 +378,19 @@ def _set_text_frame_margins_from_element(text_frame, element: BaseSlideElement) 
         _set_text_frame_margins_zero(text_frame)
         return
 
-    left = max(content_box.x - element.box.x, 0)
-    top = max(content_box.y - element.box.y, 0)
-    right = max(
+    left_px = max(content_box.x - element.box.x, 0)
+    top_px = max(content_box.y - element.box.y, 0)
+    right_px = max(
         (element.box.x + element.box.width) - (content_box.x + content_box.width), 0
     )
-    bottom = max(
+    bottom_px = max(
         (element.box.y + element.box.height) - (content_box.y + content_box.height), 0
     )
-    text_frame.margin_left = Emu(px_to_emu(left))
-    text_frame.margin_top = Emu(px_to_emu(top))
-    text_frame.margin_right = Emu(px_to_emu(right))
-    text_frame.margin_bottom = Emu(px_to_emu(bottom))
+
+    text_frame.margin_left = Emu(px_to_emu(left_px))
+    text_frame.margin_top = Emu(px_to_emu(top_px))
+    text_frame.margin_right = Emu(px_to_emu(right_px))
+    text_frame.margin_bottom = Emu(px_to_emu(bottom_px))
 
 
 def _apply_paragraph_layout(
