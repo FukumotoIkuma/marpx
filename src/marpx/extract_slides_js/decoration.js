@@ -7,6 +7,42 @@ import {
     getUnsupportedStyleReason,
 } from './style.js';
 
+function _parseClipPathPolygon(clipPathStr) {
+    if (!clipPathStr || clipPathStr === 'none') return null;
+    const match = clipPathStr.match(/^polygon\((.+)\)$/);
+    if (!match) return null;
+    const pointsStr = match[1];
+    const pairs = pointsStr.split(',').map((p) => p.trim()).filter(Boolean);
+    const points = [];
+    for (const pair of pairs) {
+        const parts = pair.split(/\s+/);
+        if (parts.length !== 2) return null;
+        const parseValue = (token) => {
+            if (token.endsWith('%')) {
+                return { value: parseFloat(token), unit: '%' };
+            }
+            if (token.endsWith('px')) {
+                return { value: parseFloat(token), unit: 'px' };
+            }
+            // Bare number — treat as px
+            const num = parseFloat(token);
+            if (!isNaN(num)) return { value: num, unit: 'px' };
+            return null;
+        };
+        const xParsed = parseValue(parts[0]);
+        const yParsed = parseValue(parts[1]);
+        if (!xParsed || !yParsed) return null;
+        points.push({
+            x: xParsed.unit === '%' ? xParsed.value : xParsed.value,
+            y: yParsed.unit === '%' ? yParsed.value : yParsed.value,
+            xUnit: xParsed.unit,
+            yUnit: yParsed.unit,
+        });
+    }
+    if (points.length < 3) return null;
+    return { type: 'polygon', points };
+}
+
 function _extractDecorationFromComputedStyle(cs, ctx) {
     const backgroundClip = (cs.webkitBackgroundClip || cs.backgroundClip || '').toLowerCase();
     const hasTextClippedGradient = backgroundClip.includes('text');
@@ -43,6 +79,7 @@ function _extractDecorationFromComputedStyle(cs, ctx) {
             cs.color || 'rgba(0, 0, 0, 1)',
             ctx,
         ),
+        clipPath: _parseClipPathPolygon(cs.clipPath) || undefined,
         opacity: 1,
     };
 }
@@ -204,6 +241,7 @@ export function extractBlockPseudoElements(el, sectionRect, renderContext = null
     const results = [];
     const parentZ = _getZIndex(el);
     const ctx = renderContext || deriveRenderContext(el);
+    const baseZ = (ctx.baseZIndex || 0);
     for (const pseudo of ['::before', '::after']) {
         const cs = window.getComputedStyle(el, pseudo);
         const content = normalizeContentValue(cs.content) || '';
@@ -220,7 +258,7 @@ export function extractBlockPseudoElements(el, sectionRect, renderContext = null
             results.push({
                 type: 'unsupported',
                 box: _boxFromRect(rect, sectionRect),
-                zIndex: _parsePseudoZIndex(cs, parentZ),
+                zIndex: baseZ + _parsePseudoZIndex(cs, parentZ),
                 unsupportedInfo: {
                     reason: unsupportedReason,
                     tagName: 'pseudo',
@@ -235,7 +273,7 @@ export function extractBlockPseudoElements(el, sectionRect, renderContext = null
             contentBox: hasMeaningfulDecoration(decoration)
                 ? _contentBoxFromRectAndStyle(rect, cs, sectionRect, ctx)
                 : null,
-            zIndex: _parsePseudoZIndex(cs, parentZ),
+            zIndex: baseZ + _parsePseudoZIndex(cs, parentZ),
             paragraphs: hasText ? _buildPseudoParagraph(content, cs, el, ctx) : [],
             decoration: hasMeaningfulDecoration(decoration) ? decoration : null,
         });

@@ -149,6 +149,13 @@ class BoxShadow(BaseModel):
     inset: bool = False
 
 
+class ClipPath(BaseModel):
+    """Clip path for element clipping (e.g., CSS polygon)."""
+
+    type: str  # e.g., 'polygon'
+    points: list[Point]  # polygon vertices in percentage (0-100 range)
+
+
 class BoxDecoration(BaseModel):
     background_color: RGBAColor | None = None
     background_gradient: str | None = None
@@ -160,6 +167,7 @@ class BoxDecoration(BaseModel):
     padding: BoxPadding = Field(default_factory=BoxPadding)
     box_shadows: list[BoxShadow] = Field(default_factory=list)
     opacity: float = 1.0
+    clip_path: ClipPath | None = None
 
 
 class UnsupportedInfo(BaseModel):

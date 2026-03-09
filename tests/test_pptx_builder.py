@@ -17,6 +17,7 @@ from marpx.models import (
     BoxDecoration,
     BoxShadow,
     BoxPadding,
+    ClipPath,
     ElementType,
     ListItem,
     Paragraph,
@@ -2191,3 +2192,95 @@ class TestTableNoMergeRegression:
 
         assert "H1" in table.cell(0, 0).text
         assert "A3" in table.cell(1, 2).text
+
+
+# ---------------------------------------------------------------------------
+# Clip-path polygon builder
+# ---------------------------------------------------------------------------
+
+
+class TestClipPathPolygonBuilder:
+    """Tests for rendering clip-path polygon as custom geometry in PPTX."""
+
+    def test_clip_path_polygon_uses_custom_geometry(self, tmp_path: Path) -> None:
+        """A decorated block with clip_path polygon should use a:custGeom, not a:prstGeom."""
+        triangle_points = [
+            Point(x=50, y=0),
+            Point(x=100, y=100),
+            Point(x=0, y=100),
+        ]
+        elem = SlideElement(
+            element_type=ElementType.DECORATED_BLOCK,
+            box=Box(x=100, y=100, width=400, height=300),
+            decoration=BoxDecoration(
+                background_color=RGBAColor(r=255, g=102, b=0, a=1.0),
+                clip_path=ClipPath(type="polygon", points=triangle_points),
+            ),
+        )
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[elem])],
+        )
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+
+        # Find a shape with custom geometry
+        from pptx.oxml.ns import qn
+
+        found_cust_geom = False
+        for shape in slide.shapes:
+            sp_pr = shape._element.find(qn("p:spPr"))
+            if sp_pr is not None and sp_pr.find(qn("a:custGeom")) is not None:
+                found_cust_geom = True
+                # Should NOT have preset geometry
+                assert sp_pr.find(qn("a:prstGeom")) is None, (
+                    "Shape with custGeom should not also have prstGeom"
+                )
+                break
+
+        assert found_cust_geom, (
+            "Expected at least one shape with a:custGeom for polygon clip-path"
+        )
+
+    def test_clip_path_polygon_has_correct_path_points(self, tmp_path: Path) -> None:
+        """The custom geometry path should contain moveTo + lineTo entries."""
+        triangle_points = [
+            Point(x=50, y=0),
+            Point(x=100, y=100),
+            Point(x=0, y=100),
+        ]
+        elem = SlideElement(
+            element_type=ElementType.DECORATED_BLOCK,
+            box=Box(x=100, y=100, width=400, height=300),
+            decoration=BoxDecoration(
+                background_color=RGBAColor(r=255, g=102, b=0, a=1.0),
+                clip_path=ClipPath(type="polygon", points=triangle_points),
+            ),
+        )
+        pres = Presentation(
+            slides=[Slide(width_px=1280, height_px=720, elements=[elem])],
+        )
+        pptx = _build_and_read(pres, tmp_path)
+        slide = pptx.slides[0]
+
+        from pptx.oxml.ns import qn
+
+        for shape in slide.shapes:
+            sp_pr = shape._element.find(qn("p:spPr"))
+            if sp_pr is None:
+                continue
+            cust_geom = sp_pr.find(qn("a:custGeom"))
+            if cust_geom is None:
+                continue
+
+            path_lst = cust_geom.find(qn("a:pathLst"))
+            assert path_lst is not None, "custGeom should have a:pathLst"
+            path = path_lst.find(qn("a:path"))
+            assert path is not None, "pathLst should have a:path"
+
+            move_to = path.findall(qn("a:moveTo"))
+            line_to = path.findall(qn("a:lnTo"))
+            assert len(move_to) == 1, "Polygon path should have exactly one moveTo"
+            assert len(line_to) == 2, (
+                f"Triangle should have 2 lineTo entries, got {len(line_to)}"
+            )
+            break

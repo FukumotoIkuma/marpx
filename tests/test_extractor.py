@@ -2294,8 +2294,7 @@ class TestSectionPseudoElements:
         pres = section_pseudo_pres
         slide = pres.slides[0]
         decorated = [
-            e for e in slide.elements
-            if e.element_type == ElementType.DECORATED_BLOCK
+            e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
         ]
         # Both ::before and ::after pseudo-elements should be extracted
         assert len(decorated) >= 2, (
@@ -2309,13 +2308,11 @@ class TestSectionPseudoElements:
         pres = section_pseudo_pres
         slide = pres.slides[0]
         decorated = [
-            e for e in slide.elements
-            if e.element_type == ElementType.DECORATED_BLOCK
+            e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
         ]
         # At least one should have a non-null decoration with background color
         decorated_with_bg = [
-            e for e in decorated
-            if e.decoration and e.decoration.background_color
+            e for e in decorated if e.decoration and e.decoration.background_color
         ]
         assert len(decorated_with_bg) >= 1, (
             "Expected at least one pseudo-element with background color decoration"
@@ -2326,9 +2323,52 @@ class TestSectionPseudoElements:
         pres = section_pseudo_pres
         slide = pres.slides[0]
         decorated = [
-            e for e in slide.elements
-            if e.element_type == ElementType.DECORATED_BLOCK
+            e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
         ]
         for elem in decorated:
             assert elem.box.width > 0, "Pseudo-element width should be > 0"
             assert elem.box.height > 0, "Pseudo-element height should be > 0"
+
+
+# ---------------------------------------------------------------------------
+# Clip-path polygon extraction
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def clip_path_html(session_output_dir: Path) -> Path:
+    """Render clip-path.md to HTML."""
+    return render_to_html(FIXTURES_DIR / "clip-path.md", output_dir=session_output_dir)
+
+
+@pytest.fixture(scope="module")
+def clip_path_pres(clip_path_html: Path):
+    """Extract presentation from clip-path fixture."""
+    return extract_presentation_sync(clip_path_html)
+
+
+@pytest.mark.integration
+class TestClipPathPolygon:
+    """Tests for CSS clip-path: polygon(...) extraction."""
+
+    def test_clip_path_polygon_extracted(self, clip_path_pres) -> None:
+        """At least one element should have a clip_path with type='polygon'."""
+        pres = clip_path_pres
+        slide = pres.slides[0]
+        clipped = [e for e in slide.elements if e.decoration and e.decoration.clip_path]
+        assert len(clipped) >= 1, (
+            "Expected at least one element with clip_path decoration"
+        )
+        for elem in clipped:
+            assert elem.decoration.clip_path.type == "polygon"
+
+    def test_clip_path_polygon_points(self, clip_path_pres) -> None:
+        """Triangle polygon should have exactly 3 points."""
+        pres = clip_path_pres
+        slide = pres.slides[0]
+        clipped = [e for e in slide.elements if e.decoration and e.decoration.clip_path]
+        assert len(clipped) >= 1
+        cp = clipped[0].decoration.clip_path
+        assert len(cp.points) == 3, (
+            f"Expected 3 points for triangle polygon, got {len(cp.points)}"
+        )

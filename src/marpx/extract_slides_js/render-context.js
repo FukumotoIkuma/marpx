@@ -13,6 +13,7 @@ export function createRenderContext(effectiveOpacity = 1) {
         effectiveRotation3dXDeg: 0,
         effectiveRotation3dYDeg: 0,
         effectiveRotation3dZDeg: 0,
+        baseZIndex: 0,
     };
 }
 
@@ -162,6 +163,7 @@ export function deriveRenderContext(el, parentCtx = null, computedStyle = null) 
             parentCtx.effectiveRotation3dYDeg + ownTransform.rotation3dYDeg;
         ctx.effectiveRotation3dZDeg =
             parentCtx.effectiveRotation3dZDeg + ownTransform.rotation3dZDeg;
+        ctx.baseZIndex = parentCtx.baseZIndex || 0;
         return ctx;
     }
 
