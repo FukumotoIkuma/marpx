@@ -1131,7 +1131,7 @@ class TestShapeCount:
                     offset_y_px=2,
                     blur_radius_px=8,
                     spread_px=4,
-                    color=RGBAColor(r=15, g=23, b=42, a=0.08),
+                    color=RGBAColor(r=15, g=23, b=42, a=0.20),
                     inset=True,
                 )
             ],
@@ -1159,7 +1159,7 @@ class TestShapeCount:
         assert 'sx="102500"' in xml
         assert 'sy="106667"' in xml
         assert 'val="0F172A"' in xml
-        assert 'a:alpha val="8000"' in xml
+        assert 'a:alpha val="20000"' in xml
 
     def test_blockquote_uses_extracted_padding_and_left_accent(
         self, tmp_path: Path
@@ -1448,7 +1448,7 @@ class TestTableBuilding:
                     offset_x_px=0,
                     offset_y_px=4,
                     blur_radius_px=24,
-                    color=RGBAColor(r=0, g=0, b=0, a=0.08),
+                    color=RGBAColor(r=0, g=0, b=0, a=0.20),
                 )
             ],
         )
