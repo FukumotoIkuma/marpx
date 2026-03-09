@@ -26,7 +26,6 @@ from marpx.models import (
     Paragraph,
     Point,
     Presentation,
-    RGBAColor,
     Slide,
     SlideElement,
     TableCell,
@@ -96,12 +95,7 @@ def _build_text_style(raw_style: dict) -> TextStyle:
                 offset_x_px=s.get("offsetXPx", 0),
                 offset_y_px=s.get("offsetYPx", 0),
                 blur_radius_px=s.get("blurRadiusPx", 0),
-                color=RGBAColor(
-                    r=int(s.get("color", {}).get("r", 0)),
-                    g=int(s.get("color", {}).get("g", 0)),
-                    b=int(s.get("color", {}).get("b", 0)),
-                    a=float(s.get("color", {}).get("a", 1.0)),
-                ),
+                color=parse_css_color(s.get("color", "rgba(0,0,0,1)")),
             )
             for s in raw_shadows
         ]
