@@ -6,7 +6,7 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 from pptx.util import Emu, Pt
 
-from marpx.utils import px_to_emu
+from marpx.utils.common import px_to_emu
 
 
 def _add_header(pptx_slide, header_text: str, slide_width_emu: int) -> None:

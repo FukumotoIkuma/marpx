@@ -8,7 +8,7 @@ from pathlib import Path
 
 from playwright.async_api import async_playwright
 
-from marpx.capabilities import Capability
+from marpx.extraction.capabilities import Capability
 from marpx.models import (
     ElementType,
     Presentation,
@@ -16,7 +16,7 @@ from marpx.models import (
     UnsupportedElement,
 )
 from marpx.pipeline import ElementRenderInfo, SlideRenderInfo
-from marpx.svg_utils import rasterize_svg_to_png
+from marpx.utils.svg import rasterize_svg_to_png
 
 logger = logging.getLogger(__name__)
 _SVG_FALLBACK_SCALE = 2.0
@@ -357,7 +357,7 @@ def render_fallbacks_sync(
     slide_render_info: dict[int, SlideRenderInfo] | None = None,
 ) -> None:
     """Synchronous wrapper for render_fallbacks."""
-    from marpx.async_utils import run_coroutine_sync
+    from marpx.utils.async_helpers import run_coroutine_sync
 
     run_coroutine_sync(
         render_fallbacks(

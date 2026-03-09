@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from PIL import Image, ImageDraw
 
 from marpx.models import RGBAColor
-from marpx.utils import parse_css_color
+from marpx.utils.common import parse_css_color
 
 
 @dataclass(frozen=True)

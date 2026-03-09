@@ -8,11 +8,11 @@ import logging
 from PIL import Image
 from pptx.util import Emu
 
-from marpx.image_utils import resolve_image_bytes
+from marpx.utils.image import resolve_image_bytes
 from marpx.models import BackgroundImage
-from marpx.utils import px_to_emu
+from marpx.utils.common import px_to_emu
 
-from marpx.svg_utils import rasterize_svg_to_png
+from marpx.utils.svg import rasterize_svg_to_png
 
 from .image import _is_svg_source
 

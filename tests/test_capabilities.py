@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from marpx.capabilities import (
+from marpx.extraction.capabilities import (
     Capability,
     CapabilityDecision,
     classify_element,

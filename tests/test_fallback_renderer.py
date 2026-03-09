@@ -6,8 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from marpx.capabilities import Capability
-from marpx.fallback_renderer import _is_content_section, render_fallbacks_sync
+from marpx.extraction.capabilities import Capability
+from marpx.extraction.fallback_renderer import (
+    _is_content_section,
+    render_fallbacks_sync,
+)
 from marpx.models import (
     Box,
     ElementType,
@@ -135,11 +138,11 @@ def test_render_fallbacks_rasterizes_inline_svg_without_screenshot(
             return None
 
     monkeypatch.setattr(
-        "marpx.fallback_renderer.async_playwright",
+        "marpx.extraction.fallback_renderer.async_playwright",
         lambda: FakePlaywrightContext(),
     )
     monkeypatch.setattr(
-        "marpx.fallback_renderer.rasterize_svg_to_png",
+        "marpx.extraction.fallback_renderer.rasterize_svg_to_png",
         lambda data, width_px=None, height_px=None, scale=1.0: (
             captured.update(
                 {
@@ -157,7 +160,7 @@ def test_render_fallbacks_rasterizes_inline_svg_without_screenshot(
         raise AssertionError("inline SVG should not use screenshot fallback")
 
     monkeypatch.setattr(
-        "marpx.fallback_renderer._screenshot_element",
+        "marpx.extraction.fallback_renderer._screenshot_element",
         _unexpected_screenshot,
     )
 
@@ -247,7 +250,7 @@ def test_render_fallbacks_navigates_to_target_slide_before_screenshot(
             return None
 
     monkeypatch.setattr(
-        "marpx.fallback_renderer.async_playwright",
+        "marpx.extraction.fallback_renderer.async_playwright",
         lambda: FakePlaywrightContext(),
     )
 
@@ -258,7 +261,7 @@ def test_render_fallbacks_navigates_to_target_slide_before_screenshot(
         return path
 
     monkeypatch.setattr(
-        "marpx.fallback_renderer._screenshot_element",
+        "marpx.extraction.fallback_renderer._screenshot_element",
         _fake_screenshot_element,
     )
 
@@ -266,7 +269,7 @@ def test_render_fallbacks_navigates_to_target_slide_before_screenshot(
         navigate_calls.append(slide_index)
 
     monkeypatch.setattr(
-        "marpx.fallback_renderer._navigate_to_slide",
+        "marpx.extraction.fallback_renderer._navigate_to_slide",
         _fake_navigate,
     )
 

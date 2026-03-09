@@ -6,7 +6,7 @@ from pptx.enum.text import MSO_VERTICAL_ANCHOR
 from pptx.util import Emu
 
 from marpx.models import ListElement, SlideElement, TextElement
-from marpx.utils import (
+from marpx.utils.common import (
     boxes_have_horizontal_overlap,
     boxes_have_mergeable_vertical_gap,
     boxes_share_column,

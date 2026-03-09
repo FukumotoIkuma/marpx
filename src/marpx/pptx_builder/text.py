@@ -18,8 +18,8 @@ from marpx.models import (
     TextRun,
     TextStyle,
 )
-from marpx.gradient_utils import parse_linear_gradient
-from marpx.utils import (
+from marpx.utils.gradient import parse_linear_gradient
+from marpx.utils.common import (
     blend_alpha,
     px_to_emu,
     px_to_pt,

@@ -5,7 +5,7 @@ Unit tests for MATH element type, capability classification, and extractor handl
 
 from __future__ import annotations
 
-from marpx.capabilities import (
+from marpx.extraction.capabilities import (
     Capability,
     classify_element,
     classify_slide,
@@ -189,7 +189,7 @@ class TestBuildSlideElementMath:
     """Verify _build_slide_element handles MATH type correctly."""
 
     def test_build_math_element(self) -> None:
-        from marpx.extractor import _build_slide_element
+        from marpx.extraction.extractor import _build_slide_element
 
         raw = {
             "type": "math",
@@ -207,7 +207,7 @@ class TestBuildSlideElementMath:
         assert element.unsupported_info.tag_name == "mjx-container"
 
     def test_build_math_element_without_info(self) -> None:
-        from marpx.extractor import _build_slide_element
+        from marpx.extraction.extractor import _build_slide_element
 
         raw = {
             "type": "math",
@@ -221,7 +221,7 @@ class TestBuildSlideElementMath:
         assert element.unsupported_info.tag_name == "mjx-container"
 
     def test_build_math_element_box(self) -> None:
-        from marpx.extractor import _build_slide_element
+        from marpx.extraction.extractor import _build_slide_element
 
         raw = {
             "type": "math",

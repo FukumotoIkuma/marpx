@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 
 from marpx.models import Box, RGBAColor
-from marpx.fonts import safe_font_family
-from marpx.utils import (
+from marpx.utils.fonts import safe_font_family
+from marpx.utils.common import (
     blend_alpha,
     boxes_have_horizontal_overlap,
     boxes_have_mergeable_vertical_gap,

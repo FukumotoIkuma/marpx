@@ -24,7 +24,7 @@ from marpx.models import (
 )
 from marpx.pptx_builder.builder import build_pptx
 from marpx.pptx_builder.directives import _add_footer, _add_header, _add_page_number
-from marpx.utils import px_to_emu
+from marpx.utils.common import px_to_emu
 
 
 # ---------------------------------------------------------------------------

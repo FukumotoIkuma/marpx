@@ -38,12 +38,12 @@ from marpx.models import (
     UnsupportedElement,
     UnsupportedInfo,
 )
-from marpx.capabilities import Capability
+from marpx.extraction.capabilities import Capability
 from marpx.pipeline import ElementRenderInfo, SlideRenderInfo
 from marpx.pptx_builder.builder import build_pptx
 from marpx.pptx_builder.image import MissingDependencyError, _resolve_image_placement
 from marpx.pptx_builder.scene3d import fit_scene3d_rotations
-from marpx.utils import px_to_emu
+from marpx.utils.common import px_to_emu
 
 
 # ---------------------------------------------------------------------------
@@ -1927,7 +1927,7 @@ class TestImageRendering:
                 )
             ],
         )
-        monkeypatch.setattr("marpx.svg_utils.shutil.which", lambda _: None)
+        monkeypatch.setattr("marpx.utils.svg.shutil.which", lambda _: None)
 
         with pytest.raises(
             MissingDependencyError,
