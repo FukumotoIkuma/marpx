@@ -139,6 +139,42 @@ function _buildPseudoParagraph(content, cs, el, ctx) {
     }];
 }
 
+/**
+ * Measures the bounding rectangle of a CSS pseudo-element (::before / ::after).
+ *
+ * **Why this workaround is needed:**
+ * Browsers do not expose geometry (position, size) for pseudo-elements through
+ * any standard DOM API. `getComputedStyle(el, '::before')` returns *style*
+ * properties (colors, fonts, dimensions as authored) but there is no equivalent
+ * of `getBoundingClientRect()` for pseudo-elements — they are not real DOM nodes.
+ *
+ * **What this workaround does:**
+ * 1. Reads the full computed style of the target pseudo-element.
+ * 2. Creates a temporary "probe" DOM element (`<span>` for text content,
+ *    `<div>` for purely decorative pseudo-elements).
+ * 3. Copies all layout-affecting and visual CSS properties from the
+ *    pseudo-element's computed style onto the probe.
+ * 4. Appends the probe as a child of the original element so it participates
+ *    in the same containing-block / positioning context.
+ * 5. Calls `getBoundingClientRect()` on the probe to obtain real geometry.
+ * 6. Immediately removes the probe from the DOM to avoid side effects.
+ *
+ * **Known limitations:**
+ * - The probe is appended as a *child* of `el`, not inserted at the exact
+ *   position where the browser places the pseudo-element. For absolutely/fixed
+ *   positioned pseudo-elements (the only ones this function is called for),
+ *   this is acceptable because their position is determined by the containing
+ *   block, not document flow.
+ * - Complex `content` values (e.g. `counter()`, `attr()`, images) are not
+ *   fully replicated; only the resolved text string is used.
+ * - CSS properties not explicitly copied (e.g. `clip`, `filter`) may cause
+ *   minor measurement discrepancies.
+ *
+ * @param {Element} el      - The parent DOM element that owns the pseudo-element.
+ * @param {string}  pseudo  - The pseudo-element selector, e.g. `'::before'` or `'::after'`.
+ * @param {string}  content - The resolved text content of the pseudo-element.
+ * @returns {DOMRect} The bounding client rect of the measured probe element.
+ */
 function _measurePseudoRect(el, pseudo, content) {
     const pseudoCs = window.getComputedStyle(el, pseudo);
     const probe = document.createElement(content ? 'span' : 'div');
