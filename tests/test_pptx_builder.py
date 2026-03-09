@@ -1021,7 +1021,7 @@ class TestShapeCount:
         assert "a:gradFill" in grad_shape._element.xml
         assert 'val="FF0000"' in grad_shape._element.xml
         assert 'val="0000FF"' in grad_shape._element.xml
-        assert 'a:lin ang="18900000"' in grad_shape._element.xml
+        assert 'a:lin ang="2700000"' in grad_shape._element.xml
 
     def test_horizontal_linear_gradient_decoration_maps_to_ooxml_zero_angle(
         self, tmp_path: Path
@@ -1429,7 +1429,7 @@ class TestTableBuilding:
         assert cell.text_frame.margin_left == px_to_emu(16)
         assert cell.text_frame.margin_top == px_to_emu(14)
         assert "a:gradFill" in cell._tc.xml
-        assert 'a:lin ang="18900000"' in cell._tc.xml
+        assert 'a:lin ang="2700000"' in cell._tc.xml
         assert "a:lnB" in cell._tc.xml
         assert 'w="12700"' in cell._tc.xml
         assert 'cap="flat"' in cell._tc.xml
