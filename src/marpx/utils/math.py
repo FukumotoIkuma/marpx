@@ -29,12 +29,11 @@ def _get_xslt_transform() -> etree.XSLT:
     return _xslt_transform
 
 
-def latex_to_omml(latex: str) -> etree._Element | None:
-    """Convert LaTeX string to OMML element for PowerPoint.
+def _latex_to_omml_elements(latex: str) -> etree._Element | None:
+    """Convert LaTeX to an OMML root element (shared pipeline).
 
-    Returns an <a14:m> element containing
-    <m:oMathPara><m:oMath>...</m:oMath></m:oMathPara>,
-    or None if conversion fails.
+    Runs LaTeX -> MathML -> OMML via XSLT and returns the raw OMML root.
+    Returns None on conversion failure.
     """
     try:
         import latex2mathml.converter
@@ -53,27 +52,7 @@ def latex_to_omml(latex: str) -> etree._Element | None:
             logger.warning("XSLT produced empty result for: %s", latex)
             return None
 
-        # Step 4: Wrap in a14:m > m:oMathPara
-        # The XSLT produces m:oMath or m:oMathPara depending on input
-        # We need: <a14:m><m:oMathPara><m:oMath>...</m:oMath></m:oMathPara></a14:m>
-
-        nsmap = {"a14": _A14_NS, "m": _OMML_NS}
-        a14_m = etree.Element(f"{{{_A14_NS}}}m", nsmap=nsmap)
-
-        # Check if result is already oMathPara
-        if omml_root.tag == f"{{{_OMML_NS}}}oMathPara":
-            a14_m.append(omml_root)
-        elif omml_root.tag == f"{{{_OMML_NS}}}oMath":
-            omath_para = etree.SubElement(a14_m, f"{{{_OMML_NS}}}oMathPara")
-            omath_para.append(omml_root)
-        else:
-            # Wrap in both
-            omath_para = etree.SubElement(a14_m, f"{{{_OMML_NS}}}oMathPara")
-            omath = etree.SubElement(omath_para, f"{{{_OMML_NS}}}oMath")
-            for child in list(omml_root):
-                omath.append(child)
-
-        return a14_m
+        return omml_root
 
     except ImportError:
         logger.warning("latex2mathml not installed, cannot convert: %s", latex)
@@ -93,3 +72,79 @@ def latex_to_omml(latex: str) -> etree._Element | None:
             logger.warning("Failed to convert LaTeX to OMML: %s (%s)", latex, exc)
             return None
         raise
+
+
+def _extract_omath(omml_root: etree._Element) -> etree._Element:
+    """Extract or create an m:oMath element from the XSLT output.
+
+    The XSLT may produce m:oMathPara, m:oMath, or something else.
+    This normalizes the result to a single m:oMath element.
+    """
+    if omml_root.tag == f"{{{_OMML_NS}}}oMathPara":
+        # Find the m:oMath child inside oMathPara
+        omath = omml_root.find(f"{{{_OMML_NS}}}oMath")
+        if omath is not None:
+            return omath
+        # oMathPara without oMath child — wrap children
+        omath = etree.Element(f"{{{_OMML_NS}}}oMath")
+        for child in list(omml_root):
+            omath.append(child)
+        return omath
+    elif omml_root.tag == f"{{{_OMML_NS}}}oMath":
+        return omml_root
+    else:
+        # Unknown root — wrap children in oMath
+        omath = etree.Element(f"{{{_OMML_NS}}}oMath")
+        for child in list(omml_root):
+            omath.append(child)
+        return omath
+
+
+def latex_to_omml(latex: str) -> etree._Element | None:
+    """Convert LaTeX string to OMML element for PowerPoint.
+
+    Returns an <a14:m> element containing
+    <m:oMathPara><m:oMath>...</m:oMath></m:oMathPara>,
+    or None if conversion fails.
+    """
+    omml_root = _latex_to_omml_elements(latex)
+    if omml_root is None:
+        return None
+
+    # Wrap in a14:m > m:oMathPara > m:oMath
+    nsmap = {"a14": _A14_NS, "m": _OMML_NS}
+    a14_m = etree.Element(f"{{{_A14_NS}}}m", nsmap=nsmap)
+
+    # Check if result is already oMathPara
+    if omml_root.tag == f"{{{_OMML_NS}}}oMathPara":
+        a14_m.append(omml_root)
+    elif omml_root.tag == f"{{{_OMML_NS}}}oMath":
+        omath_para = etree.SubElement(a14_m, f"{{{_OMML_NS}}}oMathPara")
+        omath_para.append(omml_root)
+    else:
+        # Wrap in both
+        omath_para = etree.SubElement(a14_m, f"{{{_OMML_NS}}}oMathPara")
+        omath = etree.SubElement(omath_para, f"{{{_OMML_NS}}}oMath")
+        for child in list(omml_root):
+            omath.append(child)
+
+    return a14_m
+
+
+def latex_to_inline_omml(latex: str) -> etree._Element | None:
+    """Convert LaTeX string to inline OMML element for PowerPoint.
+
+    Returns an <a14:m> element containing <m:oMath>...</m:oMath>
+    (without the block-level oMathPara wrapper), or None if conversion fails.
+    """
+    omml_root = _latex_to_omml_elements(latex)
+    if omml_root is None:
+        return None
+
+    # Wrap in a14:m > m:oMath (no oMathPara for inline)
+    nsmap = {"a14": _A14_NS, "m": _OMML_NS}
+    a14_m = etree.Element(f"{{{_A14_NS}}}m", nsmap=nsmap)
+    omath = _extract_omath(omml_root)
+    a14_m.append(omath)
+
+    return a14_m
