@@ -9,13 +9,13 @@ from pathlib import Path
 
 from pptx.util import Emu
 
-from marpx.image_utils import resolve_image_bytes
+from marpx.utils.image import resolve_image_bytes
 from marpx.models import ImageElement
-from marpx.svg_utils import (
+from marpx.utils.svg import (
     MissingDependencyError,
     rasterize_svg_to_png,
 )
-from marpx.utils import px_to_emu
+from marpx.utils.common import px_to_emu
 
 from .decoration import _add_decoration_shape
 from .decoration import _apply_round_rect_radius_to_geom

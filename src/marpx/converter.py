@@ -7,15 +7,15 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from marpx.capabilities import (
+from marpx.extraction.capabilities import (
     Capability,
     classify_element,
     classify_slide,
     should_fallback_slide,
 )
-from marpx.marp_renderer import render_to_html
-from marpx.extractor import SyncBrowserManager, extract_presentation_sync
-from marpx.fallback_renderer import render_fallbacks_sync
+from marpx.extraction.marp_renderer import render_to_html
+from marpx.extraction.extractor import SyncBrowserManager, extract_presentation_sync
+from marpx.extraction.fallback_renderer import render_fallbacks_sync
 from marpx.models import Presentation
 from marpx.pipeline import ElementRenderInfo, SlideRenderInfo
 from marpx.pptx_builder.builder import build_pptx

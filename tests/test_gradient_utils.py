@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from marpx.gradient_utils import (
+from marpx.utils.gradient import (
     ParsedLinearGradient,
     ParsedRadialGradient,
     css_angle_to_ooxml_angle,

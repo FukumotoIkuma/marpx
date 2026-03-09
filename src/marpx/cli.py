@@ -11,7 +11,7 @@ from rich.logging import RichHandler
 
 from marpx import __version__
 from marpx.converter import convert, ConversionError
-from marpx.js_bundle import ensure_extract_bundle
+from marpx.extraction.js_bundle import ensure_extract_bundle
 
 console = Console()
 

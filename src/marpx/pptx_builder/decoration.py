@@ -10,7 +10,7 @@ from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
 from pptx.oxml.ns import qn
 from pptx.util import Emu
 
-from marpx.gradient_utils import parse_linear_gradient
+from marpx.utils.gradient import parse_linear_gradient
 from marpx.models import (
     BaseSlideElement,
     Box,
@@ -21,7 +21,7 @@ from marpx.models import (
     RGBAColor,
     SlideElement,
 )
-from marpx.utils import px_to_emu
+from marpx.utils.common import px_to_emu
 from .scene3d import fit_scene3d_rotations
 
 from ._helpers import (

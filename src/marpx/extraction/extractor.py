@@ -36,9 +36,9 @@ from marpx.models import (
     UnsupportedElement,
     UnsupportedInfo,
 )
-from marpx.fonts import safe_font_family
-from marpx.js_bundle import load_extract_bundle
-from marpx.utils import (
+from marpx.utils.fonts import safe_font_family
+from marpx.extraction.js_bundle import load_extract_bundle
+from marpx.utils.common import (
     boxes_have_mergeable_vertical_gap,
     boxes_share_column,
     parse_css_color,

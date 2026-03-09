@@ -6,7 +6,7 @@ import os
 import time
 from pathlib import Path
 
-from marpx.js_bundle import _bundle_needs_rebuild
+from marpx.extraction.js_bundle import _bundle_needs_rebuild
 
 
 def test_bundle_needs_rebuild_when_bundle_missing(tmp_path: Path) -> None:

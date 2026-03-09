@@ -176,7 +176,7 @@ class TestNotesIntegration:
 
         Requires marp-cli and Playwright to be installed.
         """
-        from marpx.extractor import extract_presentation
+        from marpx.extraction.extractor import extract_presentation
 
         fixture = Path(__file__).parent / "fixtures" / "speaker-notes.md"
         if not fixture.exists():
@@ -197,7 +197,7 @@ class TestNotesIntegration:
                 pytest.skip(f"marp-cli failed: {result.stderr}")
 
             # Extract presentation
-            from marpx.async_utils import run_coroutine_sync
+            from marpx.utils.async_helpers import run_coroutine_sync
 
             pres = run_coroutine_sync(extract_presentation(html_path))
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from marpx.capabilities import Capability
+from marpx.extraction.capabilities import Capability
 
 
 @dataclass

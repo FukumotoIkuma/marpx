@@ -143,28 +143,34 @@ Marp MD --> marp-cli HTML --> Playwright 抽出 --> 正規化モデル --> pytho
 |-----------|------|
 | `cli.py` | CLI エントリーポイント |
 | `converter.py` | 変換パイプラインのオーケストレーション |
-| `marp_renderer.py` | marp-cli による Markdown → HTML 変換 |
-| `extractor.py` | Playwright による DOM 抽出・モデル構築 |
-| `extract_slides.bundle.js` | 実行時に Playwright へ渡されるブラウザ内抽出バンドル |
-| `extract_slides_js/` | 抽出ロジックの分割ソース（entry/runs/paragraphs/blocks/handlers など） |
-| `extract_notes.js` | ブラウザ内で実行されるスピーカーノート抽出 JavaScript |
 | `models.py` | Pydantic v2 による中間データモデル |
-| `capabilities.py` | 要素ごとのレンダリング能力分類（`CapabilityDecision` は NamedTuple） |
+| `pipeline.py` | パイプラインスコープのレンダリング情報 |
+| **`extraction/`** | **抽出パッケージ** |
+| `extraction/extractor.py` | Playwright による DOM 抽出・モデル構築 |
+| `extraction/capabilities.py` | 要素ごとのレンダリング能力分類（`CapabilityDecision` は NamedTuple） |
+| `extraction/marp_renderer.py` | marp-cli による Markdown → HTML 変換 |
+| `extraction/fallback_renderer.py` | 非対応要素のスクリーンショットフォールバック |
+| `extraction/js_bundle.py` | JS バンドル管理ヘルパー |
+| `extraction/extract_slides.bundle.js` | 実行時に Playwright へ渡されるブラウザ内抽出バンドル |
+| `extraction/extract_notes.js` | ブラウザ内で実行されるスピーカーノート抽出 JavaScript |
+| `extraction/js/` | 抽出ロジックの分割ソース（entry/runs/paragraphs/blocks/handlers など） |
+| **`utils/`** | **ユーティリティパッケージ** |
+| `utils/common.py` | 単位変換・レイアウト・色処理 |
+| `utils/fonts.py` | CSS → PowerPoint フォントマッピング |
+| `utils/image.py` | 画像ソース解決ユーティリティ |
+| `utils/svg.py` | SVG の PNG ラスタライズ（`rasterize_svg_to_png()`） |
+| `utils/gradient.py` | CSS グラデーション解析・レンダリング |
+| `utils/async_helpers.py` | 非同期→同期ブリッジユーティリティ（`run_coroutine_sync()`） |
+| **`pptx_builder/`** | **PPTX 生成パッケージ** |
 | `pptx_builder/builder.py` | PPTX 生成のトップレベルオーケストレーション |
 | `pptx_builder/text.py` | テキスト・見出し・リスト・コードブロックのレンダリング |
 | `pptx_builder/text_grouping.py` | 隣接テキスト要素を共有テキストボックスにグループ化 |
-| `pptx_builder/image.py` | 画像シェイプの生成（SVG は `svg_utils.rasterize_svg_to_png()` で直接ラスタライズ） |
+| `pptx_builder/image.py` | 画像シェイプの生成（SVG は `utils.svg.rasterize_svg_to_png()` で直接ラスタライズ） |
 | `pptx_builder/table.py` | ネイティブテーブル生成（colspan / rowspan 対応） |
 | `pptx_builder/background.py` | 背景色・背景画像シェイプの生成 |
 | `pptx_builder/decoration.py` | 装飾シェイプの生成 |
 | `pptx_builder/directives.py` | ページ番号・ヘッダー・フッターの描画 |
 | `pptx_builder/_helpers.py` | 色処理ヘルパー（RGBA→RGB、オパシティ） |
-| `async_utils.py` | 非同期→同期ブリッジユーティリティ（`run_coroutine_sync()`） |
-| `fallback_renderer.py` | 非対応要素のスクリーンショットフォールバック |
-| `svg_utils.py` | SVG の PNG ラスタライズ（`rasterize_svg_to_png()`） |
-| `fonts.py` | CSS → PowerPoint フォントマッピング |
-| `image_utils.py` | 画像ソース解決ユーティリティ |
-| `utils.py` | 単位変換・レイアウト・色処理 |
 
 ## 依存パッケージ
 
@@ -193,7 +199,7 @@ uv run pytest
 - bundle を手で再生成したい場合は次を実行します
 
 ```bash
-cd src/marpx/extract_slides_js
+cd src/marpx/extraction/js
 npm run build
 ```
 

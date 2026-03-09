@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from marpx.marp_renderer import (
+from marpx.extraction.marp_renderer import (
     MarpRenderError,
     _inject_base_href,
     render_to_html,

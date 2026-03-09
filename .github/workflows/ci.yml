@@ -16,13 +16,13 @@ jobs:
         with:
           node-version: 20
       - name: Install bundle dependencies
-        working-directory: src/marpx/extract_slides_js
+        working-directory: src/marpx/extraction/js
         run: npm ci --no-audit --no-fund
       - name: Rebuild extract bundle
-        working-directory: src/marpx/extract_slides_js
+        working-directory: src/marpx/extraction/js
         run: npm run build
       - name: Verify extract bundle is up to date
-        run: git diff --exit-code -- src/marpx/extract_slides.bundle.js
+        run: git diff --exit-code -- src/marpx/extraction/extract_slides.bundle.js
 
   test:
     needs: bundle

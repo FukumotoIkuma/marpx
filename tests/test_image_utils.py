@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
-from marpx.image_utils import resolve_image_bytes
+from marpx.utils.image import resolve_image_bytes
 
 
 def _tiny_png_bytes() -> bytes:

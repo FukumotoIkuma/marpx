@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from marpx.extractor import extract_presentation_sync
-from marpx.marp_renderer import render_to_html
+from marpx.extraction.extractor import extract_presentation_sync
+from marpx.extraction.marp_renderer import render_to_html
 from marpx.models import ElementType
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"

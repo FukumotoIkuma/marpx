@@ -2,7 +2,7 @@
 
 import pytest
 
-from marpx.async_utils import run_coroutine_sync
+from marpx.utils.async_helpers import run_coroutine_sync
 
 
 async def _double(n: int) -> int:

@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 
 _JS_DIR = Path(__file__).parent
-_EXTRACT_BUNDLE_DIR = _JS_DIR / "extract_slides_js"
+_EXTRACT_BUNDLE_DIR = _JS_DIR / "js"
 _EXTRACT_BUNDLE_FILE = _JS_DIR / "extract_slides.bundle.js"
 
 
