@@ -286,8 +286,14 @@ class TestMathPreprocessor:
 
         md = "$$\\frac{1}{2}$$"
         result = preprocess_math_latex(md)
-        assert "data-latex=" in result
-        assert "$$" in result
+        assert "marpx-math-source" in result
+        assert 'data-latex="\\frac{1}{2}"' in result
+        assert 'style="display:none"' in result
+        # The $$ delimiters should remain on a separate line, unwrapped
+        lines = result.split("\n")
+        math_line = [ln for ln in lines if "$$" in ln and "marpx-math-source" not in ln]
+        assert len(math_line) == 1
+        assert "marpx-math" not in math_line[0]
 
     def test_code_block_skipped(self) -> None:
         from marpx.extraction.math_preprocessor import preprocess_math_latex
@@ -331,6 +337,47 @@ class TestMathPreprocessor:
         md = "$a$ and $b$"
         result = preprocess_math_latex(md)
         assert result.count("data-latex") == 2
+
+    def test_multiline_display_math_uses_sibling(self) -> None:
+        """Multi-line display math should use marpx-math-source sibling."""
+        from marpx.extraction.math_preprocessor import preprocess_math_latex
+
+        md = "$$\n\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}\n$$"
+        result = preprocess_math_latex(md)
+        # Should have marpx-math-source as a sibling, not wrapping
+        assert "marpx-math-source" in result
+        assert 'style="display:none"' in result
+        # The $$ delimiters should NOT be inside marpx-math tags
+        lines = result.split("\n")
+        dollar_lines = [ln for ln in lines if ln.strip() == "$$"]
+        assert len(dollar_lines) == 2  # opening and closing $$
+        # No wrapping marpx-math tag
+        assert "<marpx-math " not in result
+        assert "</marpx-math>" not in result
+
+    def test_single_line_display_math_uses_sibling(self) -> None:
+        """Single-line $$...$$ should also use marpx-math-source sibling."""
+        from marpx.extraction.math_preprocessor import preprocess_math_latex
+
+        md = "$$E=mc^2$$"
+        result = preprocess_math_latex(md)
+        assert "marpx-math-source" in result
+        assert "<marpx-math " not in result
+        assert "</marpx-math>" not in result
+        # The $$ content should be on its own line
+        lines = result.split("\n")
+        math_lines = [ln for ln in lines if "$$E=mc^2$$" in ln]
+        assert len(math_lines) == 1
+
+    def test_inline_math_still_uses_wrapping(self) -> None:
+        """Inline $...$ should still use wrapping marpx-math tag."""
+        from marpx.extraction.math_preprocessor import preprocess_math_latex
+
+        md = "Hello $x^2$ world"
+        result = preprocess_math_latex(md)
+        assert "<marpx-math " in result
+        assert "</marpx-math>" in result
+        assert "marpx-math-source" not in result
 
 
 # ---------------------------------------------------------------------------

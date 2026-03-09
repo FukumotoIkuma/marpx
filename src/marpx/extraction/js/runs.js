@@ -87,9 +87,16 @@
 
             if (includeMathRuns && node.tagName === 'MJX-CONTAINER') {
                 const latexWrapper = node.closest('[data-latex]');
-                const latexSource = latexWrapper
+                let latexSource = latexWrapper
                     ? latexWrapper.getAttribute('data-latex')
                     : (node.getAttribute('data-latex') || null);
+                if (!latexSource) {
+                    // Check for preceding marpx-math-source sibling (block math)
+                    const prev = node.previousElementSibling;
+                    if (prev && (prev.localName || prev.tagName).toLowerCase() === 'marpx-math-source' && prev.hasAttribute('data-latex')) {
+                        latexSource = prev.getAttribute('data-latex');
+                    }
+                }
                 const mathRun = {
                     runType: 'math',
                     latexSource: latexSource,

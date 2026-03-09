@@ -89,6 +89,11 @@ function _classifyParagraphDescendants(el, renderContext) {
         for (const child of node.children) {
             const tag = (child.localName || child.tagName).toLowerCase();
 
+            // Skip hidden marpx-math-source elements (block math LaTeX carrier)
+            if (tag === 'marpx-math-source') {
+                continue;
+            }
+
             // Priority 1: Math container — claim entire subtree
             if (tag === 'mjx-container' || (child.classList && child.classList.contains('MathJax'))) {
                 mathEls.push(child);
@@ -148,9 +153,18 @@ export function handleMath(el, slideRect, slideData, tag, parentContext = null) 
     const svg = el.querySelector('svg');
     const renderContext = _resolveRenderContext(el, parentContext);
 
-    // Extract LaTeX source from data-latex attribute on wrapper element
+    // Extract LaTeX source from data-latex attribute on wrapper or preceding sibling
+    let latexSource = null;
     const latexWrapper = el.closest('[data-latex]');
-    const latexSource = latexWrapper ? latexWrapper.getAttribute('data-latex') : null;
+    if (latexWrapper) {
+        latexSource = latexWrapper.getAttribute('data-latex');
+    } else {
+        // Check for preceding marpx-math-source sibling (block math)
+        const prev = el.previousElementSibling;
+        if (prev && (prev.localName || prev.tagName).toLowerCase() === 'marpx-math-source' && prev.hasAttribute('data-latex')) {
+            latexSource = prev.getAttribute('data-latex');
+        }
+    }
 
     slideData.elements.push({
         type: 'math',
@@ -478,7 +492,7 @@ export function handleTable(el, slideRect, slideData, renderContext, decoration)
     });
 }
 
-const SKIP_TAGS = new Set(['script', 'style', 'link', 'meta', 'header', 'footer']);
+const SKIP_TAGS = new Set(['script', 'style', 'link', 'meta', 'header', 'footer', 'marpx-math-source']);
 const HEADING_RE = /^h[1-6]$/;
 
 /**

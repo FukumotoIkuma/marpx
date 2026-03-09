@@ -1205,7 +1205,13 @@ function extractInlineRuns(el, options = {}) {
     }
     if (includeMathRuns && node.tagName === "MJX-CONTAINER") {
       const latexWrapper = node.closest("[data-latex]");
-      const latexSource = latexWrapper ? latexWrapper.getAttribute("data-latex") : node.getAttribute("data-latex") || null;
+      let latexSource = latexWrapper ? latexWrapper.getAttribute("data-latex") : node.getAttribute("data-latex") || null;
+      if (!latexSource) {
+        const prev = node.previousElementSibling;
+        if (prev && (prev.localName || prev.tagName).toLowerCase() === "marpx-math-source" && prev.hasAttribute("data-latex")) {
+          latexSource = prev.getAttribute("data-latex");
+        }
+      }
       const mathRun = {
         runType: "math",
         latexSource,
@@ -1922,6 +1928,9 @@ function _classifyParagraphDescendants(el, renderContext) {
   function walk(node) {
     for (const child of node.children) {
       const tag = (child.localName || child.tagName).toLowerCase();
+      if (tag === "marpx-math-source") {
+        continue;
+      }
       if (tag === "mjx-container" || child.classList && child.classList.contains("MathJax")) {
         mathEls.push(child);
         continue;
@@ -1965,8 +1974,16 @@ function handleUnsupported(el, slideRect, slideData, unsup, parentContext = null
 function handleMath(el, slideRect, slideData, tag, parentContext = null) {
   const svg = el.querySelector("svg");
   const renderContext = _resolveRenderContext(el, parentContext);
+  let latexSource = null;
   const latexWrapper = el.closest("[data-latex]");
-  const latexSource = latexWrapper ? latexWrapper.getAttribute("data-latex") : null;
+  if (latexWrapper) {
+    latexSource = latexWrapper.getAttribute("data-latex");
+  } else {
+    const prev = el.previousElementSibling;
+    if (prev && (prev.localName || prev.tagName).toLowerCase() === "marpx-math-source" && prev.hasAttribute("data-latex")) {
+      latexSource = prev.getAttribute("data-latex");
+    }
+  }
   slideData.elements.push({
     type: "math",
     box: getBox(el, slideRect, renderContext),
@@ -2249,7 +2266,7 @@ function handleTable(el, slideRect, slideData, renderContext, decoration) {
     perspectivePx: renderContext.effectivePerspectivePx
   });
 }
-var SKIP_TAGS = /* @__PURE__ */ new Set(["script", "style", "link", "meta", "header", "footer"]);
+var SKIP_TAGS = /* @__PURE__ */ new Set(["script", "style", "link", "meta", "header", "footer", "marpx-math-source"]);
 var HEADING_RE = /^h[1-6]$/;
 var preContextDispatch = [
   {
