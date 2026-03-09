@@ -107,6 +107,15 @@ def convert(
             for i, element in enumerate(slide.elements):
                 decision = decisions.get(i) or classify_element(element)
                 element.capability = decision.capability.value
+                if decision.reason:
+                    logger.debug(
+                        "Slide %d, element %d (%s): %s — %s",
+                        slide.slide_number,
+                        i,
+                        element.element_type.value,
+                        decision.capability.value,
+                        decision.reason,
+                    )
 
             if should_fallback_slide(slide):
                 logger.info(
