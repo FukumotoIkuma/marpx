@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import logging
 
 from lxml import etree
@@ -10,8 +11,8 @@ from pptx.oxml.ns import qn
 from pptx.util import Emu
 
 from marpx.models import Box, BoxDecoration, ClipPath
-from marpx.utils.common import px_to_emu
-from marpx.utils.gradient import parse_linear_gradient
+from marpx.utils.common import emu_to_px, px_to_emu
+from marpx.utils.gradient import parse_linear_gradient, render_gradient_png
 
 from .._helpers import (
     _build_gradient_fill_xml,
@@ -224,7 +225,7 @@ def _create_background_shape(
             _remove_theme_style(bg_shape)
             # Apply fill to polygon shape
             if decoration.background_gradient and _set_shape_gradient_fill(
-                bg_shape, decoration.background_gradient
+                bg_shape, decoration.background_gradient, slide=slide
             ):
                 pass  # gradient applied
             elif decoration.background_color and decoration.opacity > 0:
@@ -250,7 +251,7 @@ def _create_background_shape(
         _replace_with_round_rect_custgeom(bg_shape, w_emu, h_emu, r_emu)
 
     if decoration.background_gradient and not _set_shape_gradient_fill(
-        bg_shape, decoration.background_gradient
+        bg_shape, decoration.background_gradient, slide=slide
     ):
         fill = bg_shape.fill
         if decoration.background_color and decoration.opacity > 0:
@@ -272,17 +273,76 @@ def _create_background_shape(
     return bg_shape
 
 
-def _set_shape_gradient_fill(shape, css_gradient: str) -> bool:
-    """Apply a linear gradient fill directly to a shape spPr node."""
+def _set_shape_gradient_fill(shape, css_gradient: str, slide=None) -> bool:
+    """Apply a gradient fill to a shape.
+
+    Tries native OOXML linear gradient first.  When that is not possible
+    (e.g. radial-gradient), falls back to rasterising the gradient to a
+    PNG and applying it as a picture (blipFill) on the shape.
+
+    Parameters
+    ----------
+    shape:
+        A python-pptx shape object whose ``_element.spPr`` will be modified.
+    css_gradient:
+        The raw CSS gradient string (e.g. ``"radial-gradient(red, blue)"``).
+    slide:
+        The python-pptx slide object, required for the PNG fallback path
+        so that the image can be registered as a relationship.
+    """
     parsed = parse_linear_gradient(css_gradient)
-    if parsed is None:
+    if parsed is not None:
+        sp_pr = shape._element.spPr
+        _remove_existing_fills(sp_pr)
+        _build_gradient_fill_xml(sp_pr, parsed)
+        return True
+
+    # --- PNG rasterization fallback for non-linear gradients ----------
+    if slide is None:
+        logger.debug(
+            "Cannot apply non-linear gradient without slide reference: %s",
+            css_gradient,
+        )
         return False
+
+    # Derive pixel dimensions from the shape's extent
+    xfrm = shape._element.spPr.find(qn("a:xfrm"))
+    if xfrm is None:
+        return False
+    ext = xfrm.find(qn("a:ext"))
+    if ext is None:
+        return False
+    w_emu = int(ext.get("cx", "0"))
+    h_emu = int(ext.get("cy", "0"))
+    if w_emu <= 0 or h_emu <= 0:
+        return False
+
+    width_px = max(int(round(emu_to_px(w_emu))), 1)
+    height_px = max(int(round(emu_to_px(h_emu))), 1)
+
+    png_bytes = render_gradient_png(css_gradient, width_px, height_px)
+    if png_bytes is None:
+        return False
+
+    _apply_picture_fill(shape, slide, png_bytes)
+    return True
+
+
+def _apply_picture_fill(shape, slide, png_bytes: bytes) -> None:
+    """Replace a shape's fill with a picture (blipFill) from PNG bytes."""
+    # Register the image with the slide's part to get a relationship ID
+    slide_part = slide.part
+    image_part, r_id = slide_part.get_or_add_image_part(io.BytesIO(png_bytes))
 
     sp_pr = shape._element.spPr
     _remove_existing_fills(sp_pr)
 
-    _build_gradient_fill_xml(sp_pr, parsed)
-    return True
+    blip_fill = etree.SubElement(sp_pr, qn("a:blipFill"))
+    blip_fill.set("rotWithShape", "1")
+    blip = etree.SubElement(blip_fill, qn("a:blip"))
+    blip.set(qn("r:embed"), r_id)
+    stretch = etree.SubElement(blip_fill, qn("a:stretch"))
+    etree.SubElement(stretch, qn("a:fillRect"))
 
 
 def _remove_theme_style(shape) -> None:

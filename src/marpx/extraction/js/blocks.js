@@ -270,7 +270,8 @@ export function shouldDecomposeDecoratedBlock(el) {
             cs.backgroundImage &&
             cs.backgroundImage !== 'none' &&
             cs.backgroundImage.includes('gradient') &&
-            !cs.backgroundImage.includes('linear-gradient(')
+            !cs.backgroundImage.includes('linear-gradient(') &&
+            !cs.backgroundImage.includes('radial-gradient(')
         ) {
             return { reason: 'Unsupported gradient background', tagName: tag };
         }
