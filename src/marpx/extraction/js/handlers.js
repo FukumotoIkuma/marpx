@@ -288,7 +288,7 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
         }
     }
 
-    // Build paragraph text (with hidden placeholders for standalone children)
+    // Build paragraph text (with math runs and hidden placeholders for standalone decorated children)
     const hasStandalone = mathEls.length > 0 || decoratedEls.length > 0 || unsupportedEls.length > 0;
     slideData.elements.push(
         buildTextElement(el, slideRect, 'paragraph', {

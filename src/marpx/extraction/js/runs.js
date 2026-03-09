@@ -25,7 +25,7 @@
             trimBoundary = true,
             includeRootPseudo = false,
             isStandaloneDecoratedFn = null,
-            includeMathPlaceholders = false,
+            includeMathRuns = false,
             renderContext = null,
         } = options;
         const runs = [];
@@ -51,23 +51,6 @@
             for (const run of pseudoRuns) {
                 pushRun(run.text, el, run.linkUrl, run.style, rootContext);
             }
-        }
-
-        function buildMathPlaceholderRun(node, styleEl, linkUrl, currentContext) {
-            const placeholderText = _buildMathPlaceholderText(node, styleEl, currentContext);
-            if (!placeholderText) return null;
-            const style = _hiddenRunStyle(
-                styleToRunStyle(
-                    window.getComputedStyle(styleEl),
-                    styleEl,
-                    currentContext,
-                )
-            );
-            return {
-                text: placeholderText,
-                style,
-                linkUrl,
-            };
         }
 
         function visit(node, styleEl, linkUrl = null, currentContext = rootContext) {
@@ -100,7 +83,7 @@
                 return;
             }
 
-            if (includeMathPlaceholders && node.tagName === 'MJX-CONTAINER') {
+            if (includeMathRuns && node.tagName === 'MJX-CONTAINER') {
                 const latexWrapper = node.closest('[data-latex]');
                 const latexSource = latexWrapper
                     ? latexWrapper.getAttribute('data-latex')
@@ -178,11 +161,11 @@
 export function extractTextRunsWithPseudo(
     el,
     renderContext = null,
-    includeMathPlaceholders = false,
+    includeMathRuns = false,
 ) {
     return extractInlineRuns(el, {
         includeRootPseudo: true,
-        includeMathPlaceholders,
+        includeMathRuns,
         renderContext,
     });
 }
@@ -193,30 +176,6 @@ export function extractTextRunsWithPseudo(
             color: 'rgba(0, 0, 0, 0)',
             backgroundColor: 'transparent',
         };
-    }
-
-    function _buildMathPlaceholderText(node, styleEl, renderContext = null) {
-        const box = node.getBoundingClientRect();
-        const cs = window.getComputedStyle(styleEl);
-        const renderCtx = renderContext || deriveRenderContext(styleEl);
-        const fontSizePx = (parseFloat(cs.fontSize) || 16) * (
-            (renderCtx.effectiveScaleX + renderCtx.effectiveScaleY) / 2
-        );
-        const canvas = _getMeasurementCanvas();
-        const measureCtx = canvas.getContext('2d');
-        if (!measureCtx) return 'M';
-        measureCtx.font = `${cs.fontStyle || 'normal'} ${cs.fontWeight || '400'} ${fontSizePx}px ${cs.fontFamily || 'Arial'}`;
-        const charWidth = Math.max(measureCtx.measureText('M').width, fontSizePx * 0.5, 1);
-        const count = Math.max(1, Math.ceil(box.width / charWidth));
-        return 'M'.repeat(count);
-    }
-
-    let _measurementCanvas = null;
-
-    function _getMeasurementCanvas() {
-        if (_measurementCanvas) return _measurementCanvas;
-        _measurementCanvas = document.createElement('canvas');
-        return _measurementCanvas;
     }
 
     export function trimBoundaryWhitespace(runs) {
