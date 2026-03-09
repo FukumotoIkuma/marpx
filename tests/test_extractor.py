@@ -1795,3 +1795,36 @@ class TestTextShadowExtraction:
             f"Expected text_shadows to be None for no-shadow span, "
             f"got {run.style.text_shadows!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Regression: CSS animations must not affect extraction
+# ---------------------------------------------------------------------------
+
+
+def test_animated_filter_not_classified_as_unsupported(
+    session_output_dir: Path,
+):
+    """Elements with CSS animations (e.g. filter: blur()) must not fall back.
+
+    Before the fix, Playwright could capture mid-flight computed styles like
+    ``filter: blur(0.008px)`` which caused the element to be classified as
+    UNSUPPORTED and rendered as a screenshot instead of native PPTX elements.
+
+    The fix injects a style tag that disables all CSS animations/transitions
+    before DOM extraction so computed styles reflect their static values.
+    """
+    html_path = render_to_html(
+        FIXTURES_DIR / "animated-filter.md", output_dir=session_output_dir
+    )
+    pres = extract_presentation_sync(html_path)
+    slide = pres.slides[0]
+
+    unsupported = [
+        e for e in slide.elements if e.element_type == ElementType.UNSUPPORTED
+    ]
+    assert len(unsupported) == 0, (
+        f"Expected no UNSUPPORTED elements (animations should be frozen), "
+        f"but found {len(unsupported)}: "
+        f"{[getattr(e, 'unsupported_info', None) for e in unsupported]}"
+    )
