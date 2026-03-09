@@ -1433,7 +1433,7 @@ var NON_DECORATED_BLOCK_TAGS = /* @__PURE__ */ new Set([
   "footer"
 ]);
 var DECOMPOSE_TRIGGER_TAGS = /* @__PURE__ */ new Set(["table", "img", "pre", "marp-pre"]);
-var DECOMPOSE_TRIGGER_SELECTOR = "table, img, pre, marp-pre";
+var DECOMPOSE_TRIGGER_SELECTOR = [...DECOMPOSE_TRIGGER_TAGS].join(", ");
 var METADATA_TAGS = /* @__PURE__ */ new Set(["script", "style", "link", "meta"]);
 var VISUAL_CONTENT_TAGS = /* @__PURE__ */ new Set(["img", "table", "svg", "canvas", "video", "iframe"]);
 var UNSUPPORTED_ELEMENT_TAGS = /* @__PURE__ */ new Set(["svg", "math", "canvas"]);
@@ -1472,13 +1472,7 @@ function shouldDecomposeDecoratedBlock(el) {
     if (shouldExtractStandaloneDecoratedText(node, decoration)) return true;
     if (isDecoratedBlockContainer(node) && hasMeaningfulDecoration(decoration) && (extractParagraphsFromContainer(node, deriveRenderContext(node)).length > 0 || node.children.length === 0)) return true;
   }
-  return Array.from(el.children).some(
-    (child) => shouldExtractStandaloneDecoratedText(child, extractDecoration(child)) || isDecoratedBlockContainer(child) && hasMeaningfulDecoration(
-      extractDecoration(child, deriveRenderContext(child))
-    ) || !!isUnsupported(child) || DECOMPOSE_TRIGGER_TAGS.has(
-      (child.localName || child.tagName).toLowerCase()
-    ) || !!child.querySelector(DECOMPOSE_TRIGGER_SELECTOR)
-  );
+  return false;
 }
 function extractListItems(listEl, level, renderContext = null) {
   const items = [];

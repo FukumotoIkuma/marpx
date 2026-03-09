@@ -19,7 +19,7 @@ const NON_DECORATED_BLOCK_TAGS = new Set([
 const DECOMPOSE_TRIGGER_TAGS = new Set(['table', 'img', 'pre', 'marp-pre']);
 
 /** CSS selector matching DECOMPOSE_TRIGGER_TAGS (for querySelector). */
-const DECOMPOSE_TRIGGER_SELECTOR = 'table, img, pre, marp-pre';
+const DECOMPOSE_TRIGGER_SELECTOR = [...DECOMPOSE_TRIGGER_TAGS].join(', ');
 
 /** Tags that are metadata/invisible and should be skipped during clipping checks. */
 const METADATA_TAGS = new Set(['script', 'style', 'link', 'meta']);
@@ -91,20 +91,7 @@ export function shouldDecomposeDecoratedBlock(el) {
             )
         ) return true;
     }
-    return Array.from(el.children).some((child) =>
-        shouldExtractStandaloneDecoratedText(child, extractDecoration(child)) ||
-        (
-            isDecoratedBlockContainer(child) &&
-            hasMeaningfulDecoration(
-                    extractDecoration(child, deriveRenderContext(child))
-                )
-            ) ||
-            !!isUnsupported(child) ||
-            DECOMPOSE_TRIGGER_TAGS.has(
-                (child.localName || child.tagName).toLowerCase()
-            ) ||
-            !!child.querySelector(DECOMPOSE_TRIGGER_SELECTOR)
-        );
+    return false;
     }
 
     export function extractListItems(listEl, level, renderContext = null) {
