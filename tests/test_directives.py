@@ -18,6 +18,7 @@ from marpx.models import (
     Presentation,
     Slide,
     SlideElement,
+    TextElement,
     TextRun,
     TextStyle,
 )
@@ -32,7 +33,7 @@ from marpx.utils import px_to_emu
 
 
 def _make_heading(text: str, level: int = 1) -> SlideElement:
-    return SlideElement(
+    return TextElement(
         element_type=ElementType.HEADING,
         box=Box(x=50, y=20, width=600, height=60),
         heading_level=level,

@@ -9,7 +9,18 @@ from pathlib import Path
 from pptx import Presentation as PptxPresentation
 from pptx.util import Emu
 
-from marpx.models import Background, ElementType, Presentation
+from marpx.models import (
+    Background,
+    CodeBlockElement,
+    ImageElement,
+    ListElement,
+    Presentation,
+    TableElement,
+    TextElement,
+    UnsupportedElement,
+)
+from marpx.capabilities import Capability
+from marpx.pipeline import SlideRenderInfo
 from marpx.utils import px_to_emu
 
 from ._helpers import _set_fill_color
@@ -54,16 +65,24 @@ def _set_slide_background(
         _set_fill_color(fill, background.color)
 
 
-def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
+def build_pptx(
+    presentation: Presentation,
+    output_path: str | Path,
+    slide_render_info: dict[int, SlideRenderInfo] | None = None,
+) -> Path:
     """Build a PPTX file from a Presentation model.
 
     Args:
         presentation: Normalized presentation data.
         output_path: Path for the output .pptx file.
+        slide_render_info: Rendering decisions from the pipeline.
 
     Returns:
         Path to the generated PPTX file.
     """
+    if slide_render_info is None:
+        slide_render_info = {}
+
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -81,17 +100,17 @@ def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
         pptx.slide_width = Emu(px_to_emu(first_slide.width_px))
         pptx.slide_height = Emu(px_to_emu(first_slide.height_px))
 
-    for slide_data in presentation.slides:
+    for slide_idx, slide_data in enumerate(presentation.slides):
+        s_info = slide_render_info.get(slide_idx, SlideRenderInfo())
+
         # Add blank slide
         layout = pptx.slide_layouts[6]  # Blank layout
         pptx_slide = pptx.slides.add_slide(layout)
 
         # Handle full-slide fallback
-        is_full_slide_fallback = bool(
-            slide_data.is_fallback and slide_data.fallback_image_path
-        )
+        is_full_slide_fallback = bool(s_info.is_fallback and s_info.fallback_image_path)
         if is_full_slide_fallback:
-            img_path = Path(slide_data.fallback_image_path)
+            img_path = Path(s_info.fallback_image_path)
             if img_path.exists():
                 pptx_slide.shapes.add_picture(
                     str(img_path),
@@ -129,6 +148,9 @@ def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
 
             # Add elements sorted by z-index, grouping adjacent plain text content
             skipped_count = 0
+            _element_to_idx = {
+                id(el): idx for idx, el in enumerate(slide_data.elements)
+            }
             sorted_elements = sorted(slide_data.elements, key=lambda e: e.z_index)
             for group in _group_adjacent_text_elements(sorted_elements):
                 if len(group) > 1 and all(
@@ -138,38 +160,32 @@ def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
                     continue
 
                 element = group[0]
+                # Look up element render info for capability-driven dispatch
+                el_idx = _element_to_idx.get(id(element))
+                el_info = (
+                    s_info.element_info.get(el_idx) if el_idx is not None else None
+                )
+
                 try:
-                    # Capability-driven dispatch.
-                    # When capability is set (by the converter pipeline) it is
-                    # authoritative.  When capability is None the element was
-                    # not classified (e.g. created directly in tests or via an
-                    # older pipeline version), so we fall back to the legacy
-                    # element_type-based routing for backward compatibility.
-                    if element.capability == "subtree_fallback":
-                        _add_fallback_image(pptx_slide, element)
-                    elif element.capability == "native" or element.capability is None:
-                        # native path (or legacy unclassified path)
-                        if element.element_type in (
-                            ElementType.HEADING,
-                            ElementType.PARAGRAPH,
-                            ElementType.BLOCKQUOTE,
-                            ElementType.DECORATED_BLOCK,
-                            ElementType.UNORDERED_LIST,
-                            ElementType.ORDERED_LIST,
-                        ):
-                            _add_textbox(pptx_slide, element)
-                        elif element.element_type == ElementType.IMAGE:
-                            _add_image(pptx_slide, element)
-                        elif element.element_type == ElementType.TABLE:
-                            _add_table(pptx_slide, element)
-                        elif element.element_type == ElementType.CODE_BLOCK:
-                            _add_code_block(pptx_slide, element)
-                        elif element.element_type in (
-                            ElementType.UNSUPPORTED,
-                            ElementType.MATH,
-                        ):
-                            # Capability was None but element_type signals fallback
-                            _add_fallback_image(pptx_slide, element)
+                    # Check if this element should be rendered as fallback
+                    if (
+                        el_info is not None
+                        and el_info.capability == Capability.SUBTREE_FALLBACK
+                    ):
+                        _add_fallback_image(
+                            pptx_slide, element, el_info.fallback_image_path
+                        )
+                    elif isinstance(element, (TextElement, ListElement)):
+                        _add_textbox(pptx_slide, element)
+                    elif isinstance(element, ImageElement):
+                        _add_image(pptx_slide, element)
+                    elif isinstance(element, TableElement):
+                        _add_table(pptx_slide, element)
+                    elif isinstance(element, CodeBlockElement):
+                        _add_code_block(pptx_slide, element)
+                    elif isinstance(element, UnsupportedElement):
+                        fallback_path = el_info.fallback_image_path if el_info else None
+                        _add_fallback_image(pptx_slide, element, fallback_path)
                 except MissingDependencyError:
                     raise
                 except Exception as e:
@@ -182,10 +198,9 @@ def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
                     skipped_count += 1
 
             if skipped_count:
-                slide_index = presentation.slides.index(slide_data)
                 logger.info(
                     "Slide %d: skipped %d element(s)",
-                    slide_index + 1,
+                    slide_idx + 1,
                     skipped_count,
                 )
 

@@ -18,7 +18,10 @@ from marpx.models import (
     BoxShadow,
     BoxPadding,
     ClipPath,
+    CodeBlockElement,
     ElementType,
+    ImageElement,
+    ListElement,
     ListItem,
     Paragraph,
     Presentation,
@@ -27,11 +30,16 @@ from marpx.models import (
     Slide,
     SlideElement,
     TableCell,
+    TableElement,
     TableRow,
+    TextElement,
     TextRun,
     TextStyle,
+    UnsupportedElement,
     UnsupportedInfo,
 )
+from marpx.capabilities import Capability
+from marpx.pipeline import ElementRenderInfo, SlideRenderInfo
 from marpx.pptx_builder.builder import build_pptx
 from marpx.pptx_builder.image import MissingDependencyError, _resolve_image_placement
 from marpx.pptx_builder.scene3d import fit_scene3d_rotations
@@ -44,7 +52,7 @@ from marpx.utils import px_to_emu
 
 
 def _make_heading(text: str, level: int = 1) -> SlideElement:
-    return SlideElement(
+    return TextElement(
         element_type=ElementType.HEADING,
         box=Box(x=50, y=20, width=600, height=60),
         heading_level=level,
@@ -58,7 +66,7 @@ def _make_heading(text: str, level: int = 1) -> SlideElement:
 
 
 def _make_paragraph(text: str) -> SlideElement:
-    return SlideElement(
+    return TextElement(
         element_type=ElementType.PARAGRAPH,
         box=Box(x=50, y=100, width=600, height=40),
         paragraphs=[Paragraph(runs=[TextRun(text=text)], alignment="left")],
@@ -67,7 +75,7 @@ def _make_paragraph(text: str) -> SlideElement:
 
 def _make_list(items: list[tuple[str, int]], ordered: bool = False) -> SlideElement:
     etype = ElementType.ORDERED_LIST if ordered else ElementType.UNORDERED_LIST
-    return SlideElement(
+    return ListElement(
         element_type=etype,
         box=Box(x=50, y=160, width=600, height=200),
         list_items=[
@@ -92,7 +100,7 @@ def _make_table(rows_data: list[list[str]], has_header: bool = True) -> SlideEle
             for cell_text in row
         ]
         table_rows.append(TableRow(cells=cells))
-    return SlideElement(
+    return TableElement(
         element_type=ElementType.TABLE,
         box=Box(x=50, y=100, width=600, height=300),
         table_rows=table_rows,
@@ -105,7 +113,7 @@ def _make_code_block(
     decoration: BoxDecoration | None = None,
 ) -> SlideElement:
     box = Box(x=50, y=100, width=600, height=150)
-    return SlideElement(
+    return CodeBlockElement(
         element_type=ElementType.CODE_BLOCK,
         box=box,
         content_box=_content_box_from_decoration(box, decoration)
@@ -147,7 +155,7 @@ def _make_decorated_block(text: str) -> SlideElement:
         padding=BoxPadding(top_px=12, right_px=16, bottom_px=12, left_px=16),
         border_radius_px=4,
     )
-    return SlideElement(
+    return TextElement(
         element_type=ElementType.DECORATED_BLOCK,
         box=box,
         content_box=_content_box_from_decoration(box, decoration),
@@ -168,7 +176,7 @@ def _make_decorated_list_block() -> SlideElement:
         padding=BoxPadding(top_px=12, right_px=16, bottom_px=12, left_px=16),
         border_radius_px=4,
     )
-    return SlideElement(
+    return TextElement(
         element_type=ElementType.DECORATED_BLOCK,
         box=box,
         content_box=_content_box_from_decoration(box, decoration),
@@ -282,7 +290,7 @@ class TestTextboxContent:
         assert any("Hello World" in t for t in texts)
 
     def test_strikethrough_run_is_emitted(self, tmp_path: Path) -> None:
-        element = SlideElement(
+        element = TextElement(
             element_type=ElementType.PARAGRAPH,
             box=Box(x=50, y=100, width=600, height=40),
             paragraphs=[
@@ -307,7 +315,7 @@ class TestTextboxContent:
         assert 'strike="sngStrike"' in run._r.xml
 
     def test_gradient_text_run_emits_grad_fill(self, tmp_path: Path) -> None:
-        element = SlideElement(
+        element = TextElement(
             element_type=ElementType.PARAGRAPH,
             box=Box(x=50, y=100, width=600, height=80),
             paragraphs=[
@@ -341,7 +349,7 @@ class TestTextboxContent:
         assert run._r.xml.index("a:gradFill") < run._r.xml.index("a:latin")
 
     def test_middle_vertical_align_sets_center_anchor(self, tmp_path: Path) -> None:
-        element = SlideElement(
+        element = TextElement(
             element_type=ElementType.DECORATED_BLOCK,
             box=Box(x=50, y=100, width=32, height=32),
             content_box=Box(x=50, y=100, width=32, height=32),
@@ -386,7 +394,7 @@ class TestTextboxContent:
                     width_px=1280,
                     height_px=720,
                     elements=[
-                        SlideElement(
+                        TextElement(
                             element_type=ElementType.PARAGRAPH,
                             box=Box(x=50, y=100, width=600, height=40),
                             paragraphs=[
@@ -426,7 +434,7 @@ class TestTextboxContent:
                     width_px=1280,
                     height_px=720,
                     elements=[
-                        SlideElement(
+                        TextElement(
                             element_type=ElementType.PARAGRAPH,
                             box=Box(x=50, y=100, width=600, height=40),
                             paragraphs=[
@@ -506,7 +514,7 @@ class TestShapeCount:
                     width_px=1280,
                     height_px=720,
                     elements=[
-                        SlideElement(
+                        TextElement(
                             element_type=ElementType.DECORATED_BLOCK,
                             box=Box(x=50, y=100, width=300, height=120),
                             paragraphs=[],
@@ -515,7 +523,7 @@ class TestShapeCount:
                                 border_radius_px=16,
                             ),
                         ),
-                        SlideElement(
+                        TextElement(
                             element_type=ElementType.PARAGRAPH,
                             box=Box(x=80, y=140, width=200, height=40),
                             paragraphs=[Paragraph(runs=[TextRun(text="Body")])],
@@ -537,7 +545,7 @@ class TestShapeCount:
                     width_px=1280,
                     height_px=720,
                     elements=[
-                        SlideElement(
+                        TextElement(
                             element_type=ElementType.DECORATED_BLOCK,
                             box=Box(x=50, y=100, width=200, height=100),
                             paragraphs=[],
@@ -565,19 +573,19 @@ class TestShapeCount:
                     width_px=1280,
                     height_px=720,
                     elements=[
-                        SlideElement(
+                        TextElement(
                             element_type=ElementType.HEADING,
                             box=Box(x=72, y=100, width=1136, height=44),
                             heading_level=2,
                             paragraphs=[Paragraph(runs=[TextRun(text="Split Layout")])],
                         ),
-                        SlideElement(
+                        TextElement(
                             element_type=ElementType.HEADING,
                             box=Box(x=72, y=185, width=535, height=30),
                             heading_level=3,
                             paragraphs=[Paragraph(runs=[TextRun(text="Text Region")])],
                         ),
-                        SlideElement(
+                        ListElement(
                             element_type=ElementType.UNORDERED_LIST,
                             box=Box(x=72, y=231, width=535, height=160),
                             list_items=[
@@ -608,7 +616,7 @@ class TestShapeCount:
     def test_nested_list_preserves_marker_styles_and_spacing(
         self, tmp_path: Path
     ) -> None:
-        list_element = SlideElement(
+        list_element = ListElement(
             element_type=ElementType.ORDERED_LIST,
             box=Box(x=50, y=160, width=600, height=260),
             list_items=[
@@ -632,7 +640,7 @@ class TestShapeCount:
                 ),
             ],
         )
-        bullet_element = SlideElement(
+        bullet_element = ListElement(
             element_type=ElementType.UNORDERED_LIST,
             box=Box(x=680, y=160, width=300, height=220),
             list_items=[
@@ -681,7 +689,7 @@ class TestShapeCount:
     def test_checklist_items_disable_ppt_bullet_when_list_style_is_none(
         self, tmp_path: Path
     ) -> None:
-        checklist = SlideElement(
+        checklist = ListElement(
             element_type=ElementType.UNORDERED_LIST,
             box=Box(x=50, y=160, width=600, height=180),
             list_items=[
@@ -844,7 +852,7 @@ class TestShapeCount:
             padding=BoxPadding(top_px=12, right_px=16, bottom_px=12, left_px=16),
             border_radius_px=14,
         )
-        element = SlideElement(
+        element = TextElement(
             element_type=ElementType.DECORATED_BLOCK,
             box=box,
             content_box=_content_box_from_decoration(box, decoration),
@@ -899,7 +907,7 @@ class TestShapeCount:
             padding=BoxPadding(top_px=12, right_px=16, bottom_px=12, left_px=16),
             border_radius_px=4,
         )
-        element = SlideElement(
+        element = TextElement(
             element_type=ElementType.DECORATED_BLOCK,
             box=box,
             content_box=_content_box_from_decoration(box, decoration),
@@ -956,7 +964,7 @@ class TestShapeCount:
             ),
             opacity=0.5,
         )
-        element = SlideElement(
+        element = TextElement(
             element_type=ElementType.DECORATED_BLOCK,
             box=box,
             content_box=_content_box_from_decoration(box, decoration),
@@ -987,7 +995,7 @@ class TestShapeCount:
             background_gradient="linear-gradient(135deg, rgba(255, 0, 0, 0.5), rgba(0, 0, 255, 0.5))",
             border_radius_px=12,
         )
-        element = SlideElement(
+        element = TextElement(
             element_type=ElementType.DECORATED_BLOCK,
             box=box,
             content_box=_content_box_from_decoration(box, decoration),
@@ -1020,7 +1028,7 @@ class TestShapeCount:
         decoration = BoxDecoration(
             background_gradient="linear-gradient(90deg, #ff0000, #0000ff)",
         )
-        element = SlideElement(
+        element = TextElement(
             element_type=ElementType.DECORATED_BLOCK,
             box=box,
             content_box=box,
@@ -1051,7 +1059,7 @@ class TestShapeCount:
                 )
             ],
         )
-        element = SlideElement(
+        element = TextElement(
             element_type=ElementType.DECORATED_BLOCK,
             box=box,
             content_box=_content_box_from_decoration(box, decoration),
@@ -1089,7 +1097,7 @@ class TestShapeCount:
                 )
             ],
         )
-        element = SlideElement(
+        element = TextElement(
             element_type=ElementType.DECORATED_BLOCK,
             box=box,
             content_box=box,
@@ -1126,7 +1134,7 @@ class TestShapeCount:
                 )
             ],
         )
-        element = SlideElement(
+        element = TextElement(
             element_type=ElementType.DECORATED_BLOCK,
             box=box,
             content_box=_content_box_from_decoration(box, decoration),
@@ -1163,7 +1171,7 @@ class TestShapeCount:
             ),
             padding=BoxPadding(left_px=16),
         )
-        element = SlideElement(
+        element = TextElement(
             element_type=ElementType.BLOCKQUOTE,
             box=box,
             content_box=_content_box_from_decoration(box, decoration),
@@ -1198,20 +1206,33 @@ class TestShapeCount:
             b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0"
             b"\x00\x00\x03\x01\x01\x00\xc9\xfe\x92\xef\x00\x00\x00\x00IEND\xaeB`\x82"
         )
-        math_element = SlideElement(
+        math_element = UnsupportedElement(
             element_type=ElementType.MATH,
             box=Box(x=50, y=50, width=100, height=40),
             unsupported_info=UnsupportedInfo(
                 reason="Math expression",
                 tag_name="mjx-container",
-                fallback_image_path=str(fallback_image),
             ),
         )
         pres = Presentation(
             slides=[Slide(width_px=1280, height_px=720, elements=[math_element])]
         )
 
-        pptx = _build_and_read(pres, tmp_path)
+        # Use slide_render_info to provide the fallback image path
+        slide_render_info = {
+            0: SlideRenderInfo(
+                element_info={
+                    0: ElementRenderInfo(
+                        capability=Capability.SUBTREE_FALLBACK,
+                        fallback_image_path=str(fallback_image),
+                    ),
+                },
+            ),
+        }
+
+        out = tmp_path / "out.pptx"
+        build_pptx(pres, out, slide_render_info=slide_render_info)
+        pptx = PptxPresentation(str(out))
         slide = pptx.slides[0]
         assert len(slide.shapes) == 1
         assert slide.shapes[0].shape_type is not None
@@ -1315,7 +1336,7 @@ class TestTableBuilding:
                 assert "Alpha" in cell_text
 
     def test_table_preserves_extracted_column_widths(self, tmp_path: Path) -> None:
-        element = SlideElement(
+        element = TableElement(
             element_type=ElementType.TABLE,
             box=Box(x=72, y=100, width=1136, height=160),
             table_rows=[
@@ -1371,7 +1392,7 @@ class TestTableBuilding:
     def test_table_cell_emits_gradient_fill_padding_and_border(
         self, tmp_path: Path
     ) -> None:
-        element = SlideElement(
+        element = TableElement(
             element_type=ElementType.TABLE,
             box=Box(x=72, y=100, width=400, height=120),
             table_rows=[
@@ -1531,7 +1552,7 @@ class TestDecorationRendering:
     def test_non_uniform_bottom_border_renders_as_separate_shape(
         self, tmp_path: Path
     ) -> None:
-        element = SlideElement(
+        element = TextElement(
             element_type=ElementType.DECORATED_BLOCK,
             box=Box(x=50, y=100, width=300, height=40),
             paragraphs=[],
@@ -1562,7 +1583,7 @@ class TestImagePlacement:
     """Verify CSS object-fit placement."""
 
     def test_contain_fit_preserves_aspect_ratio(self) -> None:
-        element = SlideElement(
+        element = ImageElement(
             element_type=ElementType.IMAGE,
             box=Box(x=10, y=20, width=240, height=120),
             image_src="data:image/png;base64,abc",
@@ -1595,7 +1616,7 @@ class TestImageRendering:
                     width_px=1280,
                     height_px=720,
                     elements=[
-                        SlideElement(
+                        ImageElement(
                             element_type=ElementType.IMAGE,
                             box=Box(x=10, y=20, width=240, height=120),
                             image_src=image_path.as_uri(),
@@ -1623,7 +1644,7 @@ class TestImageRendering:
                     width_px=1280,
                     height_px=720,
                     elements=[
-                        SlideElement(
+                        ImageElement(
                             element_type=ElementType.IMAGE,
                             box=Box(x=10, y=20, width=240, height=120),
                             image_src=image_path.as_uri(),
@@ -1678,7 +1699,7 @@ class TestImageRendering:
                     width_px=1280,
                     height_px=720,
                     elements=[
-                        SlideElement(
+                        TextElement(
                             element_type=ElementType.DECORATED_BLOCK,
                             box=Box(x=80, y=120, width=120, height=36),
                             paragraphs=[Paragraph(runs=[TextRun(text="inline code")])],
@@ -1712,7 +1733,7 @@ class TestImageRendering:
             b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0"
             b"\x00\x00\x03\x01\x01\x00\xc9\xfe\x92\xef\x00\x00\x00\x00IEND\xaeB`\x82"
         )
-        element = SlideElement(
+        element = ImageElement(
             element_type=ElementType.IMAGE,
             box=Box(x=10, y=20, width=240, height=120),
             image_src=image_path.as_uri(),
@@ -1754,7 +1775,7 @@ class TestImageRendering:
             b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0"
             b"\x00\x00\x03\x01\x01\x00\xc9\xfe\x92\xef\x00\x00\x00\x00IEND\xaeB`\x82"
         )
-        element = SlideElement(
+        element = ImageElement(
             element_type=ElementType.IMAGE,
             box=Box(x=10, y=20, width=240, height=120),
             image_src=image_path.as_uri(),
@@ -1796,7 +1817,7 @@ class TestImageRendering:
             b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0"
             b"\x00\x00\x03\x01\x01\x00\xc9\xfe\x92\xef\x00\x00\x00\x00IEND\xaeB`\x82"
         )
-        element = SlideElement(
+        element = ImageElement(
             element_type=ElementType.IMAGE,
             box=Box(x=10, y=20, width=240, height=120),
             image_src=image_path.as_uri(),
@@ -1834,7 +1855,7 @@ class TestImageRendering:
             b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0"
             b"\x00\x00\x03\x01\x01\x00\xc9\xfe\x92\xef\x00\x00\x00\x00IEND\xaeB`\x82"
         )
-        element = SlideElement(
+        element = ImageElement(
             element_type=ElementType.IMAGE,
             box=Box(x=10, y=20, width=240, height=120),
             image_src=image_path.as_uri(),
@@ -1866,7 +1887,7 @@ class TestImageRendering:
                     width_px=1280,
                     height_px=720,
                     elements=[
-                        SlideElement(
+                        ImageElement(
                             element_type=ElementType.IMAGE,
                             box=Box(x=10, y=20, width=240, height=120),
                             image_src=svg_path.as_uri(),
@@ -1898,7 +1919,7 @@ class TestImageRendering:
                     width_px=1280,
                     height_px=720,
                     elements=[
-                        SlideElement(
+                        ImageElement(
                             element_type=ElementType.IMAGE,
                             box=Box(x=10, y=20, width=240, height=120),
                             image_src=svg_path.as_uri(),
@@ -2041,7 +2062,7 @@ def _make_merged_table(
             for text, cs, rs in row
         ]
         table_rows.append(TableRow(cells=cells))
-    return SlideElement(
+    return TableElement(
         element_type=ElementType.TABLE,
         box=Box(x=50, y=100, width=600, height=300),
         table_rows=table_rows,
@@ -2209,7 +2230,7 @@ class TestClipPathPolygonBuilder:
             Point(x=100, y=100),
             Point(x=0, y=100),
         ]
-        elem = SlideElement(
+        elem = TextElement(
             element_type=ElementType.DECORATED_BLOCK,
             box=Box(x=100, y=100, width=400, height=300),
             decoration=BoxDecoration(
@@ -2248,7 +2269,7 @@ class TestClipPathPolygonBuilder:
             Point(x=100, y=100),
             Point(x=0, y=100),
         ]
-        elem = SlideElement(
+        elem = TextElement(
             element_type=ElementType.DECORATED_BLOCK,
             box=Box(x=100, y=100, width=400, height=300),
             decoration=BoxDecoration(

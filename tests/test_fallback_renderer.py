@@ -6,15 +6,17 @@ from pathlib import Path
 
 import pytest
 
+from marpx.capabilities import Capability
 from marpx.fallback_renderer import _is_content_section, render_fallbacks_sync
 from marpx.models import (
     Box,
     ElementType,
     Presentation,
     Slide,
-    SlideElement,
+    UnsupportedElement,
     UnsupportedInfo,
 )
+from marpx.pipeline import ElementRenderInfo, SlideRenderInfo
 
 
 class TestIsContentSection:
@@ -70,7 +72,7 @@ def test_render_fallbacks_rasterizes_inline_svg_without_screenshot(
                 width_px=1280,
                 height_px=720,
                 elements=[
-                    SlideElement(
+                    UnsupportedElement(
                         element_type=ElementType.UNSUPPORTED,
                         box=Box(x=10, y=20, width=200, height=100),
                         unsupported_info=UnsupportedInfo(
@@ -83,6 +85,15 @@ def test_render_fallbacks_rasterizes_inline_svg_without_screenshot(
             )
         ]
     )
+
+    # Build slide_render_info marking the element as subtree fallback
+    slide_render_info: dict[int, SlideRenderInfo] = {
+        0: SlideRenderInfo(
+            element_info={
+                0: ElementRenderInfo(capability=Capability.SUBTREE_FALLBACK),
+            },
+        ),
+    }
 
     captured: dict[str, object] = {}
     style_tags: list[str] = []
@@ -150,9 +161,10 @@ def test_render_fallbacks_rasterizes_inline_svg_without_screenshot(
         _unexpected_screenshot,
     )
 
-    updated = render_fallbacks_sync(html, presentation, tmp_path / "fallbacks")
+    render_fallbacks_sync(
+        html, presentation, tmp_path / "fallbacks", "subtree", slide_render_info
+    )
 
-    element = updated.slides[0].elements[0]
     assert isinstance(captured["svg"], bytes)
     assert b"svg" in captured["svg"]
     assert b'width="200.000px"' in captured["svg"]
@@ -161,9 +173,10 @@ def test_render_fallbacks_rasterizes_inline_svg_without_screenshot(
     assert captured["height_px"] == 100
     assert captured["scale"] == 2.0
     assert any(".bespoke-marp-osc" in content for content in style_tags)
-    assert element.unsupported_info is not None
-    assert element.unsupported_info.fallback_image_path is not None
-    assert Path(element.unsupported_info.fallback_image_path).exists()
+    # Verify fallback image path is recorded in slide_render_info
+    el_info = slide_render_info[0].element_info[0]
+    assert el_info.fallback_image_path is not None
+    assert Path(el_info.fallback_image_path).exists()
 
 
 def test_render_fallbacks_navigates_to_target_slide_before_screenshot(
@@ -177,7 +190,7 @@ def test_render_fallbacks_navigates_to_target_slide_before_screenshot(
                 width_px=1280,
                 height_px=720,
                 elements=[
-                    SlideElement(
+                    UnsupportedElement(
                         element_type=ElementType.MATH,
                         box=Box(x=10, y=20, width=200, height=100),
                     )
@@ -185,6 +198,15 @@ def test_render_fallbacks_navigates_to_target_slide_before_screenshot(
             )
         ]
     )
+
+    # Build slide_render_info marking the element as subtree fallback
+    slide_render_info: dict[int, SlideRenderInfo] = {
+        0: SlideRenderInfo(
+            element_info={
+                0: ElementRenderInfo(capability=Capability.SUBTREE_FALLBACK),
+            },
+        ),
+    }
 
     navigate_calls: list[int] = []
 
@@ -248,10 +270,11 @@ def test_render_fallbacks_navigates_to_target_slide_before_screenshot(
         _fake_navigate,
     )
 
-    updated = render_fallbacks_sync(html, presentation, tmp_path / "fallbacks")
+    render_fallbacks_sync(
+        html, presentation, tmp_path / "fallbacks", "subtree", slide_render_info
+    )
 
     assert navigate_calls == [0]
-    assert (
-        updated.slides[0].elements[0].unsupported_info is not None
-        and updated.slides[0].elements[0].unsupported_info.fallback_image_path
-    )
+    # Verify fallback path is recorded in slide_render_info
+    el_info = slide_render_info[0].element_info[0]
+    assert el_info.fallback_image_path is not None

@@ -14,12 +14,14 @@ from pptx.oxml.ns import qn
 from marpx.models import (
     Box,
     ElementType,
+    ListElement,
     ListItem,
     Paragraph,
     Presentation,
     RGBAColor,
     Slide,
     SlideElement,
+    TextElement,
     TextRun,
     TextStyle,
 )
@@ -45,7 +47,7 @@ def _make_text_element(
     style: TextStyle | None = None,
 ) -> SlideElement:
     run_style = style if style is not None else TextStyle()
-    return SlideElement(
+    return TextElement(
         element_type=element_type,
         box=Box(x=50, y=50, width=600, height=200),
         vertical_align=vertical_align,
@@ -59,7 +61,7 @@ def _make_text_element(
 
 
 def _make_unordered_list(items: list[tuple[str, int]]) -> SlideElement:
-    return SlideElement(
+    return ListElement(
         element_type=ElementType.UNORDERED_LIST,
         box=Box(x=50, y=50, width=600, height=300),
         list_items=[
@@ -69,7 +71,7 @@ def _make_unordered_list(items: list[tuple[str, int]]) -> SlideElement:
 
 
 def _make_ordered_list(items: list[tuple[str, int]]) -> SlideElement:
-    return SlideElement(
+    return ListElement(
         element_type=ElementType.ORDERED_LIST,
         box=Box(x=50, y=50, width=600, height=300),
         list_items=[

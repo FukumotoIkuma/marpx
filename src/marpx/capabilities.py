@@ -11,7 +11,12 @@ from __future__ import annotations
 from enum import Enum
 from typing import NamedTuple
 
-from marpx.models import ElementType, Slide, SlideElement
+from marpx.models import (
+    ElementType,
+    Slide,
+    SlideElement,
+    UnsupportedElement,
+)
 
 
 class Capability(str, Enum):
@@ -62,7 +67,7 @@ def classify_element(element: SlideElement) -> CapabilityDecision:
     # Math elements -> subtree fallback (screenshot)
     if element.element_type == ElementType.MATH:
         reason = ""
-        if element.unsupported_info:
+        if isinstance(element, UnsupportedElement) and element.unsupported_info:
             reason = element.unsupported_info.reason
         return CapabilityDecision(
             Capability.SUBTREE_FALLBACK, reason or "Math expression"
@@ -71,7 +76,7 @@ def classify_element(element: SlideElement) -> CapabilityDecision:
     # Unsupported elements -> subtree fallback
     if element.element_type == ElementType.UNSUPPORTED:
         reason = ""
-        if element.unsupported_info:
+        if isinstance(element, UnsupportedElement) and element.unsupported_info:
             reason = element.unsupported_info.reason
         return CapabilityDecision(Capability.SUBTREE_FALLBACK, reason)
 
@@ -97,12 +102,9 @@ def should_fallback_slide(slide: Slide) -> bool:
     that makes subtree fallback insufficient (e.g., complex transforms
     affecting the entire layout).
 
-    Current heuristic: if the slide is already marked as fallback, or
-    more than 80% of elements are non-native, fall back the entire slide.
+    Current heuristic: if more than 80% of elements are non-native,
+    fall back the entire slide.
     """
-    if slide.is_fallback:
-        return True
-
     decisions = classify_slide(slide)
     total = len(decisions)
     if total == 0:
