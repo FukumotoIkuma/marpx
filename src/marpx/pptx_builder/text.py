@@ -25,7 +25,12 @@ from marpx.utils.common import (
     px_to_pt,
 )
 
-from ._helpers import _build_gradient_fill_xml, _remove_existing_fills, _to_rgb
+from ._helpers import (
+    _build_gradient_fill_xml,
+    _remove_existing_fills,
+    _set_fill_color,
+    _to_rgb,
+)
 from .decoration import _add_decoration_shape
 from .decoration import _resolve_scene3d_rotations
 
@@ -211,9 +216,9 @@ def _configure_list_paragraph(
         buChar.set("char", _unordered_bullet_char(list_style_type))
 
 
-def _iter_text_payloads(element: TextElement | ListElement):
+def _iter_text_payloads(element: TextElement | ListElement | CodeBlockElement):
     """Yield paragraph payloads for a groupable text element."""
-    if isinstance(element, TextElement):
+    if isinstance(element, (TextElement, CodeBlockElement)):
         for para in element.paragraphs:
             yield {
                 "paragraph": para,
@@ -285,7 +290,9 @@ def _append_payload_to_text_frame(
     _add_paragraph_runs(p, para.runs)
 
 
-def _populate_text_frame(text_frame, elements: list[TextElement | ListElement]) -> None:
+def _populate_text_frame(
+    text_frame, elements: list[TextElement | ListElement | CodeBlockElement]
+) -> None:
     """Populate a text frame from one or more text-bearing elements."""
     payloads: list[tuple[SlideElement, dict]] = []
     for element in elements:
@@ -420,8 +427,28 @@ def _apply_spacing(
         pptx_para.space_after = Pt(px_to_pt(space_after_px))
 
 
-def _add_textbox(slide, element: TextElement | ListElement) -> None:
+def _force_monospace(element: CodeBlockElement) -> CodeBlockElement:
+    """Return a copy of the element with all runs forced to Courier New."""
+    new_paragraphs = []
+    for para in element.paragraphs:
+        new_runs = [
+            run.model_copy(
+                update={
+                    "style": run.style.model_copy(update={"font_family": "Courier New"})
+                }
+            )
+            for run in para.runs
+        ]
+        new_paragraphs.append(para.model_copy(update={"runs": new_runs}))
+    return element.model_copy(update={"paragraphs": new_paragraphs})
+
+
+def _add_textbox(slide, element: TextElement | ListElement | CodeBlockElement) -> None:
     """Add a textbox or decorated text container."""
+    # Force monospace font for code blocks before any rendering
+    if isinstance(element, CodeBlockElement):
+        element = _force_monospace(element)
+
     if element.decoration:
         scene3d_x_deg, scene3d_y_deg, scene3d_z_deg = _resolve_scene3d_rotations(
             element
@@ -434,15 +461,19 @@ def _add_textbox(slide, element: TextElement | ListElement) -> None:
             rotation_3d_y_deg=scene3d_y_deg,
             rotation_3d_z_deg=scene3d_z_deg,
         )
-        has_content = (isinstance(element, TextElement) and element.paragraphs) or (
-            isinstance(element, ListElement) and element.list_items
-        )
+        has_content = (
+            isinstance(element, (TextElement, CodeBlockElement)) and element.paragraphs
+        ) or (isinstance(element, ListElement) and element.list_items)
         if not has_content:
             return
         text_container = bg_shape
     else:
         left, top, width, height = _resolve_textbox_geometry(element)
         text_container = slide.shapes.add_textbox(left, top, width, height)
+
+        # Apply code_background fill for code blocks without decoration
+        if isinstance(element, CodeBlockElement) and element.code_background:
+            _set_fill_color(text_container.fill, element.code_background)
 
     tf = text_container.text_frame
     tf.word_wrap = True

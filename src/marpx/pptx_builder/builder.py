@@ -25,7 +25,6 @@ from marpx.utils.common import px_to_emu
 
 from ._helpers import _set_fill_color
 from .background import _add_background_image
-from .code_block import _add_code_block
 from .fallback import _add_fallback_image
 from marpx.utils.gradient import render_gradient_png
 from .directives import _add_footer, _add_header, _add_page_number
@@ -183,7 +182,7 @@ def build_pptx(
                     elif isinstance(element, TableElement):
                         _add_table(pptx_slide, element)
                     elif isinstance(element, CodeBlockElement):
-                        _add_code_block(pptx_slide, element)
+                        _add_textbox(pptx_slide, element)
                     elif isinstance(element, UnsupportedElement):
                         fallback_path = el_info.fallback_image_path if el_info else None
                         _add_fallback_image(pptx_slide, element, fallback_path)
