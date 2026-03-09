@@ -472,6 +472,7 @@ def _force_monospace(element: CodeBlockElement) -> CodeBlockElement:
                 }
             )
             for run in para.runs
+            if isinstance(run, TextRun)
         ]
         new_paragraphs.append(para.model_copy(update={"runs": new_runs}))
     return element.model_copy(update={"paragraphs": new_paragraphs})
