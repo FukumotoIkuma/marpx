@@ -7,6 +7,7 @@ import {
     _scaleText,
     deriveRenderContext,
     deriveSubtreeRenderContext,
+    clearRenderContextCache,
 } from './render-context.js';
 
 // Re-export render-context for backward compatibility
@@ -19,6 +20,7 @@ export {
     _scaleText,
     deriveRenderContext,
     deriveSubtreeRenderContext,
+    clearRenderContextCache,
 };
 
 // Re-export style.js for backward compatibility

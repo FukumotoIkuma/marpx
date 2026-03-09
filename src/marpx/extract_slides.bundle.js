@@ -59,6 +59,10 @@ function extractDirectives(section) {
 }
 
 // render-context.js
+var _contextCache = /* @__PURE__ */ new WeakMap();
+function clearRenderContextCache() {
+  _contextCache = /* @__PURE__ */ new WeakMap();
+}
 function _parseOpacity(raw) {
   const parsed = parseFloat(raw || "1");
   if (!Number.isFinite(parsed)) return 1;
@@ -177,6 +181,9 @@ function _scaleText(value, ctx) {
 }
 function deriveRenderContext(el, parentCtx = null, computedStyle = null) {
   if (!el) return parentCtx || createRenderContext();
+  if (!parentCtx && !computedStyle && _contextCache.has(el)) {
+    return _contextCache.get(el);
+  }
   const cs = computedStyle || window.getComputedStyle(el);
   const ownOpacity = _parseOpacity(cs.opacity);
   const ownTransform = _parseTransformScale(cs.transform);
@@ -218,6 +225,10 @@ function deriveRenderContext(el, parentCtx = null, computedStyle = null) {
   ctx.effectiveRotation3dXDeg = effectiveRotation3dXDeg;
   ctx.effectiveRotation3dYDeg = effectiveRotation3dYDeg;
   ctx.effectiveRotation3dZDeg = effectiveRotation3dZDeg;
+  if (!computedStyle) {
+    Object.freeze(ctx);
+    _contextCache.set(el, ctx);
+  }
   return ctx;
 }
 function deriveSubtreeRenderContext(target, rootEl, rootContext = null) {
@@ -2179,6 +2190,7 @@ function extractSlides() {
       continue;
     }
     resetProcessedPseudoElements();
+    clearRenderContextCache();
     const sectionRect = section.getBoundingClientRect();
     const slideRoot = section.closest("svg") || section;
     const slideRect = slideRoot.getBoundingClientRect();

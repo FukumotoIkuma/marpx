@@ -1,7 +1,7 @@
 import { extractBackgroundImages, extractDirectives } from './backgrounds.js';
 import { extractBlockPseudoElements, resetProcessedPseudoElements } from './pseudo.js';
 import { processElement } from './handlers.js';
-import { createRenderContext } from './render-context.js';
+import { createRenderContext, clearRenderContextCache } from './render-context.js';
 
 export function extractSlides() {
     const sections = document.querySelectorAll('section[id]');
@@ -35,8 +35,9 @@ export function extractSlides() {
             continue;
         }
 
-        // Reset pseudo-element tracking for each new slide
+        // Reset per-slide caches
         resetProcessedPseudoElements();
+        clearRenderContextCache();
 
         const sectionRect = section.getBoundingClientRect();
         const slideRoot = section.closest('svg') || section;
