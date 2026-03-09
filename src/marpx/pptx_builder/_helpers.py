@@ -9,7 +9,7 @@ from lxml import etree
 from pptx.dml.color import RGBColor
 from pptx.oxml.ns import qn
 
-from marpx.gradient_utils import css_angle_to_ooxml_angle, parse_linear_gradient
+from marpx.gradient_utils import css_angle_to_ooxml_angle
 from marpx.models import BoxShadow, RGBAColor
 from marpx.utils import blend_alpha, px_to_emu
 
