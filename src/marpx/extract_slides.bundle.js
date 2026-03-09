@@ -1702,8 +1702,11 @@ function _collectTopLevelInlineUnsupported(root) {
     )
   );
 }
+function _resolveRenderContext(el, parentContext) {
+  return parentContext ? deriveRenderContext(el, parentContext) : deriveRenderContext(el);
+}
 function handleUnsupported(el, slideRect, slideData, unsup, parentContext = null) {
-  const renderContext = parentContext ? deriveRenderContext(el, parentContext) : deriveRenderContext(el);
+  const renderContext = _resolveRenderContext(el, parentContext);
   slideData.elements.push({
     type: "unsupported",
     box: getBox(el, slideRect, renderContext),
@@ -1718,7 +1721,7 @@ function handleUnsupported(el, slideRect, slideData, unsup, parentContext = null
 }
 function handleMath(el, slideRect, slideData, tag, parentContext = null) {
   const svg = el.querySelector("svg");
-  const renderContext = parentContext ? deriveRenderContext(el, parentContext) : deriveRenderContext(el);
+  const renderContext = _resolveRenderContext(el, parentContext);
   slideData.elements.push({
     type: "math",
     box: getBox(el, slideRect, renderContext),
@@ -1997,79 +2000,147 @@ function handleTable(el, slideRect, slideData, renderContext, decoration) {
     rotation3dZDeg: renderContext.effectiveRotation3dZDeg
   });
 }
+var SKIP_TAGS = /* @__PURE__ */ new Set(["script", "style", "link", "meta", "header", "footer"]);
+var preContextDispatch = [
+  {
+    // Skip non-renderable elements
+    match: (_el, tag) => SKIP_TAGS.has(tag),
+    handler: () => {
+    }
+  },
+  {
+    // Unsupported elements - match returns the unsupported info object
+    match: (el) => isUnsupported(el),
+    handler: (el, slideRect, slideData, _tag, parentContext, matchResult) => {
+      handleUnsupported(el, slideRect, slideData, matchResult, parentContext);
+    }
+  },
+  {
+    // Math containers (MathJax)
+    match: (el, tag) => tag === "mjx-container" || el.classList && el.classList.contains("MathJax"),
+    handler: (el, slideRect, slideData, tag, parentContext) => {
+      handleMath(el, slideRect, slideData, tag, parentContext);
+    }
+  }
+];
+var postContextDispatch = [
+  {
+    // Standalone decorated text (e.g., inline code with background)
+    match: (_el, ctx) => shouldExtractStandaloneDecoratedText(_el, ctx.decoration),
+    handler: (el, slideRect, slideData, ctx) => {
+      handleDecoratedStandalone(el, slideRect, slideData, ctx.decoration, ctx.renderContext);
+      return true;
+    }
+  },
+  {
+    // Image wrapped in a decorated container - match returns the img element
+    match: (el, ctx) => {
+      const img = _findSingleImageChild(el);
+      return img && hasMeaningfulDecoration(ctx.decoration) ? img : false;
+    },
+    handler: (el, slideRect, slideData, ctx, matchResult) => {
+      handleImageWithDecoration(el, slideRect, slideData, ctx.decoration, matchResult, ctx.renderContext);
+      return true;
+    }
+  },
+  {
+    // Decorated block (blockquote-like containers with meaningful decoration)
+    match: (el, ctx) => shouldExtractDecoratedBlock(el, ctx.decoration, ctx.renderContext),
+    handler: (el, slideRect, slideData, ctx) => {
+      handleDecoratedBlock(el, slideRect, slideData, ctx.decoration, ctx.renderContext, shouldDecomposeDecoratedBlock(el));
+      return true;
+    }
+  },
+  {
+    // Headings (h1-h6)
+    match: (_el, ctx) => /^h[1-6]$/.test(ctx.tag),
+    handler: (el, slideRect, slideData, ctx) => {
+      handleHeading(el, slideRect, slideData, ctx.tag, ctx.renderContext);
+      return true;
+    }
+  },
+  {
+    // Paragraphs and figcaptions
+    match: (_el, ctx) => ctx.tag === "p" || ctx.tag === "figcaption",
+    handler: (el, slideRect, slideData, ctx) => {
+      handleParagraph(el, slideRect, slideData, ctx.renderContext);
+      return true;
+    }
+  },
+  {
+    // Leaf text blocks (no children, has text content)
+    match: (el) => _isLeafTextBlock(el),
+    handler: (el, slideRect, slideData, ctx) => {
+      handleParagraph(el, slideRect, slideData, ctx.renderContext);
+      return true;
+    }
+  },
+  {
+    // Blockquotes
+    match: (_el, ctx) => ctx.tag === "blockquote",
+    handler: (el, slideRect, slideData, ctx) => {
+      handleBlockquote(el, slideRect, slideData, ctx.decoration, ctx.renderContext);
+      return true;
+    }
+  },
+  {
+    // Lists (ul/ol) - presentational lists recurse, normal lists extract
+    match: (_el, ctx) => ctx.tag === "ul" || ctx.tag === "ol",
+    handler: (el, slideRect, slideData, ctx) => {
+      if (_isPresentationalList(el)) {
+        for (const child of el.children) {
+          processElement(child, slideRect, slideData, ctx.renderContext);
+        }
+      } else {
+        handleList(el, slideRect, slideData, ctx.tag, ctx.renderContext);
+      }
+      return true;
+    }
+  },
+  {
+    // Code blocks (pre/marp-pre) - may fall through if no <code> child
+    match: (_el, ctx) => ctx.tag === "pre" || ctx.tag === "marp-pre",
+    handler: (el, slideRect, slideData, ctx) => {
+      return handleCodeBlock(el, slideRect, slideData, ctx.renderContext);
+    }
+  },
+  {
+    // Images
+    match: (_el, ctx) => ctx.tag === "img",
+    handler: (el, slideRect, slideData, ctx) => {
+      handleImage(el, slideRect, slideData, ctx.decoration, ctx.renderContext);
+      return true;
+    }
+  },
+  {
+    // Tables
+    match: (_el, ctx) => ctx.tag === "table",
+    handler: (el, slideRect, slideData, ctx) => {
+      handleTable(el, slideRect, slideData, ctx.renderContext, ctx.decoration);
+      return true;
+    }
+  }
+];
 function processElement(el, slideRect, slideData, parentContext = null) {
   const tag = (el.localName || el.tagName).toLowerCase();
-  if (["script", "style", "link", "meta", "header", "footer"].includes(tag)) return;
-  const unsup = isUnsupported(el);
-  if (unsup) {
-    handleUnsupported(el, slideRect, slideData, unsup, parentContext);
-    return;
+  for (const { match, handler } of preContextDispatch) {
+    const matchResult = match(el, tag);
+    if (matchResult) {
+      handler(el, slideRect, slideData, tag, parentContext, matchResult);
+      return;
+    }
   }
-  if (tag === "mjx-container" || el.classList && el.classList.contains("MathJax")) {
-    handleMath(el, slideRect, slideData, tag, parentContext);
-    return;
-  }
-  const renderContext = deriveRenderContext(el, parentContext);
+  const renderContext = _resolveRenderContext(el, parentContext);
   slideData.elements.push(...extractBlockPseudoElements(el, slideRect, renderContext));
   const decoration = extractDecoration(el, renderContext);
-  if (shouldExtractStandaloneDecoratedText(el, decoration)) {
-    handleDecoratedStandalone(el, slideRect, slideData, decoration, renderContext);
-    return;
-  }
-  const singleImageChild = _findSingleImageChild(el);
-  if (singleImageChild && hasMeaningfulDecoration(decoration)) {
-    handleImageWithDecoration(
-      el,
-      slideRect,
-      slideData,
-      decoration,
-      singleImageChild,
-      renderContext
-    );
-    return;
-  }
-  if (shouldExtractDecoratedBlock(el, decoration, renderContext)) {
-    handleDecoratedBlock(el, slideRect, slideData, decoration, renderContext, shouldDecomposeDecoratedBlock(el));
-    return;
-  }
-  if (/^h[1-6]$/.test(tag)) {
-    handleHeading(el, slideRect, slideData, tag, renderContext);
-    return;
-  }
-  if (tag === "p" || tag === "figcaption") {
-    handleParagraph(el, slideRect, slideData, renderContext);
-    return;
-  }
-  if (_isLeafTextBlock(el)) {
-    handleParagraph(el, slideRect, slideData, renderContext);
-    return;
-  }
-  if (tag === "blockquote") {
-    handleBlockquote(el, slideRect, slideData, decoration, renderContext);
-    return;
-  }
-  if (tag === "ul" || tag === "ol") {
-    if (_isPresentationalList(el)) {
-      for (const child of el.children) {
-        processElement(child, slideRect, slideData, renderContext);
+  const ctx = { tag, renderContext, decoration };
+  for (const { match, handler } of postContextDispatch) {
+    const matchResult = match(el, ctx);
+    if (matchResult) {
+      if (handler(el, slideRect, slideData, ctx, matchResult)) {
+        return;
       }
-      return;
     }
-    handleList(el, slideRect, slideData, tag, renderContext);
-    return;
-  }
-  if (tag === "pre" || tag === "marp-pre") {
-    if (handleCodeBlock(el, slideRect, slideData, renderContext)) {
-      return;
-    }
-  }
-  if (tag === "img") {
-    handleImage(el, slideRect, slideData, decoration, renderContext);
-    return;
-  }
-  if (tag === "table") {
-    handleTable(el, slideRect, slideData, renderContext, decoration);
-    return;
   }
   for (const child of el.children) {
     processElement(child, slideRect, slideData, renderContext);
