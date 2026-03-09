@@ -1,4 +1,5 @@
 import { extractBackgroundImages, extractDirectives } from './backgrounds.js';
+import { extractBlockPseudoElements } from './decoration.js';
 import { processElement } from './handlers.js';
 import { createRenderContext } from './render-context.js';
 
@@ -62,6 +63,10 @@ export function extractSlides() {
 
         // Process direct children and nested content
         const rootContext = createRenderContext();
+
+        // Extract pseudo-elements (::before/::after) on the section itself
+        slideData.elements.push(...extractBlockPseudoElements(section, slideRect, rootContext));
+
         for (const child of section.children) {
             processElement(child, slideRect, slideData, rootContext);
         }

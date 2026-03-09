@@ -2074,6 +2074,7 @@ function extractSlides() {
       elements: []
     };
     const rootContext = createRenderContext();
+    slideData.elements.push(...extractBlockPseudoElements(section, slideRect, rootContext));
     for (const child of section.children) {
       processElement(child, slideRect, slideData, rootContext);
     }

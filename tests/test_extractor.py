@@ -2270,3 +2270,65 @@ class TestParagraphGrouping:
         ]
         assert len(paragraphs) == 1
         assert len(paragraphs[0].paragraphs) == 2
+
+
+@pytest.fixture(scope="module")
+def section_pseudo_html(session_output_dir: Path) -> Path:
+    """Render section-pseudo-elements.md to HTML."""
+    return render_to_html(
+        FIXTURES_DIR / "section-pseudo-elements.md", output_dir=session_output_dir
+    )
+
+
+@pytest.fixture(scope="module")
+def section_pseudo_pres(section_pseudo_html: Path):
+    return extract_presentation_sync(section_pseudo_html)
+
+
+@pytest.mark.integration
+class TestSectionPseudoElements:
+    """Tests for extracting CSS pseudo-elements (::before/::after) on section elements."""
+
+    def test_pseudo_elements_extracted(self, section_pseudo_pres) -> None:
+        """Section-level ::before/::after should appear as DECORATED_BLOCK elements."""
+        pres = section_pseudo_pres
+        slide = pres.slides[0]
+        decorated = [
+            e for e in slide.elements
+            if e.element_type == ElementType.DECORATED_BLOCK
+        ]
+        # Both ::before and ::after pseudo-elements should be extracted
+        assert len(decorated) >= 2, (
+            f"Expected at least 2 decorated blocks for ::before/::after, "
+            f"got {len(decorated)}. Element types: "
+            f"{[e.element_type for e in slide.elements]}"
+        )
+
+    def test_pseudo_element_has_decoration(self, section_pseudo_pres) -> None:
+        """Extracted pseudo-elements should carry decoration metadata."""
+        pres = section_pseudo_pres
+        slide = pres.slides[0]
+        decorated = [
+            e for e in slide.elements
+            if e.element_type == ElementType.DECORATED_BLOCK
+        ]
+        # At least one should have a non-null decoration with background color
+        decorated_with_bg = [
+            e for e in decorated
+            if e.decoration and e.decoration.background_color
+        ]
+        assert len(decorated_with_bg) >= 1, (
+            "Expected at least one pseudo-element with background color decoration"
+        )
+
+    def test_pseudo_element_has_nonzero_dimensions(self, section_pseudo_pres) -> None:
+        """Extracted pseudo-elements should have non-zero width and height."""
+        pres = section_pseudo_pres
+        slide = pres.slides[0]
+        decorated = [
+            e for e in slide.elements
+            if e.element_type == ElementType.DECORATED_BLOCK
+        ]
+        for elem in decorated:
+            assert elem.box.width > 0, "Pseudo-element width should be > 0"
+            assert elem.box.height > 0, "Pseudo-element height should be > 0"
