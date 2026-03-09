@@ -181,6 +181,7 @@ Marp MD --> marp-cli HTML --> Playwright 抽出 --> 正規化モデル --> pytho
 | `click` | CLI インターフェース |
 | `pydantic`（v2+） | データバリデーションと中間モデル |
 | `Pillow` | フォールバックレンダリング用の画像処理 |
+| `numpy` | グラデーションレンダリングの高速ベクトル演算 |
 | `rich` | CLI 出力のフォーマット・色分け |
 
 ## 開発
