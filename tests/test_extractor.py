@@ -11,7 +11,7 @@ import pytest
 
 from marpx.extraction.extractor import extract_presentation_sync
 from marpx.extraction.marp_renderer import render_to_html
-from marpx.models import ElementType
+from marpx.models import ElementType, MathRun
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -935,7 +935,7 @@ beta</code></pre>
         assert "🎯" in run_texts
         assert "🚀" in run_texts
 
-    def test_inline_math_creates_math_elements_and_placeholder_runs(
+    def test_inline_math_creates_math_runs_in_paragraph(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:
         md_path = tmp_path / "inline-math.md"
@@ -956,25 +956,24 @@ Inline: $E = mc^2$ and $\\sum_{i=1}^{n} i$
         pres = extract_presentation_sync(html_path)
         slide = pres.slides[0]
 
+        # Inline math should NOT produce separate MATH elements
         math_elements = [
             e for e in slide.elements if e.element_type == ElementType.MATH
         ]
-        assert len(math_elements) == 2
-        assert all(
-            e.unsupported_info and e.unsupported_info.tag_name == "mjx-container"
-            for e in math_elements
-        )
+        assert len(math_elements) == 0
 
+        # The paragraph should contain MathRun objects for inline math
         paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
         )
-        placeholder_runs = [
-            run for run in paragraph.paragraphs[0].runs if run.style.color.a == 0.0
-        ]
-        assert len(placeholder_runs) == 2
-        assert all(run.text for run in placeholder_runs)
+        runs = paragraph.paragraphs[0].runs
+        math_runs = [run for run in runs if isinstance(run, MathRun)]
+        assert len(math_runs) == 2
+        latex_sources = [mr.latex_source for mr in math_runs]
+        assert "E = mc^2" in latex_sources
+        assert r"\sum_{i=1}^{n} i" in latex_sources
 
-    def test_inline_math_does_not_produce_duplicate_unsupported_elements(
+    def test_inline_math_produces_no_separate_elements(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:
         md_path = tmp_path / "inline-math-no-dup.md"
@@ -995,20 +994,26 @@ Inline: $E = mc^2$ and $\\sum_{i=1}^{n} i$
         pres = extract_presentation_sync(html_path)
         slide = pres.slides[0]
 
+        # No separate MATH or UNSUPPORTED elements for inline math
         math_elements = [
             e for e in slide.elements if e.element_type == ElementType.MATH
         ]
-        assert len(math_elements) == 2
+        assert len(math_elements) == 0
 
         unsupported_elements = [
             e for e in slide.elements if e.element_type == ElementType.UNSUPPORTED
         ]
         assert len(unsupported_elements) == 0
 
+        # Paragraph exists and contains MathRun objects
         paragraph_elements = [
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
         ]
         assert len(paragraph_elements) == 1
+
+        runs = paragraph_elements[0].paragraphs[0].runs
+        math_runs = [run for run in runs if isinstance(run, MathRun)]
+        assert len(math_runs) == 2
 
     def test_absolute_block_pseudo_elements_are_extracted(
         self, tmp_path: Path, tmp_output_dir: Path
