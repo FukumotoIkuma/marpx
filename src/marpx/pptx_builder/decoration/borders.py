@@ -62,6 +62,8 @@ def _apply_left_accent_bar(
     rotation_3d_x_deg: float = 0.0,
     rotation_3d_y_deg: float = 0.0,
     rotation_3d_z_deg: float = 0.0,
+    perspective_px: float = 0.0,
+    element_height_px: float = 0.0,
 ) -> None:
     """Render a left accent bar shape for blockquote-style left-border elements."""
     from .core import _apply_scene3d
@@ -88,6 +90,8 @@ def _apply_left_accent_bar(
         rotation_3d_x_deg=rotation_3d_x_deg,
         rotation_3d_y_deg=rotation_3d_y_deg,
         rotation_3d_z_deg=rotation_3d_z_deg,
+        perspective_px=perspective_px,
+        element_height_px=element_height_px,
     )
 
 
@@ -141,6 +145,8 @@ def _add_side_border_shapes(
     rotation_3d_x_deg: float = 0.0,
     rotation_3d_y_deg: float = 0.0,
     rotation_3d_z_deg: float = 0.0,
+    perspective_px: float = 0.0,
+    element_height_px: float = 0.0,
 ) -> None:
     """Render visible non-uniform borders as separate thin rectangle shapes."""
     from .core import _apply_scene3d
@@ -203,6 +209,8 @@ def _add_side_border_shapes(
             rotation_3d_x_deg=rotation_3d_x_deg,
             rotation_3d_y_deg=rotation_3d_y_deg,
             rotation_3d_z_deg=rotation_3d_z_deg,
+            perspective_px=perspective_px,
+            element_height_px=element_height_px,
         )
 
 

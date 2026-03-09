@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from lxml import etree
 from pptx.dml.color import RGBColor
-from pptx.enum.text import MSO_AUTO_SIZE, MSO_VERTICAL_ANCHOR, PP_ALIGN
+from pptx.enum.text import MSO_VERTICAL_ANCHOR, PP_ALIGN
 from pptx.oxml.ns import qn
 from pptx.util import Emu, Pt
 
@@ -460,6 +460,8 @@ def _add_textbox(slide, element: TextElement | ListElement | CodeBlockElement) -
             rotation_3d_x_deg=scene3d_x_deg,
             rotation_3d_y_deg=scene3d_y_deg,
             rotation_3d_z_deg=scene3d_z_deg,
+            perspective_px=element.perspective_px,
+            element_height_px=element.box.height,
         )
         has_content = (
             isinstance(element, (TextElement, CodeBlockElement)) and element.paragraphs
@@ -477,7 +479,6 @@ def _add_textbox(slide, element: TextElement | ListElement | CodeBlockElement) -
 
     tf = text_container.text_frame
     tf.word_wrap = True
-    tf.auto_size = MSO_AUTO_SIZE.NONE
     tf.vertical_anchor = VERTICAL_ALIGNMENT_MAP.get(
         element.vertical_align,
         MSO_VERTICAL_ANCHOR.TOP,

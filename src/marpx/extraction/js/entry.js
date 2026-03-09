@@ -128,6 +128,7 @@ export function buildTextElement(el, sectionRect, type, extra = {}) {
             rotation3dXDeg: ctx.effectiveRotation3dXDeg,
             rotation3dYDeg: ctx.effectiveRotation3dYDeg,
             rotation3dZDeg: ctx.effectiveRotation3dZDeg,
+            perspectivePx: ctx.effectivePerspectivePx,
             projectedCorners: getProjectedCorners(el, sectionRect, ctx),
             lineHeightPx: parseFloat(styles.lineHeight) ? _scaleY(parseFloat(styles.lineHeight), ctx) : null,
             spaceBeforePx: _scaleY(parseFloat(styles.marginTop) || 0, ctx),

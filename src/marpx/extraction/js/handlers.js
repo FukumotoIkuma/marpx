@@ -139,6 +139,7 @@ export function handleUnsupported(el, slideRect, slideData, unsup, parentContext
         rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
         rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
         rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+        perspectivePx: renderContext.effectivePerspectivePx,
         projectedCorners: getProjectedCorners(el, slideRect, renderContext),
         unsupportedInfo: unsup,
     });
@@ -160,6 +161,7 @@ export function handleMath(el, slideRect, slideData, tag, parentContext = null) 
         rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
         rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
         rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+        perspectivePx: renderContext.effectivePerspectivePx,
         projectedCorners: getProjectedCorners(el, slideRect, renderContext),
         latexSource: latexSource,
         unsupportedInfo: {
@@ -187,6 +189,7 @@ export function handleDecoratedStandalone(el, slideRect, slideData, decoration, 
         rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
         rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
         rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+        perspectivePx: renderContext.effectivePerspectivePx,
         projectedCorners: getProjectedCorners(el, slideRect, renderContext),
     });
 }
@@ -217,6 +220,7 @@ export function handleImageWithDecoration(
             rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
             rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
             rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+            perspectivePx: renderContext.effectivePerspectivePx,
             projectedCorners: getProjectedCorners(el, slideRect, renderContext),
         });
     }
@@ -243,6 +247,7 @@ export function handleDecoratedBlock(el, slideRect, slideData, decoration, rende
         rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
         rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
         rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+        perspectivePx: renderContext.effectivePerspectivePx,
         projectedCorners: getProjectedCorners(el, slideRect, renderContext),
     });
     if (shouldDecompose) {
@@ -359,6 +364,7 @@ export function handleBlockquote(el, slideRect, slideData, decoration, renderCon
         rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
         rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
         rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+        perspectivePx: renderContext.effectivePerspectivePx,
         projectedCorners: getProjectedCorners(el, slideRect, renderContext),
     });
     for (const child of Array.from(el.children)) {
@@ -378,6 +384,7 @@ export function handleList(el, slideRect, slideData, tag, renderContext) {
         rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
         rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
         rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+        perspectivePx: renderContext.effectivePerspectivePx,
         projectedCorners: getProjectedCorners(el, slideRect, renderContext),
     });
 }
@@ -418,6 +425,7 @@ export function handleCodeBlock(el, slideRect, slideData, renderContext) {
             rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
             rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
             rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+            perspectivePx: renderContext.effectivePerspectivePx,
             projectedCorners: getProjectedCorners(el, slideRect, renderContext),
         });
         return true; // handled
@@ -445,6 +453,7 @@ export function handleImage(el, slideRect, slideData, decoration, renderContext)
             rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
             rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
             rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+            perspectivePx: renderContext.effectivePerspectivePx,
         });
     }
 }
@@ -460,6 +469,7 @@ export function handleTable(el, slideRect, slideData, renderContext, decoration)
         rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
         rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
         rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+        perspectivePx: renderContext.effectivePerspectivePx,
     });
 }
 

@@ -7,7 +7,7 @@ from pptx.enum.shapes import MSO_AUTO_SHAPE_TYPE
 from pptx.oxml.ns import qn
 
 from marpx.models import BaseSlideElement, Box, BoxDecoration
-from ..scene3d import fit_scene3d_rotations
+from ..scene3d import css_perspective_to_ooxml_fov, fit_scene3d_rotations
 
 from .borders import (
     _apply_left_accent_bar,
@@ -32,13 +32,17 @@ def _apply_scene3d(
     rotation_3d_x_deg: float = 0.0,
     rotation_3d_y_deg: float = 0.0,
     rotation_3d_z_deg: float = 0.0,
+    perspective_px: float = 0.0,
+    element_height_px: float = 0.0,
 ) -> None:
     """Apply PowerPoint 3D scene rotation to a shape properties node."""
-    if (
-        abs(rotation_3d_x_deg) <= 0.01
-        and abs(rotation_3d_y_deg) <= 0.01
-        and abs(rotation_3d_z_deg) <= 0.01
-    ):
+    has_rotation = (
+        abs(rotation_3d_x_deg) > 0.01
+        or abs(rotation_3d_y_deg) > 0.01
+        or abs(rotation_3d_z_deg) > 0.01
+    )
+    has_perspective = perspective_px > 0 and element_height_px > 0
+    if not has_rotation and not has_perspective:
         return
 
     scene3d = sp_pr.find(qn("a:scene3d"))
@@ -47,11 +51,17 @@ def _apply_scene3d(
 
     scene3d = etree.SubElement(sp_pr, qn("a:scene3d"))
     camera = etree.SubElement(scene3d, qn("a:camera"))
-    camera.set("prst", "orthographicFront")
-    rot = etree.SubElement(camera, qn("a:rot"))
-    rot.set("lat", str(_normalize_positive_fixed_angle(rotation_3d_y_deg)))
-    rot.set("lon", str(_normalize_positive_fixed_angle(rotation_3d_x_deg)))
-    rot.set("rev", str(_normalize_positive_fixed_angle(rotation_3d_z_deg)))
+    if has_perspective:
+        camera.set("prst", "perspectiveFront")
+        fov = css_perspective_to_ooxml_fov(perspective_px, element_height_px)
+        camera.set("fov", str(fov))
+    else:
+        camera.set("prst", "orthographicFront")
+    if has_rotation:
+        rot = etree.SubElement(camera, qn("a:rot"))
+        rot.set("lat", str(_normalize_positive_fixed_angle(rotation_3d_y_deg)))
+        rot.set("lon", str(_normalize_positive_fixed_angle(rotation_3d_x_deg)))
+        rot.set("rev", str(_normalize_positive_fixed_angle(rotation_3d_z_deg)))
     light_rig = etree.SubElement(scene3d, qn("a:lightRig"))
     light_rig.set("rig", "threePt")
     light_rig.set("dir", "t")
@@ -87,6 +97,8 @@ def _add_decoration_shape(
     rotation_3d_x_deg: float = 0.0,
     rotation_3d_y_deg: float = 0.0,
     rotation_3d_z_deg: float = 0.0,
+    perspective_px: float = 0.0,
+    element_height_px: float = 0.0,
 ):
     """Render a generic decorated box and return it as the text container."""
     shape_type = (
@@ -107,6 +119,8 @@ def _add_decoration_shape(
         rotation_3d_x_deg=rotation_3d_x_deg,
         rotation_3d_y_deg=rotation_3d_y_deg,
         rotation_3d_z_deg=rotation_3d_z_deg,
+        perspective_px=perspective_px,
+        element_height_px=element_height_px,
     )
 
     accent_border = decoration.border_left
@@ -123,6 +137,8 @@ def _add_decoration_shape(
             rotation_3d_x_deg=rotation_3d_x_deg,
             rotation_3d_y_deg=rotation_3d_y_deg,
             rotation_3d_z_deg=rotation_3d_z_deg,
+            perspective_px=perspective_px,
+            element_height_px=element_height_px,
         )
     elif not uniform_border:
         _add_side_border_shapes(
@@ -132,6 +148,8 @@ def _add_decoration_shape(
             rotation_3d_x_deg=rotation_3d_x_deg,
             rotation_3d_y_deg=rotation_3d_y_deg,
             rotation_3d_z_deg=rotation_3d_z_deg,
+            perspective_px=perspective_px,
+            element_height_px=element_height_px,
         )
 
     _create_inset_shadow_shapes(slide, box, decoration, shape_type)

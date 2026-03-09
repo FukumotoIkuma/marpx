@@ -77,6 +77,7 @@ function createRenderContext(effectiveOpacity = 1) {
     effectiveRotation3dXDeg: 0,
     effectiveRotation3dYDeg: 0,
     effectiveRotation3dZDeg: 0,
+    effectivePerspectivePx: 0,
     baseZIndex: 0
   };
 }
@@ -92,6 +93,7 @@ function _parseTransformScale(transform) {
       rotation3dXDeg: 0,
       rotation3dYDeg: 0,
       rotation3dZDeg: 0,
+      perspectivePx: 0,
       complex: false
     };
   }
@@ -105,8 +107,13 @@ function _parseTransformScale(transform) {
         rotation3dXDeg: 0,
         rotation3dYDeg: 0,
         rotation3dZDeg: 0,
+        perspectivePx: 0,
         complex: true
       };
+    }
+    let perspectivePx = 0;
+    if (vals2[11] !== 0 && vals2[11] < 0) {
+      perspectivePx = -1 / vals2[11];
     }
     return {
       scaleX: 1,
@@ -115,6 +122,7 @@ function _parseTransformScale(transform) {
       rotation3dXDeg: Math.asin(_clamp(-vals2[9], -1, 1)) * (180 / Math.PI),
       rotation3dYDeg: Math.asin(_clamp(vals2[2], -1, 1)) * (180 / Math.PI),
       rotation3dZDeg: 0,
+      perspectivePx,
       complex: false
     };
   }
@@ -127,6 +135,7 @@ function _parseTransformScale(transform) {
       rotation3dXDeg: 0,
       rotation3dYDeg: 0,
       rotation3dZDeg: 0,
+      perspectivePx: 0,
       complex: true
     };
   }
@@ -139,6 +148,7 @@ function _parseTransformScale(transform) {
       rotation3dXDeg: 0,
       rotation3dYDeg: 0,
       rotation3dZDeg: 0,
+      perspectivePx: 0,
       complex: true
     };
   }
@@ -154,6 +164,7 @@ function _parseTransformScale(transform) {
       rotation3dXDeg: 0,
       rotation3dYDeg: 0,
       rotation3dZDeg: 0,
+      perspectivePx: 0,
       complex: true
     };
   }
@@ -164,6 +175,7 @@ function _parseTransformScale(transform) {
     rotation3dXDeg: 0,
     rotation3dYDeg: 0,
     rotation3dZDeg: 0,
+    perspectivePx: 0,
     complex: false
   };
 }
@@ -195,6 +207,9 @@ function deriveRenderContext(el, parentCtx = null, computedStyle = null) {
     ctx2.effectiveRotation3dXDeg = parentCtx.effectiveRotation3dXDeg + ownTransform.rotation3dXDeg;
     ctx2.effectiveRotation3dYDeg = parentCtx.effectiveRotation3dYDeg + ownTransform.rotation3dYDeg;
     ctx2.effectiveRotation3dZDeg = parentCtx.effectiveRotation3dZDeg + ownTransform.rotation3dZDeg;
+    const parentPerspective = el.parentElement ? parseFloat(window.getComputedStyle(el.parentElement).perspective) : 0;
+    const ownPerspective = ownTransform.perspectivePx;
+    ctx2.effectivePerspectivePx = ownPerspective || (Number.isFinite(parentPerspective) ? parentPerspective : 0);
     ctx2.baseZIndex = parentCtx.baseZIndex || 0;
     return ctx2;
   }
@@ -205,6 +220,13 @@ function deriveRenderContext(el, parentCtx = null, computedStyle = null) {
   let effectiveRotation3dXDeg = ownTransform.rotation3dXDeg;
   let effectiveRotation3dYDeg = ownTransform.rotation3dYDeg;
   let effectiveRotation3dZDeg = ownTransform.rotation3dZDeg;
+  let effectivePerspectivePx = ownTransform.perspectivePx;
+  if (!effectivePerspectivePx && el.parentElement) {
+    const parentPerspective = parseFloat(window.getComputedStyle(el.parentElement).perspective);
+    if (Number.isFinite(parentPerspective)) {
+      effectivePerspectivePx = parentPerspective;
+    }
+  }
   let current = el.parentElement;
   while (current) {
     const currentStyle = window.getComputedStyle(current);
@@ -225,6 +247,7 @@ function deriveRenderContext(el, parentCtx = null, computedStyle = null) {
   ctx.effectiveRotation3dXDeg = effectiveRotation3dXDeg;
   ctx.effectiveRotation3dYDeg = effectiveRotation3dYDeg;
   ctx.effectiveRotation3dZDeg = effectiveRotation3dZDeg;
+  ctx.effectivePerspectivePx = effectivePerspectivePx;
   if (!computedStyle) {
     Object.freeze(ctx);
     _contextCache.set(el, ctx);
@@ -869,6 +892,7 @@ function buildTextElement(el, sectionRect, type, extra = {}) {
     rotation3dXDeg: ctx.effectiveRotation3dXDeg,
     rotation3dYDeg: ctx.effectiveRotation3dYDeg,
     rotation3dZDeg: ctx.effectiveRotation3dZDeg,
+    perspectivePx: ctx.effectivePerspectivePx,
     projectedCorners: getProjectedCorners(el, sectionRect, ctx),
     lineHeightPx: parseFloat(styles.lineHeight) ? _scaleY(parseFloat(styles.lineHeight), ctx) : null,
     spaceBeforePx: _scaleY(parseFloat(styles.marginTop) || 0, ctx),
@@ -1805,6 +1829,7 @@ function handleUnsupported(el, slideRect, slideData, unsup, parentContext = null
     rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
     rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
     rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+    perspectivePx: renderContext.effectivePerspectivePx,
     projectedCorners: getProjectedCorners(el, slideRect, renderContext),
     unsupportedInfo: unsup
   });
@@ -1822,6 +1847,7 @@ function handleMath(el, slideRect, slideData, tag, parentContext = null) {
     rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
     rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
     rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+    perspectivePx: renderContext.effectivePerspectivePx,
     projectedCorners: getProjectedCorners(el, slideRect, renderContext),
     latexSource,
     unsupportedInfo: {
@@ -1848,6 +1874,7 @@ function handleDecoratedStandalone(el, slideRect, slideData, decoration, renderC
     rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
     rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
     rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+    perspectivePx: renderContext.effectivePerspectivePx,
     projectedCorners: getProjectedCorners(el, slideRect, renderContext)
   });
 }
@@ -1870,6 +1897,7 @@ function handleImageWithDecoration(el, slideRect, slideData, decoration, singleI
       rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
       rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
       rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+      perspectivePx: renderContext.effectivePerspectivePx,
       projectedCorners: getProjectedCorners(el, slideRect, renderContext)
     });
   }
@@ -1893,6 +1921,7 @@ function handleDecoratedBlock(el, slideRect, slideData, decoration, renderContex
     rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
     rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
     rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+    perspectivePx: renderContext.effectivePerspectivePx,
     projectedCorners: getProjectedCorners(el, slideRect, renderContext)
   });
   if (shouldDecompose) {
@@ -1989,6 +2018,7 @@ function handleBlockquote(el, slideRect, slideData, decoration, renderContext) {
     rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
     rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
     rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+    perspectivePx: renderContext.effectivePerspectivePx,
     projectedCorners: getProjectedCorners(el, slideRect, renderContext)
   });
   for (const child of Array.from(el.children)) {
@@ -2007,6 +2037,7 @@ function handleList(el, slideRect, slideData, tag, renderContext) {
     rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
     rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
     rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+    perspectivePx: renderContext.effectivePerspectivePx,
     projectedCorners: getProjectedCorners(el, slideRect, renderContext)
   });
 }
@@ -2043,6 +2074,7 @@ function handleCodeBlock(el, slideRect, slideData, renderContext) {
       rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
       rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
       rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+      perspectivePx: renderContext.effectivePerspectivePx,
       projectedCorners: getProjectedCorners(el, slideRect, renderContext)
     });
     return true;
@@ -2066,7 +2098,8 @@ function handleImage(el, slideRect, slideData, decoration, renderContext) {
       rotationDeg: renderContext.effectiveRotationDeg,
       rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
       rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
-      rotation3dZDeg: renderContext.effectiveRotation3dZDeg
+      rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+      perspectivePx: renderContext.effectivePerspectivePx
     });
   }
 }
@@ -2080,7 +2113,8 @@ function handleTable(el, slideRect, slideData, renderContext, decoration) {
     rotationDeg: renderContext.effectiveRotationDeg,
     rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
     rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
-    rotation3dZDeg: renderContext.effectiveRotation3dZDeg
+    rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
+    perspectivePx: renderContext.effectivePerspectivePx
   });
 }
 var SKIP_TAGS = /* @__PURE__ */ new Set(["script", "style", "link", "meta", "header", "footer"]);

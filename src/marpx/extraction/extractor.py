@@ -205,6 +205,7 @@ def _build_common_kwargs(raw: dict) -> dict:
         rotation_3d_x_deg=raw.get("rotation3dXDeg", 0.0) or 0.0,
         rotation_3d_y_deg=raw.get("rotation3dYDeg", 0.0) or 0.0,
         rotation_3d_z_deg=raw.get("rotation3dZDeg", 0.0) or 0.0,
+        perspective_px=raw.get("perspectivePx", 0.0) or 0.0,
         projected_corners=[Point(**c) for c in raw.get("projectedCorners", [])],
     )
 
