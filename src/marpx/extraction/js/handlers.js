@@ -76,16 +76,49 @@ function _isInlineStandaloneUnsupported(el) {
     return !!isUnsupported(el);
 }
 
-function _collectTopLevelInlineUnsupported(root) {
-    const matches = Array.from(root.querySelectorAll('*')).filter((node) =>
-        _isInlineStandaloneUnsupported(node)
-    );
-    return matches.filter(
-        (node) =>
-            !matches.some(
-                (other) => other !== node && other.contains(node)
-            )
-    );
+/**
+ * Single-pass recursive walk that classifies paragraph descendants.
+ * Priority: math > decorated > unsupported > normal.
+ * Once classified, the subtree is skipped (no descendant can match another category).
+ */
+function _classifyParagraphDescendants(el, renderContext) {
+    const mathEls = [];
+    const decoratedEls = [];
+    const unsupportedEls = [];
+
+    function walk(node) {
+        for (const child of node.children) {
+            const tag = (child.localName || child.tagName).toLowerCase();
+
+            // Priority 1: Math container — claim entire subtree
+            if (tag === 'mjx-container' || (child.classList && child.classList.contains('MathJax'))) {
+                mathEls.push(child);
+                continue;
+            }
+
+            // Priority 2: Standalone decorated (direct children only — expensive check)
+            if (child.parentElement === el) {
+                const childCtx = deriveRenderContext(child, renderContext);
+                const childDec = extractDecoration(child, childCtx);
+                if (shouldExtractStandaloneDecoratedText(child, childDec)) {
+                    decoratedEls.push(child);
+                    continue;
+                }
+            }
+
+            // Priority 3: Inline unsupported
+            if (_isInlineStandaloneUnsupported(child)) {
+                unsupportedEls.push(child);
+                continue;
+            }
+
+            // Normal: recurse into children
+            walk(child);
+        }
+    }
+
+    walk(el);
+    return { mathEls, decoratedEls, unsupportedEls };
 }
 
 /**
@@ -226,6 +259,7 @@ export function handleHeading(el, slideRect, slideData, tag, renderContext) {
 }
 
 export function handleParagraph(el, slideRect, slideData, renderContext) {
+    // Early return: image-only paragraphs (unchanged)
     if (el.querySelector('img') && !el.textContent.trim()) {
         for (const child of el.children) {
             processElement(child, slideRect, slideData, renderContext);
@@ -233,58 +267,42 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
         return;
     }
 
-    // Check for math containers within paragraph
-    const mathContainers = el.querySelectorAll('mjx-container');
-    if (mathContainers.length > 0) {
-        // If paragraph contains ONLY math (block math), treat as math element
+    // Single-pass classification
+    const { mathEls, decoratedEls, unsupportedEls } = _classifyParagraphDescendants(el, renderContext);
+
+    // Pure math paragraph: all direct children are math containers, no text
+    if (mathEls.length > 0 && decoratedEls.length === 0 && unsupportedEls.length === 0) {
         const nonMathText = Array.from(el.childNodes)
             .filter(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim())
             .length;
-
-        if (nonMathText === 0 && el.children.length === mathContainers.length) {
-            // Pure math paragraph - extract as math
+        const directMath = mathEls.filter(m => m.parentElement === el);
+        if (nonMathText === 0 && el.children.length === directMath.length) {
             handleMath(el, slideRect, slideData, 'mjx-container', renderContext);
             return;
         }
-        // Mixed content: reserve inline width in the paragraph and extract
-        // each math fragment as a separate fallback element.
     }
 
-    const decoratedChildren = Array.from(el.children).filter((child) =>
-        shouldExtractStandaloneDecoratedText(
-            child,
-            extractDecoration(child, deriveRenderContext(child, renderContext)),
-        )
-    );
-    const unsupportedInlineChildren = _collectTopLevelInlineUnsupported(el);
-
+    // Build paragraph text (with hidden placeholders for standalone children)
+    const hasStandalone = mathEls.length > 0 || decoratedEls.length > 0 || unsupportedEls.length > 0;
     slideData.elements.push(
         buildTextElement(el, slideRect, 'paragraph', {
-            runs: decoratedChildren.length > 0
+            runs: hasStandalone
                 ? extractTextRunsWithHiddenDecorated(
-                    el,
-                    renderContext,
-                    mathContainers.length > 0,
-                    _isInlineStandaloneUnsupported,
+                    el, renderContext, mathEls.length > 0, _isInlineStandaloneUnsupported,
                 )
-                : unsupportedInlineChildren.length > 0
-                ? extractTextRunsWithHiddenDecorated(
-                    el,
-                    renderContext,
-                    mathContainers.length > 0,
-                    _isInlineStandaloneUnsupported,
-                )
-                : extractTextRunsWithPseudo(el, renderContext, mathContainers.length > 0),
+                : extractTextRunsWithPseudo(el, renderContext, false),
             renderContext,
         })
     );
-    for (const mathEl of mathContainers) {
+
+    // Extract standalone children as separate elements
+    for (const mathEl of mathEls) {
         handleMath(mathEl, slideRect, slideData, 'mjx-container', renderContext);
     }
-    for (const child of decoratedChildren) {
+    for (const child of decoratedEls) {
         processElement(child, slideRect, slideData, renderContext);
     }
-    for (const child of unsupportedInlineChildren) {
+    for (const child of unsupportedEls) {
         processElement(child, slideRect, slideData, renderContext);
     }
 }
