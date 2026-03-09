@@ -129,6 +129,89 @@ def multi_paragraph_pres(multi_paragraph_html: Path):
     return extract_presentation_sync(multi_paragraph_html)
 
 
+# ---------------------------------------------------------------------------
+# Batched fixture files: render once, share across many tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def inline_text_html(session_output_dir: Path) -> Path:
+    """Render inline-text-features.md to HTML."""
+    return render_to_html(
+        FIXTURES_DIR / "inline-text-features.md", output_dir=session_output_dir
+    )
+
+
+@pytest.fixture(scope="module")
+def inline_text_pres(inline_text_html: Path):
+    return extract_presentation_sync(inline_text_html)
+
+
+@pytest.fixture(scope="module")
+def decoration_html(session_output_dir: Path) -> Path:
+    """Render decoration-features.md to HTML."""
+    return render_to_html(
+        FIXTURES_DIR / "decoration-features.md", output_dir=session_output_dir
+    )
+
+
+@pytest.fixture(scope="module")
+def decoration_pres(decoration_html: Path):
+    return extract_presentation_sync(decoration_html)
+
+
+@pytest.fixture(scope="module")
+def gradient_html(session_output_dir: Path) -> Path:
+    """Render gradient-features.md to HTML."""
+    return render_to_html(
+        FIXTURES_DIR / "gradient-features.md", output_dir=session_output_dir
+    )
+
+
+@pytest.fixture(scope="module")
+def gradient_pres(gradient_html: Path):
+    return extract_presentation_sync(gradient_html)
+
+
+@pytest.fixture(scope="module")
+def decomposition_html(session_output_dir: Path) -> Path:
+    """Render decomposition-features.md to HTML."""
+    return render_to_html(
+        FIXTURES_DIR / "decomposition-features.md", output_dir=session_output_dir
+    )
+
+
+@pytest.fixture(scope="module")
+def decomposition_pres(decomposition_html: Path):
+    return extract_presentation_sync(decomposition_html)
+
+
+@pytest.fixture(scope="module")
+def math_features_html(session_output_dir: Path) -> Path:
+    """Render math-features.md to HTML."""
+    return render_to_html(
+        FIXTURES_DIR / "math-features.md", output_dir=session_output_dir
+    )
+
+
+@pytest.fixture(scope="module")
+def math_features_pres(math_features_html: Path):
+    return extract_presentation_sync(math_features_html)
+
+
+@pytest.fixture(scope="module")
+def table_features_html(session_output_dir: Path) -> Path:
+    """Render table-features.md to HTML."""
+    return render_to_html(
+        FIXTURES_DIR / "table-features.md", output_dir=session_output_dir
+    )
+
+
+@pytest.fixture(scope="module")
+def table_features_pres(table_features_html: Path):
+    return extract_presentation_sync(table_features_html)
+
+
 @pytest.mark.integration
 class TestExtractSimple:
     """Tests for extracting simple.md presentation."""
@@ -236,17 +319,9 @@ class TestExtractNestedList:
         assert any(item.space_before_px > 0 for item in list_element.list_items[1:])
 
     def test_inline_emphasis_in_list_item_preserves_surrounding_spaces(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, inline_text_pres
     ) -> None:
-        md_path = tmp_path / "list-inline-emphasis.md"
-        md_path.write_text(
-            "- First bullet\n- Second bullet with **emphasis** and trailing text\n",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = inline_text_pres.slides[11]
         list_element = next(
             e for e in slide.elements if e.element_type == ElementType.UNORDERED_LIST
         )
@@ -293,52 +368,16 @@ class TestExtractTable:
             assert len(row.cells) == 3
 
     def test_transparent_table_cell_background_does_not_become_alpha_zero(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, table_features_pres
     ) -> None:
-        md_path = tmp_path / "transparent-table-cell.md"
-        md_path.write_text(
-            """---
-marp: true
----
-
-<style scoped>
-table { color: white; }
-</style>
-
-| A | B |
-|---|---|
-| 1 | 2 |
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = table_features_pres.slides[0]
         table = next(e for e in slide.elements if e.element_type == ElementType.TABLE)
 
         background = table.table_rows[0].cells[0].background
         assert background is None or background.a > 0
 
-    def test_background_split_ratio_is_extracted(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "background-split-ratio.md"
-        md_path.write_text(
-            """---
-marp: true
----
-
-![bg left:40%](https://picsum.photos/800/600)
-
-# Slide
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_background_split_ratio_is_extracted(self, table_features_pres) -> None:
+        slide = table_features_pres.slides[1]
 
         assert len(slide.background.images) == 1
         bg = slide.background.images[0]
@@ -348,25 +387,9 @@ marp: true
         assert bg.box.width == pytest.approx(slide.width_px * 0.4, abs=2)
 
     def test_multiple_background_images_keep_distinct_boxes(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, table_features_pres
     ) -> None:
-        md_path = tmp_path / "multiple-backgrounds.md"
-        md_path.write_text(
-            """---
-marp: true
----
-
-![bg](https://picsum.photos/1280/720?random=1)
-![bg](https://picsum.photos/1280/720?random=2)
-
-# Slide
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = table_features_pres.slides[2]
 
         assert len(slide.background.images) == 2
         first, second = slide.background.images
@@ -378,58 +401,18 @@ marp: true
         assert second.box.width == pytest.approx(slide.width_px / 2, abs=2)
 
     def test_table_text_does_not_inherit_hidden_svg_opacity(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, table_features_pres
     ) -> None:
-        md_path = tmp_path / "table-text-opacity.md"
-        md_path.write_text(
-            """---
-marp: true
----
-
-<style scoped>
-th { color: white; background: linear-gradient(135deg, #3b82f6, #2563eb); }
-</style>
-
-| Feature | Free |
-|---------|:----:|
-| Users | 5 |
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = table_features_pres.slides[3]
         table = next(e for e in slide.elements if e.element_type == ElementType.TABLE)
 
         header_run = table.table_rows[0].cells[0].paragraphs[0].runs[0]
         assert header_run.style.color.a == pytest.approx(1.0)
 
     def test_table_cell_resolves_gradient_and_row_background_styles(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, table_features_pres
     ) -> None:
-        md_path = tmp_path / "table-cell-style-resolution.md"
-        md_path.write_text(
-            """---
-marp: true
----
-
-<style scoped>
-th { color: white; background: linear-gradient(135deg, #3b82f6, #2563eb); padding: 14px 16px; }
-td { padding: 12px 16px; border-bottom: 1px solid #e2e8f0; }
-tbody tr:nth-child(odd) { background: #f1f5f9; }
-</style>
-
-| Feature | Free |
-|---------|:----:|
-| Users | 5 |
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = table_features_pres.slides[4]
         table = next(e for e in slide.elements if e.element_type == ElementType.TABLE)
 
         header = table.table_rows[0].cells[0]
@@ -444,29 +427,9 @@ tbody tr:nth-child(odd) { background: #f1f5f9; }
         assert body.border_bottom.width_px == pytest.approx(1.0)
 
     def test_parent_opacity_propagates_to_text_decoration_image_and_table(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, table_features_pres
     ) -> None:
-        md_path = tmp_path / "opacity-propagation.md"
-        md_path.write_text(
-            """---
-marp: true
----
-
-<div style="opacity: 0.6">
-  <p style="color: rgb(10, 20, 30)">Alpha text</p>
-  <div style="background: rgba(255, 0, 0, 0.5); padding: 12px">Panel</div>
-  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP4z8AAAwEBAMn+ku8AAAAASUVORK5CYII=" />
-  <table>
-    <tr><td style="background: rgba(0, 128, 0, 0.5)">Cell</td></tr>
-  </table>
-</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = table_features_pres.slides[5]
 
         paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
@@ -520,41 +483,9 @@ class TestExtractComplex:
         assert "<circle" in svg.unsupported_info.svg_markup
 
     def test_linear_gradient_box_stays_native_but_gradient_text_falls_back(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, gradient_pres
     ) -> None:
-        md_path = tmp_path / "gradient-supported.md"
-        md_path.write_text(
-            """---
-marp: true
----
-
-<style scoped>
-.dot {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-  border-radius: 50%;
-  color: white;
-}
-.hero-title {
-  background: linear-gradient(135deg, #c7d2fe, #818cf8, #c084fc);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-</style>
-
-<div class="dot">Q1</div>
-<h1 class="hero-title">Gradient Heading</h1>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = gradient_pres.slides[4]
 
         dot = next(
             element
@@ -668,20 +599,9 @@ class TestRenderedLayoutCapture:
         assert "Default mode is Example. Optional mode is Alternate." in second_text
 
     def test_heading_with_inline_spans_preserves_inter_run_space(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, inline_text_pres
     ) -> None:
-        md_path = tmp_path / "heading-inline-space.md"
-        md_path.write_text(
-            """# Slide
-
-## <span style="color:#60a5fa;">marpx</span> <span style="color:#e2e8f0;">Kitchen Sink</span>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = inline_text_pres.slides[0]
         heading = next(
             e
             for e in slide.elements
@@ -694,22 +614,9 @@ class TestRenderedLayoutCapture:
         )
 
     def test_paragraph_trims_html_indentation_whitespace(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, inline_text_pres
     ) -> None:
-        md_path = tmp_path / "paragraph-indentation.md"
-        md_path.write_text(
-            """# Slide
-
-<p style="text-align:right; color:#94a3b8; font-size:0.62em;">
-  Header · Footer · Paginate · Speaker Notes · Background — all directives supported
-</p>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = inline_text_pres.slides[1]
         paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
         )
@@ -720,24 +627,8 @@ class TestRenderedLayoutCapture:
             == "Header · Footer · Paginate · Speaker Notes · Background — all directives supported"
         )
 
-    def test_paragraph_preserves_br_line_breaks(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "paragraph-br.md"
-        md_path.write_text(
-            """# Slide
-
-<p>
-  <strong>Heading · List · Table · Code · Image · Badge · Quote</strong><br/>
-  1 枚に全部載せ。これがネイティブ PowerPoint になります。
-</p>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_paragraph_preserves_br_line_breaks(self, inline_text_pres) -> None:
+        slide = inline_text_pres.slides[2]
         paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
         )
@@ -749,26 +640,9 @@ class TestRenderedLayoutCapture:
         )
 
     def test_code_block_preserves_newlines_and_indentation(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, inline_text_pres
     ) -> None:
-        md_path = tmp_path / "code-block.md"
-        md_path.write_text(
-            """# Slide
-
-```python
-from dataclasses import dataclass
-
-@dataclass
-class Sample:
-    value: int
-```
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = inline_text_pres.slides[3]
         code_blocks = [
             e for e in slide.elements if e.element_type == ElementType.CODE_BLOCK
         ]
@@ -783,22 +657,8 @@ class Sample:
             "    value: int",
         ]
 
-    def test_code_block_preserves_pre_decoration(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "decorated-code-block.md"
-        md_path.write_text(
-            """# Slide
-
-<pre style="background:#f6f8fa; border:1px solid #d1d9e0; border-radius:6px; padding:16px; margin:0;"><code>alpha
-beta</code></pre>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_code_block_preserves_pre_decoration(self, decoration_pres) -> None:
+        slide = decoration_pres.slides[0]
         code = next(
             e for e in slide.elements if e.element_type == ElementType.CODE_BLOCK
         )
@@ -813,18 +673,8 @@ beta</code></pre>
         assert code.content_box.x > code.box.x
         assert code.content_box.y > code.box.y
 
-    def test_inline_code_stays_in_paragraph_runs(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "inline-code.md"
-        md_path.write_text(
-            "# Slide\n\nThis uses `inline code` in a sentence.\n",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_inline_code_stays_in_paragraph_runs(self, inline_text_pres) -> None:
+        slide = inline_text_pres.slides[4]
         paragraphs = [
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
         ]
@@ -850,17 +700,9 @@ beta</code></pre>
         )
 
     def test_inline_code_is_not_extracted_as_overlay_decorated_element(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, inline_text_pres
     ) -> None:
-        md_path = tmp_path / "inline-code-overlay.md"
-        md_path.write_text(
-            "# Slide\n\nThis uses `inline code` in a sentence.\n",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = inline_text_pres.slides[4]
 
         paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
@@ -883,18 +725,8 @@ beta</code></pre>
             for e in slide.elements
         )
 
-    def test_mark_stays_in_paragraph_runs(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "inline-mark.md"
-        md_path.write_text(
-            "# Slide\n\n<mark>This text is highlighted</mark> and continues normally.\n",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_mark_stays_in_paragraph_runs(self, inline_text_pres) -> None:
+        slide = inline_text_pres.slides[5]
 
         paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
@@ -914,18 +746,8 @@ beta</code></pre>
             for e in slide.elements
         )
 
-    def test_twemoji_inline_images_fallback_to_alt_text(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "twemoji-inline.md"
-        md_path.write_text(
-            "# Slide\n\nTarget: 🎯 Rocket: 🚀\n",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_twemoji_inline_images_fallback_to_alt_text(self, inline_text_pres) -> None:
+        slide = inline_text_pres.slides[6]
 
         paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
@@ -936,25 +758,9 @@ beta</code></pre>
         assert "🚀" in run_texts
 
     def test_inline_math_creates_math_runs_in_paragraph(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, math_features_pres
     ) -> None:
-        md_path = tmp_path / "inline-math.md"
-        md_path.write_text(
-            """---
-marp: true
-math: mathjax
----
-
-# Slide
-
-Inline: $E = mc^2$ and $\\sum_{i=1}^{n} i$
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = math_features_pres.slides[0]
 
         # Inline math should NOT produce separate MATH elements
         math_elements = [
@@ -974,25 +780,9 @@ Inline: $E = mc^2$ and $\\sum_{i=1}^{n} i$
         assert r"\sum_{i=1}^{n} i" in latex_sources
 
     def test_inline_math_produces_no_separate_elements(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, math_features_pres
     ) -> None:
-        md_path = tmp_path / "inline-math-no-dup.md"
-        md_path.write_text(
-            """---
-marp: true
-math: mathjax
----
-
-# Slide
-
-Inline: $E = mc^2$ and $\\sum_{i=1}^{n} i$
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = math_features_pres.slides[0]
 
         # No separate MATH or UNSUPPORTED elements for inline math
         math_elements = [
@@ -1016,34 +806,9 @@ Inline: $E = mc^2$ and $\\sum_{i=1}^{n} i$
         assert len(math_runs) == 2
 
     def test_absolute_block_pseudo_elements_are_extracted(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decomposition_pres
     ) -> None:
-        md_path = tmp_path / "block-pseudo.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  section { background: white; color: #111827; }
-  .timeline { position: relative; height: 40px; margin-top: 24px; }
-  .timeline::before { content: ''; position: absolute; top: 18px; left: 5%; right: 5%; height: 3px; background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899); }
-  .quote { position: relative; margin-top: 24px; }
-  .quote::before { content: '"'; position: absolute; top: -20px; left: -30px; font-size: 64px; color: rgba(59,130,246,0.5); }
-  .plan { position: relative; width: 220px; height: 120px; margin-top: 24px; background: #eff6ff; border-radius: 16px; }
-  .plan::before { content: 'POPULAR'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #3b82f6; color: white; padding: 4px 16px; border-radius: 20px; font-size: 12px; font-weight: 700; }
----
-
-# Slide
-
-<div class="timeline"></div>
-<div class="quote">Quoted text</div>
-<div class="plan"></div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decomposition_pres.slides[8]
         pseudo_blocks = [
             e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
         ]
@@ -1073,34 +838,8 @@ style: |
         assert badge.decoration is not None
         assert badge.decoration.background_color is not None
 
-    def test_box_shadow_is_extracted_into_decoration(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "box-shadow.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-      .card {
-        background: white;
-        border-radius: 16px;
-        padding: 24px;
-        box-shadow:
-          inset 0 2px 8px rgba(15,23,42,0.08),
-          0 8px 32px rgba(59,130,246,0.15);
-      }
----
-
-# Slide
-
-<div class="card">Shadow card</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_box_shadow_is_extracted_into_decoration(self, decoration_pres) -> None:
+        slide = decoration_pres.slides[1]
         card = next(
             e
             for e in slide.elements
@@ -1136,35 +875,9 @@ style: |
         assert outer_shadow.color.a == pytest.approx(0.15)
 
     def test_scaled_block_scales_text_and_decoration_metrics(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decoration_pres
     ) -> None:
-        md_path = tmp_path / "scaled-block.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .card {
-    background: white;
-    border: 2px solid #bfdbfe;
-    border-radius: 8px;
-    padding: 10px 20px;
-    font-size: 20px;
-    line-height: 1.2;
-    transform: scale(1.25);
-    transform-origin: top left;
-  }
----
-
-# Slide
-
-<div class="card">Scaled text</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decoration_pres.slides[2]
         card = next(
             e
             for e in slide.elements
@@ -1185,31 +898,9 @@ style: |
         assert card.paragraphs[0].line_height_px == pytest.approx(30.0)
 
     def test_complex_3d_transform_is_kept_on_native_route(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decoration_pres
     ) -> None:
-        md_path = tmp_path / "complex-transform.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .floating {
-    width: 280px;
-    height: 200px;
-    background: linear-gradient(135deg, rgba(99,102,241,0.3), rgba(168,85,247,0.3));
-    transform: perspective(800px) rotateY(-8deg) rotateX(4deg);
-  }
----
-
-# Slide
-
-<div class="floating"></div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decoration_pres.slides[3]
         assert all(e.element_type != ElementType.UNSUPPORTED for e in slide.elements)
         floating = next(
             e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
@@ -1221,31 +912,9 @@ style: |
         assert len(floating.projected_corners) == 4
 
     def test_decorated_block_does_not_duplicate_container_background_as_run_highlight(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decoration_pres
     ) -> None:
-        md_path = tmp_path / "decorated-badge.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .badge {
-    display: inline-block;
-    background: rgba(99,102,241,0.2);
-    border: 1px solid #6366f1;
-    border-radius: 20px;
-    padding: 6px 16px;
-    color: #a5b4fc;
-  }
----
-
-<div class="badge">Now in Public Beta</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decoration_pres.slides[4]
         badge = next(
             e
             for e in slide.elements
@@ -1262,108 +931,22 @@ style: |
         assert run.style.background_color is None
 
     def test_rounded_overflow_container_becomes_unsupported(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decoration_pres
     ) -> None:
-        md_path = tmp_path / "overflow-clip.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .shell {
-    width: 320px;
-    border-radius: 16px;
-    overflow: hidden;
-    background: white;
-  }
-  .shell table {
-    width: 100%;
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
-  }
-  .shell td {
-    background: white;
-    padding: 12px 16px;
-  }
----
-
-# Slide
-
-<div class="shell">
-  <table>
-    <tr><td>Hello</td></tr>
-  </table>
-</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decoration_pres.slides[5]
         unsupported = next(
             e for e in slide.elements if e.element_type == ElementType.UNSUPPORTED
         )
         assert unsupported.unsupported_info is not None
         assert unsupported.unsupported_info.reason == "Overflow clipping container"
 
-    def test_rounded_overflow_table_stays_native(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "overflow-table.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-  }
-  th { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
----
-
-# Slide
-
-| A | B |
-|---|---|
-| 1 | 2 |
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_rounded_overflow_table_stays_native(self, decoration_pres) -> None:
+        slide = decoration_pres.slides[6]
         assert any(e.element_type == ElementType.TABLE for e in slide.elements)
         assert all(e.element_type != ElementType.UNSUPPORTED for e in slide.elements)
 
-    def test_inline_gradient_text_stays_native_run(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "gradient-text.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .gradient {
-    background: linear-gradient(135deg, #3b82f6, #8b5cf6, #ec4899);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
----
-
-# Slide
-
-This has <span class="gradient">gradient text</span> inline.
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_inline_gradient_text_stays_native_run(self, gradient_pres) -> None:
+        slide = gradient_pres.slides[0]
 
         paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
@@ -1376,43 +959,9 @@ This has <span class="gradient">gradient text</span> inline.
         assert all(e.element_type != ElementType.UNSUPPORTED for e in slide.elements)
 
     def test_block_gradient_text_inside_decorated_block_stays_native(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, gradient_pres
     ) -> None:
-        md_path = tmp_path / "gradient-text-card.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .card {
-    background: rgba(59,130,246,0.12);
-    border: 1px solid rgba(59,130,246,0.3);
-    border-radius: 16px;
-    padding: 24px;
-    width: 320px;
-  }
-  .metric-number {
-    font-size: 56px;
-    font-weight: 800;
-    background: linear-gradient(135deg, #60a5fa, #c084fc);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    line-height: 1.2;
-  }
----
-
-# Slide
-
-<div class="card">
-  <div class="metric-number">2.4M</div>
-  <div>Monthly Active Users</div>
-</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = gradient_pres.slides[1]
 
         card = next(
             e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
@@ -1424,45 +973,9 @@ style: |
         assert all(e.element_type != ElementType.UNSUPPORTED for e in slide.elements)
 
     def test_decorated_block_with_nested_decorated_child_decomposes(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decomposition_pres
     ) -> None:
-        md_path = tmp_path / "nested-decorated-child.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .card {
-    background: white;
-    border: 2px solid #bfdbfe;
-    border-radius: 16px;
-    padding: 24px;
-  }
-  .num {
-    width: 32px;
-    height: 32px;
-    background: #3b82f6;
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-  }
----
-
-# Slide
-
-<div class="card">
-  <div class="num">1</div>
-  <div>Upload</div>
-</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decomposition_pres.slides[0]
 
         decorated = [
             e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
@@ -1480,25 +993,8 @@ style: |
             for e in slide.elements
         )
 
-    def test_leaf_block_text_is_extracted_as_paragraph(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "leaf-block-text.md"
-        md_path.write_text(
-            """---
-marp: true
----
-
-# Slide
-
-<div>Upload</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_leaf_block_text_is_extracted_as_paragraph(self, decoration_pres) -> None:
+        slide = decoration_pres.slides[11]
 
         paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
@@ -1509,36 +1005,9 @@ marp: true
         )
 
     def test_flex_centered_decorated_text_sets_middle_vertical_align(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decoration_pres
     ) -> None:
-        md_path = tmp_path / "flex-centered-num.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .num {
-    width: 32px;
-    height: 32px;
-    background: #3b82f6;
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-  }
----
-
-# Slide
-
-<div class="num">1</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decoration_pres.slides[9]
 
         num = next(
             e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
@@ -1547,34 +1016,9 @@ style: |
         assert num.paragraphs[0].alignment == "center"
 
     def test_flex_column_centered_child_blocks_inherit_center_alignment(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decoration_pres
     ) -> None:
-        md_path = tmp_path / "floating-center.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .floating {
-    width: 280px;
-    height: 200px;
-    background: rgba(99,102,241,0.2);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
----
-
-# Slide
-
-<div class="floating"><div>🤖</div><div>AI Engine v3</div></div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decoration_pres.slides[10]
 
         floating = next(
             e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
@@ -1586,32 +1030,8 @@ style: |
         ]
         assert all(paragraph.alignment == "center" for paragraph in floating.paragraphs)
 
-    def test_decoration_only_leaf_block_is_extracted(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "decoration-only-bar.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .bar {
-    width: 40px;
-    height: 100px;
-    background: linear-gradient(180deg, #3b82f6, #1d4ed8);
-    border-radius: 4px 4px 0 0;
-  }
----
-
-# Slide
-
-<div class="bar"></div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_decoration_only_leaf_block_is_extracted(self, decoration_pres) -> None:
+        slide = decoration_pres.slides[8]
         bar = next(
             e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
         )
@@ -1620,50 +1040,9 @@ style: |
         assert bar.paragraphs == []
 
     def test_decorated_block_with_grandchild_decorated_blocks_decomposes(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decomposition_pres
     ) -> None:
-        md_path = tmp_path / "nested-grandchild-bars.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .panel {
-    background: #1e293b;
-    border-radius: 12px;
-    padding: 16px;
-    border: 1px solid #334155;
-  }
-  .bar-chart {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    height: 120px;
-  }
-  .bar {
-    width: 40px;
-    border-radius: 4px 4px 0 0;
-    background: linear-gradient(180deg, #3b82f6, #1d4ed8);
-  }
-  .b1 { height: 60%; }
-  .b2 { height: 80%; }
----
-
-# Slide
-
-<div class="panel">
-  <h4>Revenue by Month</h4>
-  <div class="bar-chart">
-    <div class="bar b1"></div>
-    <div class="bar b2"></div>
-  </div>
-</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decomposition_pres.slides[1]
 
         decorated = [
             e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
@@ -1692,30 +1071,9 @@ style: |
         )
 
     def test_presentational_list_recurses_into_children(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decomposition_pres
     ) -> None:
-        md_path = tmp_path / "presentational-list.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .stat-list { list-style: none; padding: 0; margin: 0; }
-  .stat-list li { display: flex; justify-content: space-between; }
-  .val { color: #60a5fa; font-weight: 600; }
----
-
-# Slide
-
-<ul class="stat-list">
-  <li><span>Conversion</span><span class="val">12.4%</span></li>
-</ul>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decomposition_pres.slides[2]
 
         texts = [
             "".join(run.text for p in e.paragraphs for run in p.runs)
@@ -1725,45 +1083,9 @@ style: |
         assert "Conversion" in texts
 
     def test_presentational_list_rows_with_decoration_extract_as_blocks(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decomposition_pres
     ) -> None:
-        md_path = tmp_path / "presentational-list-rows.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .panel {
-    background: #1e293b;
-    border-radius: 12px;
-    padding: 16px;
-    border: 1px solid #334155;
-  }
-  .stat-list { list-style: none; padding: 0; margin: 0; }
-  .stat-list li {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid #334155;
-  }
-  .val { color: #60a5fa; font-weight: 600; }
----
-
-# Slide
-
-<div class="panel">
-  <h4>Top Metrics</h4>
-  <ul class="stat-list">
-    <li><span>Conversion</span><span class="val">12.4%</span></li>
-    <li><span>Bounce Rate</span><span class="val">23.1%</span></li>
-  </ul>
-</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decomposition_pres.slides[3]
 
         decorated = [
             e for e in slide.elements if e.element_type == ElementType.DECORATED_BLOCK
@@ -1797,32 +1119,8 @@ style: |
         assert "Bounce Rate" in paragraphs
         assert "23.1%" in paragraphs
 
-    def test_backdrop_filter_block_stays_native(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "backdrop-filter.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .glass {
-    background: rgba(255,255,255,0.2);
-    backdrop-filter: blur(20px);
-    border-radius: 20px;
-    padding: 24px;
-  }
----
-
-# Slide
-
-<div class="glass">Glass panel</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_backdrop_filter_block_stays_native(self, decoration_pres) -> None:
+        slide = decoration_pres.slides[7]
         panel = next(
             e
             for e in slide.elements
@@ -1836,94 +1134,22 @@ style: |
         assert panel.decoration.background_color is not None
         assert all(e.element_type != ElementType.UNSUPPORTED for e in slide.elements)
 
-    def test_slide_linear_gradient_background_is_extracted(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "slide-bg-gradient.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  section {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-  }
----
-
-# Slide
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_slide_linear_gradient_background_is_extracted(self, gradient_pres) -> None:
+        slide = gradient_pres.slides[2]
 
         assert slide.background.background_gradient is not None
         assert slide.background.background_gradient.startswith("linear-gradient(")
 
-    def test_slide_radial_gradient_background_is_extracted(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "slide-bg-radial-gradient.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  section {
-    background: radial-gradient(ellipse at 30% 50%, #312e81, #0f172a 70%);
-    color: white;
-  }
----
-
-# Slide
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_slide_radial_gradient_background_is_extracted(self, gradient_pres) -> None:
+        slide = gradient_pres.slides[3]
 
         assert slide.background.background_gradient is not None
         assert slide.background.background_gradient.startswith("radial-gradient(")
 
     def test_decorated_badge_is_extracted_as_separate_element(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decomposition_pres
     ) -> None:
-        md_path = tmp_path / "badge-card.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .card {
-    background: #eef4ff;
-    border: 1px solid #bfd3ff;
-    border-radius: 16px;
-    padding: 18px 20px;
-  }
-  .badge {
-    display: inline-block;
-    padding: 0.14em 0.5em;
-    border-radius: 999px;
-    background: #dbeafe;
-    color: #1d4ed8;
-    font-size: 0.76em;
-    font-weight: 700;
-  }
----
-
-<div class="card">
-  <div class="badge">Good</div>
-  <p>Body text under the badge.</p>
-</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decomposition_pres.slides[4]
 
         shape_only_card = next(
             e
@@ -1949,36 +1175,9 @@ style: |
         assert body.paragraphs[0].runs[0].text == "Body text under the badge."
 
     def test_decorated_card_with_table_is_shape_only_and_keeps_children(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decomposition_pres
     ) -> None:
-        md_path = tmp_path / "card-table.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .card {
-    background: #eef4ff;
-    border: 1px solid #bfd3ff;
-    border-radius: 16px;
-    padding: 18px 20px;
-  }
----
-
-<div class="card">
-  <h3>Left Stack</h3>
-  <p>A short paragraph sits above a small table.</p>
-  <table>
-    <tr><th>Key</th><th>Value</th></tr>
-    <tr><td>alpha</td><td>12</td></tr>
-  </table>
-</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decomposition_pres.slides[5]
 
         card = next(
             e
@@ -2054,47 +1253,9 @@ style: |
         assert card.box.width >= image.box.width
 
     def test_figure_captions_and_image_decoration_are_extracted(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decomposition_pres
     ) -> None:
-        md_path = tmp_path / "figure.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .compare-row {
-    display: flex;
-    gap: 20px;
-  }
-  .compare-row img {
-    width: 100%;
-    height: 220px;
-    object-fit: contain;
-    background: #ffffff;
-    border: 1px solid #cbd5e1;
-    border-radius: 12px;
-  }
-  .compare-row figcaption {
-    font-size: 0.7em;
-    text-align: center;
-    margin-top: 8px;
-  }
----
-
-# Slide
-
-<div class="compare-row">
-  <figure>
-    <img src="./images/chart-wave-raw.png" alt="Sample image A" />
-    <figcaption>Image A within the same container size</figcaption>
-  </figure>
-</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decomposition_pres.slides[6]
 
         images = [e for e in slide.elements if e.element_type == ElementType.IMAGE]
         paragraphs = [
@@ -2112,33 +1273,9 @@ style: |
         )
 
     def test_single_image_panel_is_extracted_as_framed_image(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, decomposition_pres
     ) -> None:
-        md_path = tmp_path / "panel-image.md"
-        md_path.write_text(
-            """---
-marp: true
-style: |
-  .panel {
-    background: #f8fafc;
-    border: 1px solid #cbd5e1;
-    border-radius: 14px;
-    padding: 14px 18px;
-  }
----
-
-# Slide
-
-<div class="panel">
-  <img src="./images/diagram-network.svg" alt="Framed SVG" style="width:100%; height:420px; object-fit:contain;" />
-</div>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = decomposition_pres.slides[7]
         images = [e for e in slide.elements if e.element_type == ElementType.IMAGE]
 
         assert len(images) == 1
@@ -2146,18 +1283,8 @@ style: |
         assert images[0].decoration.border_top.width_px > 0
         assert images[0].decoration.padding.left_px > 0
 
-    def test_markdown_blockquote_extracts_decoration(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "blockquote.md"
-        md_path.write_text(
-            "# Slide\n\n> Sample blockquote text\n",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_markdown_blockquote_extracts_decoration(self, inline_text_pres) -> None:
+        slide = inline_text_pres.slides[7]
         quotes = [e for e in slide.elements if e.element_type == ElementType.BLOCKQUOTE]
 
         assert len(quotes) == 1
@@ -2170,22 +1297,9 @@ style: |
         assert quote.content_box.width < quote.box.width
 
     def test_nested_blockquote_preserves_nested_quote_and_paragraph_break(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, inline_text_pres
     ) -> None:
-        md_path = tmp_path / "nested-blockquote.md"
-        md_path.write_text(
-            """# Slide
-
-> > line one
-> >
-> > -- **Jeff Atwood**, *Coding Horror*
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = inline_text_pres.slides[8]
         quotes = [e for e in slide.elements if e.element_type == ElementType.BLOCKQUOTE]
 
         assert len(quotes) == 2
@@ -2196,21 +1310,8 @@ style: |
             "-- Jeff Atwood"
         )
 
-    def test_blockquote_strikethrough_is_extracted(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        md_path = tmp_path / "blockquote-strike.md"
-        md_path.write_text(
-            """# Slide
-
-> Remember that ~~premature optimization~~ is the root of all evil.
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+    def test_blockquote_strikethrough_is_extracted(self, inline_text_pres) -> None:
+        slide = inline_text_pres.slides[9]
         quote = next(
             e for e in slide.elements if e.element_type == ElementType.BLOCKQUOTE
         )
@@ -2222,20 +1323,9 @@ style: |
         assert struck.style.strike is True
 
     def test_nested_bold_inside_strikethrough_preserves_strike(
-        self, tmp_path: Path, tmp_output_dir: Path
+        self, inline_text_pres
     ) -> None:
-        md_path = tmp_path / "nested-strike-bold.md"
-        md_path.write_text(
-            """# Slide
-
-Strikethrough with bold: <s>this is struck through with <strong>bold emphasis</strong> inside</s>
-""",
-            encoding="utf-8",
-        )
-
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
+        slide = inline_text_pres.slides[10]
         paragraph = next(
             e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
         )
