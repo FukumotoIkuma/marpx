@@ -25,6 +25,11 @@ from ._helpers import _build_gradient_fill_xml, _remove_existing_fills, _to_rgb
 from .decoration import _add_decoration_shape
 from .decoration import _resolve_scene3d_rotations
 
+# Fill tags relevant to run properties (no pattFill).
+_RUN_FILL_TAGS: frozenset[str] = frozenset(
+    {qn("a:solidFill"), qn("a:gradFill"), qn("a:noFill"), qn("a:blipFill")}
+)
+
 ALIGNMENT_MAP: dict[str, PP_ALIGN] = {
     "left": PP_ALIGN.LEFT,
     "center": PP_ALIGN.CENTER,
@@ -112,11 +117,6 @@ def _set_run_gradient_fill(r_pr, css_gradient: str) -> None:
     if parsed is None:
         return
 
-    # Use the shared helper but with a narrower tag set (run properties
-    # don't contain a:pattFill).
-    _RUN_FILL_TAGS: frozenset[str] = frozenset(
-        {qn("a:solidFill"), qn("a:gradFill"), qn("a:noFill"), qn("a:blipFill")}
-    )
     _remove_existing_fills(r_pr, fill_tags=_RUN_FILL_TAGS)
 
     # Build a detached gradFill element (parent_node=None) so we can

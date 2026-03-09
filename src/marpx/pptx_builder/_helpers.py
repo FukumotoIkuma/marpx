@@ -76,6 +76,17 @@ def _set_blip_alpha(blip, alpha: float) -> None:
     alpha_node.set("amt", str(int(round(bounded_alpha * 100000))))
 
 
+_DEFAULT_FILL_TAGS: frozenset[str] = frozenset(
+    {
+        qn("a:solidFill"),
+        qn("a:gradFill"),
+        qn("a:noFill"),
+        qn("a:pattFill"),
+        qn("a:blipFill"),
+    }
+)
+
+
 def _remove_existing_fills(
     parent,
     *,
@@ -97,17 +108,6 @@ def _remove_existing_fills(
     for child in list(parent):
         if child.tag in fill_tags:
             parent.remove(child)
-
-
-_DEFAULT_FILL_TAGS: frozenset[str] = frozenset(
-    {
-        qn("a:solidFill"),
-        qn("a:gradFill"),
-        qn("a:noFill"),
-        qn("a:pattFill"),
-        qn("a:blipFill"),
-    }
-)
 
 
 def _build_gradient_fill_xml(
