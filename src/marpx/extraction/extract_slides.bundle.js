@@ -288,9 +288,60 @@ function _extractTextGradient(cs, ctx) {
   }
   return null;
 }
+function _isNegligibleFilter(filterStr) {
+  const filters = filterStr.match(/[\w-]+\([^)]*\)/g);
+  if (!filters) return false;
+  for (const f of filters) {
+    const match = f.match(/^([\w-]+)\((.+)\)$/);
+    if (!match) return false;
+    const [, name, valueStr] = match;
+    let value = parseFloat(valueStr);
+    if (Number.isNaN(value)) return false;
+    if (name === "hue-rotate") {
+      const trimmed = valueStr.trim();
+      if (trimmed.endsWith("rad")) {
+        value = value * (180 / Math.PI);
+      } else if (trimmed.endsWith("turn")) {
+        value = value * 360;
+      } else if (trimmed.endsWith("grad")) {
+        value = value * 0.9;
+      }
+    } else if (["brightness", "contrast", "saturate", "opacity", "grayscale", "sepia"].includes(name)) {
+      if (valueStr.trim().endsWith("%")) {
+        value = value / 100;
+      }
+    }
+    switch (name) {
+      case "brightness":
+        if (value < 0.9 || value > 1.1) return false;
+        break;
+      case "contrast":
+        if (value < 0.9 || value > 1.1) return false;
+        break;
+      case "saturate":
+        if (value < 0.8 || value > 1.2) return false;
+        break;
+      case "opacity":
+        if (value < 0.95 || value > 1) return false;
+        break;
+      case "grayscale":
+        if (value < 0 || value > 0.05) return false;
+        break;
+      case "sepia":
+        if (value < 0 || value > 0.05) return false;
+        break;
+      case "hue-rotate":
+        if (Math.abs(value) > 10) return false;
+        break;
+      default:
+        return false;
+    }
+  }
+  return true;
+}
 function getUnsupportedStyleReason(cs) {
   const filter = cs.filter || "";
-  if (filter && filter !== "none") {
+  if (filter && filter !== "none" && !_isNegligibleFilter(filter)) {
     return "CSS filter";
   }
   return null;

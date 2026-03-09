@@ -2408,3 +2408,103 @@ class TestClipPathPolygon:
         assert len(cp.points) == 3, (
             f"Expected 3 points for triangle polygon, got {len(cp.points)}"
         )
+
+
+@pytest.mark.integration
+class TestCssFilterThreshold:
+    """Tests for CSS filter threshold-based detection.
+
+    Minor visual adjustments (e.g. brightness(1.02)) should be treated as
+    negligible and NOT trigger fallback to screenshot images.
+    """
+
+    def test_negligible_filter_stays_native(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        """brightness(1.02) saturate(1.1) are within thresholds – no fallback."""
+        md_path = tmp_path / "negligible-filter.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  .subtle {
+    filter: brightness(1.02) saturate(1.1);
+    padding: 24px;
+  }
+---
+
+# Slide
+
+<div class="subtle">Subtle adjustment</div>
+""",
+            encoding="utf-8",
+        )
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        unsupported = [
+            e for e in slide.elements if e.element_type == ElementType.UNSUPPORTED
+        ]
+        assert len(unsupported) == 0, (
+            "Negligible CSS filter should NOT trigger fallback"
+        )
+
+    def test_significant_blur_triggers_fallback(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        """blur(5px) should always trigger fallback."""
+        md_path = tmp_path / "blur-filter.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  .blurred {
+    filter: blur(5px);
+    padding: 24px;
+  }
+---
+
+# Slide
+
+<div class="blurred">Blurred text</div>
+""",
+            encoding="utf-8",
+        )
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        unsupported = [
+            e for e in slide.elements if e.element_type == ElementType.UNSUPPORTED
+        ]
+        assert len(unsupported) >= 1, "blur(5px) should trigger fallback"
+
+    def test_mixed_negligible_and_significant_triggers_fallback(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        """brightness(1.02) + blur(3px) – one significant filter forces fallback."""
+        md_path = tmp_path / "mixed-filter.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  .mixed {
+    filter: brightness(1.02) blur(3px);
+    padding: 24px;
+  }
+---
+
+# Slide
+
+<div class="mixed">Mixed filters</div>
+""",
+            encoding="utf-8",
+        )
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        unsupported = [
+            e for e in slide.elements if e.element_type == ElementType.UNSUPPORTED
+        ]
+        assert len(unsupported) >= 1, (
+            "Mixed negligible + significant filter should trigger fallback"
+        )
