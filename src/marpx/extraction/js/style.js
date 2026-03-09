@@ -56,9 +56,11 @@ function _extractTextGradient(cs, ctx) {
  *   contrast(x)    : 1.0 → [0.9, 1.1]
  *   saturate(x)    : 1.0 → [0.8, 1.2]
  *   opacity(x)     : 1.0 → [0.95, 1.0]
+ *   grayscale(x)   : 0   → [0, 0.05]
+ *   sepia(x)       : 0   → [0, 0.05]
  *   hue-rotate(Xdeg): 0  → [-10, 10]
  *
- * Any other filter function (blur, drop-shadow, grayscale, sepia, invert, …)
+ * Any other filter function (blur, drop-shadow, invert, …)
  * is considered non-negligible and forces fallback.
  */
 function _isNegligibleFilter(filterStr) {
@@ -69,8 +71,26 @@ function _isNegligibleFilter(filterStr) {
         const match = f.match(/^([\w-]+)\((.+)\)$/);
         if (!match) return false;
         const [, name, valueStr] = match;
-        const value = parseFloat(valueStr);
+        let value = parseFloat(valueStr);
         if (Number.isNaN(value)) return false;
+
+        if (name === 'hue-rotate') {
+            // Convert angle units to degrees
+            const trimmed = valueStr.trim();
+            if (trimmed.endsWith('rad')) {
+                value = value * (180 / Math.PI);
+            } else if (trimmed.endsWith('turn')) {
+                value = value * 360;
+            } else if (trimmed.endsWith('grad')) {
+                value = value * 0.9;
+            }
+            // 'deg' or no unit → value is already in degrees
+        } else if (['brightness', 'contrast', 'saturate', 'opacity', 'grayscale', 'sepia'].includes(name)) {
+            // Handle percentage values (e.g. "110%" → 1.1)
+            if (valueStr.trim().endsWith('%')) {
+                value = value / 100;
+            }
+        }
 
         switch (name) {
             case 'brightness':
@@ -83,7 +103,13 @@ function _isNegligibleFilter(filterStr) {
                 if (value < 0.8 || value > 1.2) return false;
                 break;
             case 'opacity':
-                if (value < 0.95) return false;
+                if (value < 0.95 || value > 1.0) return false;
+                break;
+            case 'grayscale':
+                if (value < 0 || value > 0.05) return false;
+                break;
+            case 'sepia':
+                if (value < 0 || value > 0.05) return false;
                 break;
             case 'hue-rotate':
                 if (Math.abs(value) > 10) return false;
