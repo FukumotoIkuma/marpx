@@ -76,6 +76,40 @@ def _set_blip_alpha(blip, alpha: float) -> None:
     alpha_node.set("amt", str(int(round(bounded_alpha * 100000))))
 
 
+_DEFAULT_FILL_TAGS: frozenset[str] = frozenset(
+    {
+        qn("a:solidFill"),
+        qn("a:gradFill"),
+        qn("a:noFill"),
+        qn("a:pattFill"),
+        qn("a:blipFill"),
+    }
+)
+
+
+def _remove_existing_fills(
+    parent,
+    *,
+    fill_tags: frozenset[str] | None = None,
+) -> None:
+    """Remove existing fill elements from a parent XML node.
+
+    Parameters
+    ----------
+    parent:
+        The lxml element whose fill children should be removed.
+    fill_tags:
+        Optional explicit set of qualified tag names to remove.  When
+        *None* the default OOXML fill tags are used (solidFill, gradFill,
+        noFill, pattFill, blipFill).
+    """
+    if fill_tags is None:
+        fill_tags = _DEFAULT_FILL_TAGS
+    for child in list(parent):
+        if child.tag in fill_tags:
+            parent.remove(child)
+
+
 def _build_gradient_fill_xml(
     parent_node,
     parsed_gradient,

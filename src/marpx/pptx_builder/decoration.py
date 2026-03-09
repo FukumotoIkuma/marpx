@@ -24,6 +24,7 @@ from .scene3d import fit_scene3d_rotations
 
 from ._helpers import (
     _build_gradient_fill_xml,
+    _remove_existing_fills,
     _set_fill_color,
     _set_inner_shadow,
     _set_line_color,
@@ -456,15 +457,7 @@ def _set_shape_gradient_fill(shape, css_gradient: str) -> bool:
         return False
 
     sp_pr = shape._element.spPr
-    for child in list(sp_pr):
-        if child.tag in {
-            qn("a:solidFill"),
-            qn("a:gradFill"),
-            qn("a:noFill"),
-            qn("a:pattFill"),
-            qn("a:blipFill"),
-        }:
-            sp_pr.remove(child)
+    _remove_existing_fills(sp_pr)
 
     _build_gradient_fill_xml(sp_pr, parsed)
     return True

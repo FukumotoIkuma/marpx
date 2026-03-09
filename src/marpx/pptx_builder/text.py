@@ -21,9 +21,14 @@ from marpx.utils import (
     px_to_pt,
 )
 
-from ._helpers import _build_gradient_fill_xml, _to_rgb
+from ._helpers import _build_gradient_fill_xml, _remove_existing_fills, _to_rgb
 from .decoration import _add_decoration_shape
 from .decoration import _resolve_scene3d_rotations
+
+# Fill tags relevant to run properties (no pattFill).
+_RUN_FILL_TAGS: frozenset[str] = frozenset(
+    {qn("a:solidFill"), qn("a:gradFill"), qn("a:noFill"), qn("a:blipFill")}
+)
 
 ALIGNMENT_MAP: dict[str, PP_ALIGN] = {
     "left": PP_ALIGN.LEFT,
@@ -112,14 +117,7 @@ def _set_run_gradient_fill(r_pr, css_gradient: str) -> None:
     if parsed is None:
         return
 
-    for child in list(r_pr):
-        if child.tag in {
-            qn("a:solidFill"),
-            qn("a:gradFill"),
-            qn("a:noFill"),
-            qn("a:blipFill"),
-        }:
-            r_pr.remove(child)
+    _remove_existing_fills(r_pr, fill_tags=_RUN_FILL_TAGS)
 
     # Build a detached gradFill element (parent_node=None) so we can
     # insert it at the correct position within r_pr afterwards.

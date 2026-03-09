@@ -10,9 +10,17 @@ from marpx.gradient_utils import parse_linear_gradient
 from marpx.models import SlideElement, TableCell
 from marpx.utils import px_to_emu
 
-from ._helpers import _build_gradient_fill_xml, _set_fill_color, _set_srgb_alpha
+from ._helpers import (
+    _build_gradient_fill_xml,
+    _remove_existing_fills,
+    _set_fill_color,
+    _set_srgb_alpha,
+)
 from .decoration import _add_decoration_shape
 from .text import _add_paragraph_runs
+
+# Fill tags relevant to table cell properties (no noFill/pattFill/blipFill).
+_CELL_FILL_TAGS: frozenset[str] = frozenset({qn("a:solidFill"), qn("a:gradFill")})
 
 
 def _remove_table_style(table) -> None:
@@ -59,9 +67,7 @@ def _set_cell_gradient_fill(pptx_cell, css_gradient: str) -> None:
         return
 
     tc_pr = pptx_cell._tc.get_or_add_tcPr()
-    for child in list(tc_pr):
-        if child.tag in {qn("a:solidFill"), qn("a:gradFill")}:
-            tc_pr.remove(child)
+    _remove_existing_fills(tc_pr, fill_tags=_CELL_FILL_TAGS)
 
     _build_gradient_fill_xml(tc_pr, parsed)
 
