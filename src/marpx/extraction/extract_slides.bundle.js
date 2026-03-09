@@ -1035,7 +1035,7 @@ function extractInlineRuns(el, options = {}) {
     trimBoundary = true,
     includeRootPseudo = false,
     isStandaloneDecoratedFn = null,
-    includeMathPlaceholders = false,
+    includeMathRuns = false,
     renderContext = null
   } = options;
   const runs = [];
@@ -1053,22 +1053,6 @@ function extractInlineRuns(el, options = {}) {
     for (const run of pseudoRuns) {
       pushRun(run.text, el, run.linkUrl, run.style, rootContext);
     }
-  }
-  function buildMathPlaceholderRun(node, styleEl, linkUrl, currentContext) {
-    const placeholderText = _buildMathPlaceholderText(node, styleEl, currentContext);
-    if (!placeholderText) return null;
-    const style = _hiddenRunStyle(
-      styleToRunStyle(
-        window.getComputedStyle(styleEl),
-        styleEl,
-        currentContext
-      )
-    );
-    return {
-      text: placeholderText,
-      style,
-      linkUrl
-    };
   }
   function visit(node, styleEl, linkUrl = null, currentContext = rootContext) {
     if (node.nodeType === Node.TEXT_NODE) {
@@ -1089,14 +1073,20 @@ function extractInlineRuns(el, options = {}) {
       pushRun(node.alt, styleEl, linkUrl, null, currentContext);
       return;
     }
-    if (includeMathPlaceholders && node.tagName === "MJX-CONTAINER") {
-      const placeholderRun = buildMathPlaceholderRun(
-        node,
-        styleEl,
-        linkUrl,
-        currentContext
-      );
-      if (placeholderRun) runs.push(placeholderRun);
+    if (includeMathRuns && node.tagName === "MJX-CONTAINER") {
+      const latexWrapper = node.closest("[data-latex]");
+      const latexSource = latexWrapper ? latexWrapper.getAttribute("data-latex") : node.getAttribute("data-latex") || null;
+      const mathRun = {
+        runType: "math",
+        latexSource,
+        style: styleToRunStyle(
+          window.getComputedStyle(styleEl),
+          styleEl,
+          currentContext
+        ),
+        linkUrl
+      };
+      runs.push(mathRun);
       return;
     }
     const decoration = extractDecoration(node, nodeContext);
@@ -1144,10 +1134,10 @@ function extractExactTextRuns(el, renderContext = null) {
     renderContext
   });
 }
-function extractTextRunsWithPseudo(el, renderContext = null, includeMathPlaceholders = false) {
+function extractTextRunsWithPseudo(el, renderContext = null, includeMathRuns = false) {
   return extractInlineRuns(el, {
     includeRootPseudo: true,
-    includeMathPlaceholders,
+    includeMathRuns,
     renderContext
   });
 }
@@ -1158,42 +1148,37 @@ function _hiddenRunStyle(style) {
     backgroundColor: "transparent"
   };
 }
-function _buildMathPlaceholderText(node, styleEl, renderContext = null) {
-  const box = node.getBoundingClientRect();
-  const cs = window.getComputedStyle(styleEl);
-  const renderCtx = renderContext || deriveRenderContext(styleEl);
-  const fontSizePx = (parseFloat(cs.fontSize) || 16) * ((renderCtx.effectiveScaleX + renderCtx.effectiveScaleY) / 2);
-  const canvas = _getMeasurementCanvas();
-  const measureCtx = canvas.getContext("2d");
-  if (!measureCtx) return "M";
-  measureCtx.font = `${cs.fontStyle || "normal"} ${cs.fontWeight || "400"} ${fontSizePx}px ${cs.fontFamily || "Arial"}`;
-  const charWidth = Math.max(measureCtx.measureText("M").width, fontSizePx * 0.5, 1);
-  const count = Math.max(1, Math.ceil(box.width / charWidth));
-  return "M".repeat(count);
-}
-var _measurementCanvas = null;
-function _getMeasurementCanvas() {
-  if (_measurementCanvas) return _measurementCanvas;
-  _measurementCanvas = document.createElement("canvas");
-  return _measurementCanvas;
-}
 function trimBoundaryWhitespace(runs) {
-  const trimmed = runs.map((run) => ({ ...run })).filter((run) => run.text && run.text.length > 0);
-  while (trimmed.length > 0 && trimmed[0].text.trim() === "") {
+  function _isMathRun(run) {
+    return run.runType === "math";
+  }
+  function _isNonEmpty(run) {
+    return _isMathRun(run) || run.text && run.text.length > 0;
+  }
+  function _isWhitespaceOnly(run) {
+    return !_isMathRun(run) && run.text.trim() === "";
+  }
+  const trimmed = runs.map((run) => ({ ...run })).filter(_isNonEmpty);
+  while (trimmed.length > 0 && _isWhitespaceOnly(trimmed[0])) {
     trimmed.shift();
   }
-  while (trimmed.length > 0 && trimmed[trimmed.length - 1].text.trim() === "") {
+  while (trimmed.length > 0 && _isWhitespaceOnly(trimmed[trimmed.length - 1])) {
     trimmed.pop();
   }
   if (trimmed.length === 0) return [];
-  trimmed[0].text = trimmed[0].text.replace(/^\s+/, "");
-  trimmed[trimmed.length - 1].text = trimmed[trimmed.length - 1].text.replace(/\s+$/, "");
+  if (!_isMathRun(trimmed[0])) {
+    trimmed[0].text = trimmed[0].text.replace(/^\s+/, "");
+  }
+  if (!_isMathRun(trimmed[trimmed.length - 1])) {
+    trimmed[trimmed.length - 1].text = trimmed[trimmed.length - 1].text.replace(/\s+$/, "");
+  }
   for (let i = 1; i < trimmed.length; i++) {
+    if (_isMathRun(trimmed[i]) || _isMathRun(trimmed[i - 1])) continue;
     if (trimmed[i - 1].text.endsWith("\n")) {
       trimmed[i].text = trimmed[i].text.replace(/^\s+/, "");
     }
   }
-  return trimmed.filter((run) => run.text.length > 0);
+  return trimmed.filter(_isNonEmpty);
 }
 
 // paragraphs.js
@@ -1499,10 +1484,10 @@ function shouldExtractStandaloneDecoratedText(el, decoration) {
   if (el.querySelector("table, img, pre, marp-pre, blockquote, ul, ol")) return false;
   return extractParagraphsFromContainer(el).length > 0;
 }
-function extractTextRunsWithHiddenDecorated(el, renderContext = null, includeMathPlaceholders = false, extraStandaloneFn = null) {
+function extractTextRunsWithHiddenDecorated(el, renderContext = null, includeMathRuns = false, extraStandaloneFn = null) {
   return extractInlineRuns(el, {
     renderContext,
-    includeMathPlaceholders,
+    includeMathRuns,
     isStandaloneDecoratedFn: (node, decoration) => shouldExtractStandaloneDecoratedText(node, decoration) || (extraStandaloneFn ? extraStandaloneFn(node) : false)
   });
 }
@@ -1969,9 +1954,6 @@ function handleParagraph(el, slideRect, slideData, renderContext) {
       renderContext
     })
   );
-  for (const mathEl of mathEls) {
-    handleMath(mathEl, slideRect, slideData, "mjx-container", renderContext);
-  }
   for (const child of decoratedEls) {
     processElement(child, slideRect, slideData, renderContext);
   }

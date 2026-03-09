@@ -24,12 +24,12 @@ export function shouldExtractStandaloneDecoratedText(el, decoration) {
 export function extractTextRunsWithHiddenDecorated(
     el,
     renderContext = null,
-    includeMathPlaceholders = false,
+    includeMathRuns = false,
     extraStandaloneFn = null,
 ) {
     return extractInlineRuns(el, {
         renderContext,
-        includeMathPlaceholders,
+        includeMathRuns,
         isStandaloneDecoratedFn: (node, decoration) =>
             shouldExtractStandaloneDecoratedText(node, decoration) ||
             (extraStandaloneFn ? extraStandaloneFn(node) : false),

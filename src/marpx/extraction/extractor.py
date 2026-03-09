@@ -22,6 +22,7 @@ from marpx.models import (
     ImageElement,
     ListElement,
     ListItem,
+    MathRun,
     Paragraph,
     Point,
     Presentation,
@@ -98,17 +99,25 @@ def _build_text_style(raw_style: dict) -> TextStyle:
     )
 
 
-def _build_text_runs(raw_runs: list[dict]) -> list[TextRun]:
-    """Convert raw JS runs to TextRun models."""
-    runs = []
+def _build_text_runs(raw_runs: list[dict]) -> list[TextRun | MathRun]:
+    """Convert raw JS runs to TextRun or MathRun models."""
+    runs: list[TextRun | MathRun] = []
     for raw in raw_runs:
-        runs.append(
-            TextRun(
-                text=raw["text"],
-                style=_build_text_style(raw.get("style", {})),
-                link_url=raw.get("linkUrl"),
+        if raw.get("runType") == "math":
+            runs.append(
+                MathRun(
+                    latex_source=raw["latexSource"],
+                    style=_build_text_style(raw.get("style", {})),
+                )
             )
-        )
+        else:
+            runs.append(
+                TextRun(
+                    text=raw["text"],
+                    style=_build_text_style(raw.get("style", {})),
+                    link_url=raw.get("linkUrl"),
+                )
+            )
     return runs
 
 

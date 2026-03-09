@@ -293,7 +293,7 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
         }
     }
 
-    // Build paragraph text (with hidden placeholders for standalone children)
+    // Build paragraph text (with math runs and hidden placeholders for standalone decorated children)
     const hasStandalone = mathEls.length > 0 || decoratedEls.length > 0 || unsupportedEls.length > 0;
     slideData.elements.push(
         buildTextElement(el, slideRect, 'paragraph', {
@@ -307,9 +307,8 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
     );
 
     // Extract standalone children as separate elements
-    for (const mathEl of mathEls) {
-        handleMath(mathEl, slideRect, slideData, 'mjx-container', renderContext);
-    }
+    // NOTE: inline math is now emitted as math runs within the paragraph,
+    // so we do NOT extract them as separate elements here.
     for (const child of decoratedEls) {
         processElement(child, slideRect, slideData, renderContext);
     }
