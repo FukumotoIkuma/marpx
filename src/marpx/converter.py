@@ -56,7 +56,9 @@ def _classify_presentation(
         )
 
         for i, element in enumerate(slide.elements):
-            decision = decisions.get(i) or classify_element(element)
+            decision = decisions.get(i)
+            if decision is None:
+                decision = classify_element(element)
             slide_info.element_info[i] = ElementRenderInfo(
                 capability=decision.capability,
             )

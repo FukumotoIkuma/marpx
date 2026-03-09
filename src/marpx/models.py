@@ -210,9 +210,8 @@ class TextElement(BaseSlideElement):
 
     paragraphs: list[Paragraph] = Field(default_factory=list)
     heading_level: int | None = None  # 1-6 for headings
-    # list_items is included here because DECORATED_BLOCK can contain
-    # list paragraphs that need list rendering in the builder.
-    # The builder checks paragraph.list_level to decide list formatting.
+    # DECORATED_BLOCK can contain list paragraphs via Paragraph.list_level,
+    # which the builder uses to apply list formatting.
 
     @classmethod
     def make_heading(
@@ -573,14 +572,7 @@ SlideElement = Union[
 class Slide(BaseModel):
     width_px: float
     height_px: float
-    elements: list[
-        TextElement
-        | ListElement
-        | ImageElement
-        | TableElement
-        | CodeBlockElement
-        | UnsupportedElement
-    ] = Field(default_factory=list)
+    elements: list[SlideElement] = Field(default_factory=list)
     background: Background = Field(default_factory=Background)
     slide_number: int = 0
     notes: str | None = None  # Speaker notes text

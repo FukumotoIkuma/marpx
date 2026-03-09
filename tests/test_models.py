@@ -183,13 +183,23 @@ class TestSlideElement:
         assert el.image_src == "https://example.com/img.png"
 
     def test_default_empty_lists(self) -> None:
-        el = TextElement(
+        text_el = TextElement(
             element_type=ElementType.PARAGRAPH,
             box=Box(x=0, y=0, width=100, height=50),
         )
-        assert el.paragraphs == []
-        assert el.list_items == []
-        assert el.table_rows == []
+        assert text_el.paragraphs == []
+
+        list_el = ListElement(
+            element_type=ElementType.UNORDERED_LIST,
+            box=Box(x=0, y=0, width=100, height=50),
+        )
+        assert list_el.list_items == []
+
+        table_el = TableElement(
+            element_type=ElementType.TABLE,
+            box=Box(x=0, y=0, width=100, height=50),
+        )
+        assert table_el.table_rows == []
 
     def test_all_element_types_exist(self) -> None:
         expected = {

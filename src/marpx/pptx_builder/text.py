@@ -10,6 +10,7 @@ from pptx.util import Emu, Pt
 
 from marpx.models import (
     BaseSlideElement,
+    CodeBlockElement,
     ElementType,
     ListElement,
     SlideElement,
@@ -315,7 +316,7 @@ def _populate_text_frame(text_frame, elements: list[TextElement | ListElement]) 
 
 
 def _resolve_textbox_geometry(
-    element: TextElement | ListElement,
+    element: TextElement | ListElement | CodeBlockElement,
 ) -> tuple[Emu, Emu, Emu, Emu]:
     """Return the element's content box when available, else its outer box."""
     if element.content_box is not None:

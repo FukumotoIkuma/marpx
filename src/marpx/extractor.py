@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 
 from playwright.async_api import async_playwright
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import Browser, sync_playwright
 
 from marpx.models import (
     Background,
@@ -58,7 +58,7 @@ TEXTBOX_MERGE_TYPES: tuple[ElementType, ...] = (
 class SyncBrowserManager:
     """Context manager for a sync Playwright browser with exception-safe cleanup."""
 
-    def __enter__(self):
+    def __enter__(self) -> Browser:
         self._pw = sync_playwright().start()
         self._browser = self._pw.chromium.launch()
         return self._browser
@@ -525,17 +525,19 @@ async def extract_presentation(html_path: str | Path) -> Presentation:
     return _build_presentation_from_raw(raw_slides, raw_notes)
 
 
-def extract_presentation_sync(html_path: str | Path, browser=None) -> Presentation:
+def extract_presentation_sync(
+    html_path: str | Path, browser: Browser | None = None
+) -> Presentation:
     """Synchronous extraction of presentation data.
 
     Args:
         html_path: Path to the Marp-generated HTML file.
-        browser: A Playwright Browser instance. Required.
+        browser: A Playwright Browser instance. If None, a temporary
+            browser is created and closed automatically.
     """
     if browser is None:
-        raise ValueError(
-            "browser parameter is required. Use SyncBrowserManager as context manager."
-        )
+        with SyncBrowserManager() as managed_browser:
+            return extract_presentation_sync(html_path, browser=managed_browser)
     html_path = Path(html_path).resolve()
     file_url = html_path.as_uri()
     extract_js = load_extract_bundle()
