@@ -202,6 +202,7 @@ class BaseSlideElement(BaseModel):
     rotation_3d_x_deg: float = 0.0
     rotation_3d_y_deg: float = 0.0
     rotation_3d_z_deg: float = 0.0
+    perspective_px: float = 0.0
     projected_corners: list[Point] = Field(default_factory=list)
     decoration: BoxDecoration | None = None
 
@@ -229,6 +230,7 @@ class TextElement(BaseSlideElement):
         rotation_3d_x_deg: float = 0.0,
         rotation_3d_y_deg: float = 0.0,
         rotation_3d_z_deg: float = 0.0,
+        perspective_px: float = 0.0,
         projected_corners: list[Point] | None = None,
     ) -> TextElement:
         """Create a heading element (h1-h6)."""
@@ -242,6 +244,7 @@ class TextElement(BaseSlideElement):
             rotation_3d_x_deg=rotation_3d_x_deg,
             rotation_3d_y_deg=rotation_3d_y_deg,
             rotation_3d_z_deg=rotation_3d_z_deg,
+            perspective_px=perspective_px,
             projected_corners=projected_corners or [],
             paragraphs=paragraphs,
             heading_level=heading_level,
@@ -263,6 +266,7 @@ class TextElement(BaseSlideElement):
         rotation_3d_x_deg: float = 0.0,
         rotation_3d_y_deg: float = 0.0,
         rotation_3d_z_deg: float = 0.0,
+        perspective_px: float = 0.0,
         projected_corners: list[Point] | None = None,
     ) -> TextElement:
         """Create a paragraph or blockquote element."""
@@ -276,6 +280,7 @@ class TextElement(BaseSlideElement):
             rotation_3d_x_deg=rotation_3d_x_deg,
             rotation_3d_y_deg=rotation_3d_y_deg,
             rotation_3d_z_deg=rotation_3d_z_deg,
+            perspective_px=perspective_px,
             projected_corners=projected_corners or [],
             paragraphs=paragraphs,
             decoration=decoration,
@@ -295,6 +300,7 @@ class TextElement(BaseSlideElement):
         rotation_3d_x_deg: float = 0.0,
         rotation_3d_y_deg: float = 0.0,
         rotation_3d_z_deg: float = 0.0,
+        perspective_px: float = 0.0,
         projected_corners: list[Point] | None = None,
     ) -> TextElement:
         """Create a decorated_block element."""
@@ -308,6 +314,7 @@ class TextElement(BaseSlideElement):
             rotation_3d_x_deg=rotation_3d_x_deg,
             rotation_3d_y_deg=rotation_3d_y_deg,
             rotation_3d_z_deg=rotation_3d_z_deg,
+            perspective_px=perspective_px,
             projected_corners=projected_corners or [],
             paragraphs=paragraphs,
             decoration=decoration,
@@ -333,6 +340,7 @@ class ListElement(BaseSlideElement):
         rotation_3d_x_deg: float = 0.0,
         rotation_3d_y_deg: float = 0.0,
         rotation_3d_z_deg: float = 0.0,
+        perspective_px: float = 0.0,
         projected_corners: list[Point] | None = None,
     ) -> ListElement:
         """Create an unordered_list or ordered_list element."""
@@ -350,6 +358,7 @@ class ListElement(BaseSlideElement):
             rotation_3d_x_deg=rotation_3d_x_deg,
             rotation_3d_y_deg=rotation_3d_y_deg,
             rotation_3d_z_deg=rotation_3d_z_deg,
+            perspective_px=perspective_px,
             projected_corners=projected_corners or [],
             list_items=list_items,
         )
@@ -386,6 +395,7 @@ class ImageElement(BaseSlideElement):
         rotation_3d_x_deg: float = 0.0,
         rotation_3d_y_deg: float = 0.0,
         rotation_3d_z_deg: float = 0.0,
+        perspective_px: float = 0.0,
         projected_corners: list[Point] | None = None,
     ) -> ImageElement:
         """Create an image element."""
@@ -399,6 +409,7 @@ class ImageElement(BaseSlideElement):
             rotation_3d_x_deg=rotation_3d_x_deg,
             rotation_3d_y_deg=rotation_3d_y_deg,
             rotation_3d_z_deg=rotation_3d_z_deg,
+            perspective_px=perspective_px,
             projected_corners=projected_corners or [],
             image_src=image_src,
             image_data=image_data,
@@ -430,6 +441,7 @@ class TableElement(BaseSlideElement):
         rotation_3d_x_deg: float = 0.0,
         rotation_3d_y_deg: float = 0.0,
         rotation_3d_z_deg: float = 0.0,
+        perspective_px: float = 0.0,
         projected_corners: list[Point] | None = None,
     ) -> TableElement:
         """Create a table element."""
@@ -443,6 +455,7 @@ class TableElement(BaseSlideElement):
             rotation_3d_x_deg=rotation_3d_x_deg,
             rotation_3d_y_deg=rotation_3d_y_deg,
             rotation_3d_z_deg=rotation_3d_z_deg,
+            perspective_px=perspective_px,
             projected_corners=projected_corners or [],
             table_rows=table_rows,
             decoration=decoration,
@@ -472,6 +485,7 @@ class CodeBlockElement(BaseSlideElement):
         rotation_3d_x_deg: float = 0.0,
         rotation_3d_y_deg: float = 0.0,
         rotation_3d_z_deg: float = 0.0,
+        perspective_px: float = 0.0,
         projected_corners: list[Point] | None = None,
     ) -> CodeBlockElement:
         """Create a code_block element."""
@@ -485,6 +499,7 @@ class CodeBlockElement(BaseSlideElement):
             rotation_3d_x_deg=rotation_3d_x_deg,
             rotation_3d_y_deg=rotation_3d_y_deg,
             rotation_3d_z_deg=rotation_3d_z_deg,
+            perspective_px=perspective_px,
             projected_corners=projected_corners or [],
             paragraphs=paragraphs,
             code_language=code_language,
@@ -511,6 +526,7 @@ class UnsupportedElement(BaseSlideElement):
         rotation_3d_x_deg: float = 0.0,
         rotation_3d_y_deg: float = 0.0,
         rotation_3d_z_deg: float = 0.0,
+        perspective_px: float = 0.0,
         projected_corners: list[Point] | None = None,
     ) -> UnsupportedElement:
         """Create a math element."""
@@ -524,6 +540,7 @@ class UnsupportedElement(BaseSlideElement):
             rotation_3d_x_deg=rotation_3d_x_deg,
             rotation_3d_y_deg=rotation_3d_y_deg,
             rotation_3d_z_deg=rotation_3d_z_deg,
+            perspective_px=perspective_px,
             projected_corners=projected_corners or [],
             unsupported_info=unsupported_info,
         )
@@ -541,6 +558,7 @@ class UnsupportedElement(BaseSlideElement):
         rotation_3d_x_deg: float = 0.0,
         rotation_3d_y_deg: float = 0.0,
         rotation_3d_z_deg: float = 0.0,
+        perspective_px: float = 0.0,
         projected_corners: list[Point] | None = None,
     ) -> UnsupportedElement:
         """Create an unsupported element."""
@@ -554,6 +572,7 @@ class UnsupportedElement(BaseSlideElement):
             rotation_3d_x_deg=rotation_3d_x_deg,
             rotation_3d_y_deg=rotation_3d_y_deg,
             rotation_3d_z_deg=rotation_3d_z_deg,
+            perspective_px=perspective_px,
             projected_corners=projected_corners or [],
             unsupported_info=unsupported_info,
         )

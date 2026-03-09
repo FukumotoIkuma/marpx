@@ -31,6 +31,7 @@ export function createRenderContext(effectiveOpacity = 1) {
         effectiveRotation3dXDeg: 0,
         effectiveRotation3dYDeg: 0,
         effectiveRotation3dZDeg: 0,
+        effectivePerspectivePx: 0,
         baseZIndex: 0,
     };
 }
@@ -48,6 +49,7 @@ function _parseTransformScale(transform) {
             rotation3dXDeg: 0,
             rotation3dYDeg: 0,
             rotation3dZDeg: 0,
+            perspectivePx: 0,
             complex: false,
         };
     }
@@ -65,8 +67,14 @@ function _parseTransformScale(transform) {
                 rotation3dXDeg: 0,
                 rotation3dYDeg: 0,
                 rotation3dZDeg: 0,
+                perspectivePx: 0,
                 complex: true,
             };
+        }
+        // Extract perspective from matrix3d column-major vals[11] = -1/d
+        let perspectivePx = 0;
+        if (vals[11] !== 0 && vals[11] < 0) {
+            perspectivePx = -1 / vals[11];
         }
         return {
             scaleX: 1,
@@ -75,6 +83,7 @@ function _parseTransformScale(transform) {
             rotation3dXDeg: Math.asin(_clamp(-vals[9], -1, 1)) * (180 / Math.PI),
             rotation3dYDeg: Math.asin(_clamp(vals[2], -1, 1)) * (180 / Math.PI),
             rotation3dZDeg: 0,
+            perspectivePx,
             complex: false,
         };
     }
@@ -88,6 +97,7 @@ function _parseTransformScale(transform) {
             rotation3dXDeg: 0,
             rotation3dYDeg: 0,
             rotation3dZDeg: 0,
+            perspectivePx: 0,
             complex: true,
         };
     }
@@ -101,6 +111,7 @@ function _parseTransformScale(transform) {
             rotation3dXDeg: 0,
             rotation3dYDeg: 0,
             rotation3dZDeg: 0,
+            perspectivePx: 0,
             complex: true,
         };
     }
@@ -121,6 +132,7 @@ function _parseTransformScale(transform) {
             rotation3dXDeg: 0,
             rotation3dYDeg: 0,
             rotation3dZDeg: 0,
+            perspectivePx: 0,
             complex: true,
         };
     }
@@ -132,6 +144,7 @@ function _parseTransformScale(transform) {
         rotation3dXDeg: 0,
         rotation3dYDeg: 0,
         rotation3dZDeg: 0,
+        perspectivePx: 0,
         complex: false,
     };
 }
@@ -189,6 +202,10 @@ export function deriveRenderContext(el, parentCtx = null, computedStyle = null) 
             parentCtx.effectiveRotation3dYDeg + ownTransform.rotation3dYDeg;
         ctx.effectiveRotation3dZDeg =
             parentCtx.effectiveRotation3dZDeg + ownTransform.rotation3dZDeg;
+        // Perspective: use own inline perspective if present, else check parent's CSS perspective property
+        const parentPerspective = el.parentElement ? parseFloat(window.getComputedStyle(el.parentElement).perspective) : 0;
+        const ownPerspective = ownTransform.perspectivePx;
+        ctx.effectivePerspectivePx = ownPerspective || (Number.isFinite(parentPerspective) ? parentPerspective : 0);
         ctx.baseZIndex = parentCtx.baseZIndex || 0;
         return ctx;
     }
@@ -200,6 +217,14 @@ export function deriveRenderContext(el, parentCtx = null, computedStyle = null) 
     let effectiveRotation3dXDeg = ownTransform.rotation3dXDeg;
     let effectiveRotation3dYDeg = ownTransform.rotation3dYDeg;
     let effectiveRotation3dZDeg = ownTransform.rotation3dZDeg;
+    // Perspective: own inline perspective from transform, or parent's CSS perspective property
+    let effectivePerspectivePx = ownTransform.perspectivePx;
+    if (!effectivePerspectivePx && el.parentElement) {
+        const parentPerspective = parseFloat(window.getComputedStyle(el.parentElement).perspective);
+        if (Number.isFinite(parentPerspective)) {
+            effectivePerspectivePx = parentPerspective;
+        }
+    }
     let current = el.parentElement;
     while (current) {
         const currentStyle = window.getComputedStyle(current);
@@ -220,6 +245,7 @@ export function deriveRenderContext(el, parentCtx = null, computedStyle = null) 
     ctx.effectiveRotation3dXDeg = effectiveRotation3dXDeg;
     ctx.effectiveRotation3dYDeg = effectiveRotation3dYDeg;
     ctx.effectiveRotation3dZDeg = effectiveRotation3dZDeg;
+    ctx.effectivePerspectivePx = effectivePerspectivePx;
 
     // Store in cache (no-parentCtx path only, and only when no
     // caller-supplied computedStyle that might differ from the live one).

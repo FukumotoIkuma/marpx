@@ -115,7 +115,13 @@ def _add_image(slide, element: ImageElement) -> None:
         return
 
     if element.decoration:
-        _add_decoration_shape(slide, element.box, element.decoration)
+        _add_decoration_shape(
+            slide,
+            element.box,
+            element.decoration,
+            perspective_px=element.perspective_px,
+            element_height_px=element.box.height,
+        )
 
     left, top, width, height = _resolve_image_placement(element)
 

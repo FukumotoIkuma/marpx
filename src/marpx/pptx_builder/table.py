@@ -141,7 +141,13 @@ def _add_table(slide, element: TableElement) -> None:
         return
 
     if element.decoration:
-        _add_decoration_shape(slide, element.box, element.decoration)
+        _add_decoration_shape(
+            slide,
+            element.box,
+            element.decoration,
+            perspective_px=element.perspective_px,
+            element_height_px=element.box.height,
+        )
 
     num_rows = len(element.table_rows)
 

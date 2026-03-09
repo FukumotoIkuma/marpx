@@ -7,6 +7,23 @@ import math
 from marpx.models import Box, Point
 
 
+def css_perspective_to_ooxml_fov(
+    perspective_px: float, element_height_px: float
+) -> int:
+    """Convert CSS perspective distance to OOXML camera fov value.
+
+    PowerPoint's fov is vertical field of view in 60,000ths of a degree.
+    CSS perspective(d) sets viewer distance to d pixels from the z=0 plane.
+    """
+    if perspective_px <= 0 or element_height_px <= 0:
+        return 0
+    fov_rad = 2 * math.atan(element_height_px / (2 * perspective_px))
+    fov_deg = math.degrees(fov_rad)
+    # Clamp to PowerPoint's valid range (roughly 0.57° to 179.43°)
+    fov_deg = max(0.57, min(fov_deg, 179.43))
+    return int(round(fov_deg * 60000))
+
+
 def _deg_to_rad(value: float) -> float:
     return value * math.pi / 180.0
 
