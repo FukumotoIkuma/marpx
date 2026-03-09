@@ -10,9 +10,11 @@ from marpx.utils.gradient import (
     css_angle_to_ooxml_angle,
     parse_linear_gradient,
     parse_radial_gradient,
+    parse_repeating_linear_gradient,
     render_gradient_png,
     render_linear_gradient_png,
     render_radial_gradient_png,
+    render_repeating_linear_gradient_png,
     representative_gradient_color,
 )
 from marpx.models import RGBAColor
@@ -360,3 +362,176 @@ class TestRenderGradientPng:
         linear = render_gradient_png("linear-gradient(red, blue)", 50, 50)
         radial = render_gradient_png("radial-gradient(red, blue)", 50, 50)
         assert linear != radial
+
+    def test_dispatches_to_repeating_linear(self) -> None:
+        result = render_gradient_png(
+            "repeating-linear-gradient(red 0%, blue 25%)", 50, 50
+        )
+        assert result is not None
+        assert result[:8] == _PNG_HEADER
+
+
+# ---------------------------------------------------------------------------
+# TestParseRepeatingLinearGradient
+# ---------------------------------------------------------------------------
+class TestParseRepeatingLinearGradient:
+    """Tests for parse_repeating_linear_gradient."""
+
+    def test_basic_two_colors(self) -> None:
+        result = parse_repeating_linear_gradient(
+            "repeating-linear-gradient(red 0%, blue 25%)"
+        )
+        assert result is not None
+        assert isinstance(result, ParsedLinearGradient)
+        assert result.angle_deg == pytest.approx(180.0)
+        assert len(result.stops) == 2
+
+    def test_with_angle(self) -> None:
+        result = parse_repeating_linear_gradient(
+            "repeating-linear-gradient(45deg, red 0%, blue 20%)"
+        )
+        assert result is not None
+        assert result.angle_deg == pytest.approx(45.0)
+
+    def test_with_keyword_direction(self) -> None:
+        result = parse_repeating_linear_gradient(
+            "repeating-linear-gradient(to right, red 0%, blue 50%)"
+        )
+        assert result is not None
+        assert result.angle_deg == pytest.approx(90.0)
+
+    def test_stop_positions_parsed(self) -> None:
+        result = parse_repeating_linear_gradient(
+            "repeating-linear-gradient(red 0%, green 10%, blue 25%)"
+        )
+        assert result is not None
+        assert len(result.stops) == 3
+        assert result.stops[0].position == pytest.approx(0.0)
+        assert result.stops[1].position == pytest.approx(0.10)
+        assert result.stops[2].position == pytest.approx(0.25)
+
+    def test_rgba_colors(self) -> None:
+        result = parse_repeating_linear_gradient(
+            "repeating-linear-gradient(rgba(255,0,0,0.5) 0%, blue 50%)"
+        )
+        assert result is not None
+        assert result.stops[0].color.r == 255
+        assert result.stops[0].color.a == pytest.approx(0.5)
+
+    def test_invalid_not_repeating(self) -> None:
+        assert parse_repeating_linear_gradient("linear-gradient(red, blue)") is None
+
+    def test_invalid_empty_string(self) -> None:
+        assert parse_repeating_linear_gradient("") is None
+
+    def test_invalid_radial(self) -> None:
+        assert parse_repeating_linear_gradient("radial-gradient(red, blue)") is None
+
+    def test_missing_closing_paren(self) -> None:
+        assert (
+            parse_repeating_linear_gradient("repeating-linear-gradient(red, blue")
+            is None
+        )
+
+
+# ---------------------------------------------------------------------------
+# TestRenderRepeatingLinearGradientPng
+# ---------------------------------------------------------------------------
+class TestRenderRepeatingLinearGradientPng:
+    """Tests for render_repeating_linear_gradient_png."""
+
+    def test_returns_bytes(self) -> None:
+        result = render_repeating_linear_gradient_png(
+            "repeating-linear-gradient(red 0%, blue 25%)", 100, 100
+        )
+        assert isinstance(result, bytes)
+        assert len(result) > 0
+
+    def test_valid_png_header(self) -> None:
+        result = render_repeating_linear_gradient_png(
+            "repeating-linear-gradient(red 0%, blue 25%)", 100, 100
+        )
+        assert result is not None
+        assert result[:8] == _PNG_HEADER
+
+    def test_repeating_pattern_differs_from_non_repeating(self) -> None:
+        repeating = render_repeating_linear_gradient_png(
+            "repeating-linear-gradient(red 0%, blue 25%)", 100, 100
+        )
+        from marpx.utils.gradient import render_linear_gradient_png
+
+        non_repeating = render_linear_gradient_png(
+            "linear-gradient(red 0%, blue 25%)", 100, 100
+        )
+        assert repeating != non_repeating
+
+    def test_different_angles_produce_different_output(self) -> None:
+        horizontal = render_repeating_linear_gradient_png(
+            "repeating-linear-gradient(to right, red 0%, blue 25%)", 50, 50
+        )
+        vertical = render_repeating_linear_gradient_png(
+            "repeating-linear-gradient(to bottom, red 0%, blue 25%)", 50, 50
+        )
+        assert horizontal != vertical
+
+    def test_color_repeats_visible(self) -> None:
+        """Verify the gradient repeats by checking colors at different positions."""
+        import io
+
+        from PIL import Image
+
+        # Repeating red->blue every 25% (4 cycles in 100px vertical)
+        result = render_repeating_linear_gradient_png(
+            "repeating-linear-gradient(to bottom, red 0%, blue 25%)", 1, 100
+        )
+        assert result is not None
+        img = Image.open(io.BytesIO(result)).convert("RGBA")
+        # At y=0, should be near red (start of first cycle)
+        top = img.getpixel((0, 0))
+        assert top[0] > 200  # red channel high
+        # At y=25 (start of second cycle), should be near red again
+        quarter = img.getpixel((0, 25))
+        assert quarter[0] > 200  # red channel high again
+
+    def test_invalid_gradient_returns_none(self) -> None:
+        result = render_repeating_linear_gradient_png("not-a-gradient", 100, 100)
+        assert result is None
+
+    def test_border_radius_applied(self) -> None:
+        import io
+
+        from PIL import Image
+
+        result = render_repeating_linear_gradient_png(
+            "repeating-linear-gradient(red 0%, blue 25%)",
+            100,
+            100,
+            border_radius_px=20.0,
+        )
+        assert result is not None
+        img = Image.open(io.BytesIO(result)).convert("RGBA")
+        corner_pixel = img.getpixel((0, 0))
+        assert corner_pixel[3] == 0
+
+    def test_minimum_size_one_pixel(self) -> None:
+        result = render_repeating_linear_gradient_png(
+            "repeating-linear-gradient(red 0%, blue 50%)", 1, 1
+        )
+        assert result is not None
+        assert result[:8] == _PNG_HEADER
+
+
+# ---------------------------------------------------------------------------
+# TestRepresentativeGradientColorRepeating
+# ---------------------------------------------------------------------------
+class TestRepresentativeGradientColorRepeating:
+    """Tests for representative_gradient_color with repeating-linear-gradient."""
+
+    def test_returns_first_stop_color(self) -> None:
+        color = representative_gradient_color(
+            "repeating-linear-gradient(red 0%, blue 25%)"
+        )
+        assert color is not None
+        assert color.r == 255
+        assert color.g == 0
+        assert color.b == 0

@@ -41,6 +41,8 @@ def css_angle_to_ooxml_angle(angle_deg: float) -> int:
 def representative_gradient_color(css_gradient: str) -> RGBAColor | None:
     """Return a representative color for text gradients."""
     parsed = parse_linear_gradient(css_gradient)
+    if parsed is None:
+        parsed = parse_repeating_linear_gradient(css_gradient)
     if not parsed or not parsed.stops:
         return None
     return parsed.stops[0].color
@@ -77,6 +79,61 @@ def parse_linear_gradient(css_gradient: str) -> ParsedLinearGradient | None:
 
     stops = _resolve_stop_positions(raw_stops)
     return ParsedLinearGradient(angle_deg=angle_deg, stops=tuple(stops))
+
+
+def parse_repeating_linear_gradient(
+    css_gradient: str,
+) -> ParsedLinearGradient | None:
+    """Parse a CSS repeating-linear-gradient() string.
+
+    Returns a ``ParsedLinearGradient`` with stops *as declared* (not expanded).
+    The repeating behaviour is handled at render time.
+    """
+    gradient = css_gradient.strip()
+    if not gradient.lower().startswith(
+        "repeating-linear-gradient("
+    ) or not gradient.endswith(")"):
+        return None
+
+    inner = gradient[len("repeating-linear-gradient(") : -1]
+    parts = _split_top_level_commas(inner)
+    if len(parts) < 2:
+        return None
+
+    angle_deg = 180.0
+    stop_parts = parts
+    first = parts[0].strip().lower()
+    if _looks_like_direction(first):
+        parsed_angle = _parse_gradient_direction(first)
+        if parsed_angle is not None:
+            angle_deg = parsed_angle
+            stop_parts = parts[1:]
+
+    raw_stops: list[tuple[RGBAColor, float | None]] = []
+    for part in stop_parts:
+        parsed = _parse_gradient_stop(part)
+        if parsed is None:
+            return None
+        raw_stops.append(parsed)
+
+    stops = _resolve_stop_positions(raw_stops)
+    return ParsedLinearGradient(angle_deg=angle_deg, stops=tuple(stops))
+
+
+def render_repeating_linear_gradient_png(
+    css_gradient: str,
+    width_px: int,
+    height_px: int,
+    border_radius_px: float = 0.0,
+) -> bytes | None:
+    """Render a repeating-linear-gradient rectangle to PNG."""
+    image = _render_repeating_linear_gradient_image(
+        css_gradient,
+        width_px,
+        height_px,
+        border_radius_px=border_radius_px,
+    )
+    return _encode_png(image) if image is not None else None
 
 
 def render_linear_gradient_png(
@@ -127,6 +184,92 @@ def _render_linear_gradient_image(
             xn = 0.5 if width == 1 else x / (width - 1)
             t = ((xn * dx + yn * dy) - min_proj) / span
             color = _interpolate_stops(parsed.stops, t)
+            pixels[x, y] = (
+                color.r,
+                color.g,
+                color.b,
+                int(round(color.a * 255)),
+            )
+
+    if border_radius_px > 0:
+        mask = Image.new("L", (width, height), 0)
+        radius = min(border_radius_px, width / 2, height / 2)
+        ImageDraw.Draw(mask).rounded_rectangle(
+            (0, 0, width - 1, height - 1),
+            radius=int(round(radius)),
+            fill=255,
+        )
+        image.putalpha(mask)
+
+    return image
+
+
+def _render_repeating_linear_gradient_image(
+    css_gradient: str,
+    width_px: int,
+    height_px: int,
+    border_radius_px: float = 0.0,
+) -> Image.Image | None:
+    """Render a repeating linear gradient rectangle to a PIL image.
+
+    The approach expands the declared color stops to cover the full gradient
+    line by repeating them cyclically, then renders exactly like a normal
+    linear gradient.
+    """
+    parsed = parse_repeating_linear_gradient(css_gradient)
+    if parsed is None:
+        return None
+
+    width = max(int(round(width_px)), 1)
+    height = max(int(round(height_px)), 1)
+
+    # Determine the cycle length from the last stop position.
+    cycle = parsed.stops[-1].position if parsed.stops else 1.0
+    if cycle <= 0:
+        cycle = 1.0
+
+    # Expand stops to fill [0, 1] by repeating the cycle.
+    expanded: list[GradientStop] = []
+    num_cycles = max(int(math.ceil(1.0 / cycle)), 1)
+    for i in range(num_cycles):
+        offset = i * cycle
+        for stop in parsed.stops:
+            pos = offset + stop.position
+            if pos > 1.0 + 1e-9:
+                break
+            expanded.append(GradientStop(color=stop.color, position=min(pos, 1.0)))
+
+    if not expanded:
+        expanded = list(parsed.stops)
+
+    # Ensure we cover 0.0 and 1.0
+    if expanded[0].position > 1e-9:
+        expanded.insert(0, GradientStop(color=expanded[0].color, position=0.0))
+    if expanded[-1].position < 1.0 - 1e-9:
+        expanded.append(GradientStop(color=expanded[-1].color, position=1.0))
+
+    expanded_parsed = ParsedLinearGradient(
+        angle_deg=parsed.angle_deg, stops=tuple(expanded)
+    )
+
+    image = Image.new("RGBA", (width, height))
+    radians = math.radians(expanded_parsed.angle_deg)
+    dx = math.sin(radians)
+    dy = -math.cos(radians)
+
+    corners = ((0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0))
+    projections = [x * dx + y * dy for x, y in corners]
+    min_proj = min(projections)
+    max_proj = max(projections)
+    span = max(max_proj - min_proj, 1e-6)
+
+    pixels = image.load()
+    for y in range(height):
+        yn = 0.5 if height == 1 else y / (height - 1)
+        for x in range(width):
+            xn = 0.5 if width == 1 else x / (width - 1)
+            t = ((xn * dx + yn * dy) - min_proj) / span
+            color = _interpolate_stops(expanded_parsed.stops, t)
             pixels[x, y] = (
                 color.r,
                 color.g,
@@ -383,6 +526,13 @@ def _render_gradient_layer_image(
     gradient = css_gradient.strip().lower()
     if gradient.startswith("linear-gradient("):
         return _render_linear_gradient_image(
+            css_gradient,
+            width_px,
+            height_px,
+            border_radius_px=border_radius_px,
+        )
+    if gradient.startswith("repeating-linear-gradient("):
+        return _render_repeating_linear_gradient_image(
             css_gradient,
             width_px,
             height_px,
