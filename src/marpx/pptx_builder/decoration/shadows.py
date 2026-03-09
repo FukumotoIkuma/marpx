@@ -15,6 +15,27 @@ from .._helpers import (
 )
 from .shapes import _apply_round_rect_radius, _remove_theme_style
 
+# Alpha thresholds for filtering visually imperceptible shadows.
+# Spread-only outlines (concentric rings etc.) render as visible coloured
+# lines, so they use a very low threshold.  Blur-based shadows create
+# transparent helper shapes that clutter the z-order, so they need a
+# higher bar.  Inset shadows sit ON TOP of content and are the most
+# disruptive, so they use the strictest threshold.
+_SPREAD_OUTLINE_ALPHA_THRESHOLD = 0.01
+_OUTER_SHADOW_ALPHA_THRESHOLD = 0.10
+_INSET_SHADOW_ALPHA_THRESHOLD = 0.15
+
+# Maximum number of blur-based shadow shapes per element.  CSS often uses
+# 10+ layered box-shadows for depth, but each becomes a separate transparent
+# shape in PPTX.  We keep only the most prominent ones.
+_MAX_OUTER_BLUR_SHADOWS = 1
+_MAX_INSET_SHADOWS = 1
+
+
+def _shadow_prominence(shadow: BoxShadow) -> float:
+    """Score a shadow by visual weight (higher = more prominent)."""
+    return shadow.color.a * max(shadow.blur_radius_px, shadow.spread_px, 1.0)
+
 
 def _create_outer_shadow_shapes(
     slide,
@@ -23,25 +44,26 @@ def _create_outer_shadow_shapes(
     shape_type,
 ) -> None:
     """Render outer (non-inset) shadow shapes behind the main background shape."""
+    outlines = []
+    blurs = []
     for shadow in decoration.box_shadows:
-        if shadow.inset or shadow.color.a <= 0:
+        if shadow.inset:
             continue
         if _is_spread_outline_shadow(shadow):
-            _add_spread_outline_shape(
-                slide,
-                box,
-                decoration,
-                shape_type,
-                shadow,
-            )
+            if shadow.color.a >= _SPREAD_OUTLINE_ALPHA_THRESHOLD:
+                outlines.append(shadow)
         else:
-            _add_shadow_shape(
-                slide,
-                box,
-                decoration,
-                shape_type,
-                shadow,
-            )
+            if shadow.color.a >= _OUTER_SHADOW_ALPHA_THRESHOLD:
+                blurs.append(shadow)
+
+    # Spread-only outlines: keep all (they are visible coloured lines).
+    for shadow in outlines:
+        _add_spread_outline_shape(slide, box, decoration, shape_type, shadow)
+
+    # Blur shadows: keep only the most prominent ones.
+    blurs.sort(key=_shadow_prominence, reverse=True)
+    for shadow in blurs[:_MAX_OUTER_BLUR_SHADOWS]:
+        _add_shadow_shape(slide, box, decoration, shape_type, shadow)
 
 
 def _add_shadow_shape(
@@ -127,9 +149,13 @@ def _create_inset_shadow_shapes(
     shape_type,
 ) -> None:
     """Render inset shadow shapes layered on top of the main background shape."""
-    for shadow in decoration.box_shadows:
-        if not shadow.inset or shadow.color.a <= 0:
-            continue
+    candidates = [
+        s
+        for s in decoration.box_shadows
+        if s.inset and s.color.a >= _INSET_SHADOW_ALPHA_THRESHOLD
+    ]
+    candidates.sort(key=_shadow_prominence, reverse=True)
+    for shadow in candidates[:_MAX_INSET_SHADOWS]:
         _add_shadow_shape(
             slide,
             box,
