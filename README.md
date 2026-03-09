@@ -131,7 +131,7 @@ Marp MD --> marp-cli HTML --> Playwright 抽出 --> 正規化モデル --> pytho
 | `extract_slides.bundle.js` | 実行時に Playwright へ渡されるブラウザ内抽出バンドル |
 | `extract_slides_js/` | 抽出ロジックの分割ソース（entry/runs/paragraphs/blocks/handlers など） |
 | `extract_notes.js` | ブラウザ内で実行されるスピーカーノート抽出 JavaScript |
-| `models.py` | Pydantic v2 による中間データモデル |
+| `models.py` | Pydantic v2 による中間データモデル（判別共用体: `TextElement`, `ListElement`, `ImageElement`, `TableElement`, `CodeBlockElement`, `UnsupportedElement`） |
 | `capabilities.py` | 要素ごとのレンダリング能力分類（`CapabilityDecision` は NamedTuple） |
 | `pptx_builder/builder.py` | PPTX 生成のトップレベルオーケストレーション |
 | `pptx_builder/text.py` | テキスト・見出し・リスト・コードブロックのレンダリング |
