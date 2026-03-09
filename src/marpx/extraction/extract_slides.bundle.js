@@ -1160,22 +1160,36 @@ function _getMeasurementCanvas() {
   return _measurementCanvas;
 }
 function trimBoundaryWhitespace(runs) {
-  const trimmed = runs.map((run) => ({ ...run })).filter((run) => run.text && run.text.length > 0);
-  while (trimmed.length > 0 && trimmed[0].text.trim() === "") {
+  function _isMathRun(run) {
+    return run.runType === "math";
+  }
+  function _isNonEmpty(run) {
+    return _isMathRun(run) || run.text && run.text.length > 0;
+  }
+  function _isWhitespaceOnly(run) {
+    return !_isMathRun(run) && run.text.trim() === "";
+  }
+  const trimmed = runs.map((run) => ({ ...run })).filter(_isNonEmpty);
+  while (trimmed.length > 0 && _isWhitespaceOnly(trimmed[0])) {
     trimmed.shift();
   }
-  while (trimmed.length > 0 && trimmed[trimmed.length - 1].text.trim() === "") {
+  while (trimmed.length > 0 && _isWhitespaceOnly(trimmed[trimmed.length - 1])) {
     trimmed.pop();
   }
   if (trimmed.length === 0) return [];
-  trimmed[0].text = trimmed[0].text.replace(/^\s+/, "");
-  trimmed[trimmed.length - 1].text = trimmed[trimmed.length - 1].text.replace(/\s+$/, "");
+  if (!_isMathRun(trimmed[0])) {
+    trimmed[0].text = trimmed[0].text.replace(/^\s+/, "");
+  }
+  if (!_isMathRun(trimmed[trimmed.length - 1])) {
+    trimmed[trimmed.length - 1].text = trimmed[trimmed.length - 1].text.replace(/\s+$/, "");
+  }
   for (let i = 1; i < trimmed.length; i++) {
+    if (_isMathRun(trimmed[i]) || _isMathRun(trimmed[i - 1])) continue;
     if (trimmed[i - 1].text.endsWith("\n")) {
       trimmed[i].text = trimmed[i].text.replace(/^\s+/, "");
     }
   }
-  return trimmed.filter((run) => run.text.length > 0);
+  return trimmed.filter(_isNonEmpty);
 }
 
 // paragraphs.js
