@@ -4,11 +4,11 @@ import { extractDecoration, hasMeaningfulDecoration, extractBlockPseudoElements 
 import {
     getComputedStyles,
     buildTextElement,
-    getZIndex,
     getBox,
     getContentBox,
     getProjectedCorners,
     resolveVerticalAlign,
+    resolveEffectiveZIndex,
 } from './entry.js';
 import {
     extractTextRuns,
@@ -92,7 +92,7 @@ export function handleUnsupported(el, slideRect, slideData, unsup, parentContext
     slideData.elements.push({
         type: 'unsupported',
         box: getBox(el, slideRect, renderContext),
-        zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
+        zIndex: resolveEffectiveZIndex(el, renderContext),
         rotationDeg: renderContext.effectiveRotationDeg,
         rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
         rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
@@ -108,7 +108,7 @@ export function handleMath(el, slideRect, slideData, tag, parentContext = null) 
     slideData.elements.push({
         type: 'math',
         box: getBox(el, slideRect, renderContext),
-        zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
+        zIndex: resolveEffectiveZIndex(el, renderContext),
         rotationDeg: renderContext.effectiveRotationDeg,
         rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
         rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
@@ -131,7 +131,7 @@ export function handleDecoratedStandalone(el, slideRect, slideData, decoration, 
     slideData.elements.push({
         type: 'decorated_block',
         box: getBox(el, slideRect, renderContext),
-        zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
+        zIndex: resolveEffectiveZIndex(el, renderContext),
         paragraphs,
         decoration: decoration,
         verticalAlign: resolveVerticalAlign(cs),
@@ -157,7 +157,7 @@ export function handleImageWithDecoration(
         slideData.elements.push({
             type: 'image',
             box: box,
-            zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
+            zIndex: resolveEffectiveZIndex(el, renderContext),
             imageSrc: singleImageChild.src,
             imageNaturalWidthPx: singleImageChild.naturalWidth || null,
             imageNaturalHeightPx: singleImageChild.naturalHeight || null,
@@ -174,11 +174,10 @@ export function handleImageWithDecoration(
     }
 }
 
-export function handleDecoratedBlock(el, slideRect, slideData, decoration, renderContext) {
+export function handleDecoratedBlock(el, slideRect, slideData, decoration, renderContext, shouldDecompose) {
     const cs = window.getComputedStyle(el);
-    const decomposeDecoratedBlock = shouldDecomposeDecoratedBlock(el);
-    const containerEffectiveZ = (renderContext.baseZIndex || 0) + getZIndex(el);
-    const paragraphs = decomposeDecoratedBlock
+    const containerEffectiveZ = resolveEffectiveZIndex(el, renderContext);
+    const paragraphs = shouldDecompose
         ? []
         : _stripContainerBackgroundFromParagraphs(
             extractParagraphsFromContainer(el, renderContext),
@@ -198,7 +197,7 @@ export function handleDecoratedBlock(el, slideRect, slideData, decoration, rende
         rotation3dZDeg: renderContext.effectiveRotation3dZDeg,
         projectedCorners: getProjectedCorners(el, slideRect, renderContext),
     });
-    if (decomposeDecoratedBlock) {
+    if (shouldDecompose) {
         const childContext = { ...renderContext, baseZIndex: containerEffectiveZ + 1 };
         for (const child of el.children) {
             processElement(child, slideRect, slideData, childContext);
@@ -319,7 +318,7 @@ export function handleBlockquote(el, slideRect, slideData, decoration, renderCon
         type: 'blockquote',
         box: getBox(el, slideRect, renderContext),
         contentBox: hasDecoration ? getContentBox(el, slideRect, renderContext) : null,
-        zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
+        zIndex: resolveEffectiveZIndex(el, renderContext),
         paragraphs,
         decoration: hasDecoration ? decoration : null,
         verticalAlign: resolveVerticalAlign(cs),
@@ -340,7 +339,7 @@ export function handleList(el, slideRect, slideData, tag, renderContext) {
     slideData.elements.push({
         type: tag === 'ul' ? 'unordered_list' : 'ordered_list',
         box: getBox(el, slideRect, renderContext),
-        zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
+        zIndex: resolveEffectiveZIndex(el, renderContext),
         listItems: extractListItems(el, 0, renderContext),
         rotationDeg: renderContext.effectiveRotationDeg,
         rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
@@ -370,7 +369,7 @@ export function handleCodeBlock(el, slideRect, slideData, renderContext) {
             type: 'code_block',
             box: getBox(el, slideRect, renderContext),
             contentBox: hasDecoration ? getContentBox(el, slideRect, renderContext) : null,
-            zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
+            zIndex: resolveEffectiveZIndex(el, renderContext),
             paragraphs: buildParagraphsFromRuns(
                 extractExactTextRuns(codeEl, deriveRenderContext(codeEl, renderContext)),
                 alignment,
@@ -399,7 +398,7 @@ export function handleImage(el, slideRect, slideData, decoration, renderContext)
         slideData.elements.push({
             type: 'image',
             box: box,
-            zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
+            zIndex: resolveEffectiveZIndex(el, renderContext),
             imageSrc: el.src,
             imageNaturalWidthPx: el.naturalWidth || null,
             imageNaturalHeightPx: el.naturalHeight || null,
@@ -421,7 +420,7 @@ export function handleTable(el, slideRect, slideData, renderContext, decoration)
     slideData.elements.push({
         type: 'table',
         box: getBox(el, slideRect, renderContext),
-        zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
+        zIndex: resolveEffectiveZIndex(el, renderContext),
         tableRows: extractTable(el, slideRect, renderContext),
         decoration: hasMeaningfulDecoration(decoration) ? decoration : null,
         rotationDeg: renderContext.effectiveRotationDeg,
@@ -479,7 +478,7 @@ export function processElement(el, slideRect, slideData, parentContext = null) {
     }
 
     if (shouldExtractDecoratedBlock(el, decoration, renderContext)) {
-        handleDecoratedBlock(el, slideRect, slideData, decoration, renderContext);
+        handleDecoratedBlock(el, slideRect, slideData, decoration, renderContext, shouldDecomposeDecoratedBlock(el));
         return;
     }
 
