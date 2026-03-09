@@ -1535,20 +1535,15 @@ class TestCodeBlock:
 
         pptx = _build_and_read(pres, tmp_path)
         slide = pptx.slides[0]
-        assert len(slide.shapes) == 2
+        # Unified rendering: text is inside the decoration shape (1 shape total)
+        assert len(slide.shapes) == 1
 
-        background_shape = next(
-            shape for shape in slide.shapes if shape.has_text_frame and shape.text == ""
-        )
-        textbox = next(
-            shape for shape in slide.shapes if shape.has_text_frame and shape.text != ""
-        )
-
-        assert "a:custGeom" in background_shape._element.xml
-        assert "a:arcTo" in background_shape._element.xml
-        assert textbox.left > px_to_emu(50)
-        assert textbox.top > px_to_emu(100)
-        assert "<a:noFill/>" in textbox._element.xml
+        shape = slide.shapes[0]
+        assert shape.has_text_frame
+        assert "a:custGeom" in shape._element.xml
+        assert "a:arcTo" in shape._element.xml
+        # Text should be inside the decoration shape
+        assert shape.text_frame.text == "print('hello')"
 
 
 class TestDecorationRendering:
