@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import logging
 
+from lxml import etree
 from pptx.util import Emu
 
 from marpx.models import UnsupportedElement
 from marpx.utils.common import px_to_emu
 from marpx.utils.math import latex_to_omml
+
+_MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+_A14_NS = "http://schemas.microsoft.com/office/drawing/2010/main"
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +28,9 @@ def _add_math_equation(slide, element: UnsupportedElement) -> bool:
         latex_source = element.unsupported_info.latex_source
 
     if not latex_source:
+        return False
+
+    if element.box.width <= 0 or element.box.height <= 0:
         return False
 
     # Convert LaTeX to OMML
@@ -43,6 +50,13 @@ def _add_math_equation(slide, element: UnsupportedElement) -> bool:
 
     # Get the first paragraph (auto-created) and inject OMML
     p = tf.paragraphs[0]
-    p._element.append(omml_element)
+    # Wrap in mc:AlternateContent for PowerPoint compatibility
+    nsmap_mc = {"mc": _MC_NS, "a14": _A14_NS}
+    alt_content = etree.SubElement(
+        p._element, f"{{{_MC_NS}}}AlternateContent", nsmap=nsmap_mc
+    )
+    choice = etree.SubElement(alt_content, f"{{{_MC_NS}}}Choice")
+    choice.set("Requires", "a14")
+    choice.append(omml_element)
 
     return True

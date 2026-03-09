@@ -49,6 +49,9 @@ def latex_to_omml(latex: str) -> etree._Element | None:
         transform = _get_xslt_transform()
         omml_tree = transform(mathml_tree)
         omml_root = omml_tree.getroot()
+        if omml_root is None:
+            logger.warning("XSLT produced empty result for: %s", latex)
+            return None
 
         # Step 4: Wrap in a14:m > m:oMathPara
         # The XSLT produces m:oMath or m:oMathPara depending on input
@@ -67,11 +70,26 @@ def latex_to_omml(latex: str) -> etree._Element | None:
             # Wrap in both
             omath_para = etree.SubElement(a14_m, f"{{{_OMML_NS}}}oMathPara")
             omath = etree.SubElement(omath_para, f"{{{_OMML_NS}}}oMath")
-            for child in omml_root:
+            for child in list(omml_root):
                 omath.append(child)
 
         return a14_m
 
-    except Exception:
-        logger.warning("Failed to convert LaTeX to OMML: %s", latex, exc_info=True)
+    except ImportError:
+        logger.warning("latex2mathml not installed, cannot convert: %s", latex)
         return None
+    except (etree.Error, etree.XSLTError) as exc:
+        logger.warning(
+            "Failed to convert LaTeX to OMML (XML/XSLT): %s (%s)", latex, exc
+        )
+        return None
+    except (ValueError, TypeError) as exc:
+        logger.warning("Failed to convert LaTeX to OMML: %s (%s)", latex, exc)
+        return None
+    except Exception as exc:
+        # Catch latex2mathml-specific errors (NoAvailableTokensError, etc.)
+        mod = type(exc).__module__ or ""
+        if mod.startswith("latex2mathml"):
+            logger.warning("Failed to convert LaTeX to OMML: %s (%s)", latex, exc)
+            return None
+        raise
