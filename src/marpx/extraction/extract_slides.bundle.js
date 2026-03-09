@@ -1647,7 +1647,7 @@ function isUnsupported(el) {
   if (unsupportedStyleReason) {
     return { reason: unsupportedStyleReason, tagName: tag };
   }
-  if (cs.backgroundImage && cs.backgroundImage !== "none" && cs.backgroundImage.includes("gradient") && !cs.backgroundImage.includes("linear-gradient(")) {
+  if (cs.backgroundImage && cs.backgroundImage !== "none" && cs.backgroundImage.includes("gradient") && !cs.backgroundImage.includes("linear-gradient(") && !cs.backgroundImage.includes("radial-gradient(")) {
     return { reason: "Unsupported gradient background", tagName: tag };
   }
   if (_requiresOverflowClipFallback(el, cs)) {

@@ -19,6 +19,11 @@ def px_to_emu(px: float) -> int:
     return round(px * EMU_PER_PX)
 
 
+def emu_to_px(emu: int | float) -> float:
+    """Convert English Metric Units to pixels."""
+    return emu / EMU_PER_PX
+
+
 def px_to_pt(px: float) -> float:
     """Convert pixels to points."""
     return px * PT_PER_PX
