@@ -8,6 +8,25 @@
     import { extractListItemContent, extractParagraphsFromContainer } from './containers.js';
     import { shouldExtractStandaloneDecoratedText } from './classify.js';
 
+/** Tags that are never treated as decorated block containers. */
+const NON_DECORATED_BLOCK_TAGS = new Set([
+    'section', 'blockquote', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td',
+    'th', 'img', 'pre', 'marp-pre', 'script', 'style', 'link', 'meta',
+    'header', 'footer',
+]);
+
+/** Tags that force decomposition of a decorated block when found as descendants. */
+const DECOMPOSE_TRIGGER_TAGS = new Set(['table', 'img', 'pre', 'marp-pre']);
+
+/** Tags that are metadata/invisible and should be skipped during clipping checks. */
+const METADATA_TAGS = new Set(['script', 'style', 'link', 'meta']);
+
+/** Tags with visual content that require clipping fallback. */
+const VISUAL_CONTENT_TAGS = new Set(['img', 'table', 'svg', 'canvas', 'video', 'iframe']);
+
+/** Tags that are always unsupported elements. */
+const UNSUPPORTED_ELEMENT_TAGS = new Set(['svg', 'math', 'canvas']);
+
 export function isDecoratedBlockContainer(el) {
     const tag = (el.localName || el.tagName).toLowerCase();
     const cs = window.getComputedStyle(el);
@@ -18,14 +37,7 @@ export function isDecoratedBlockContainer(el) {
         (tag === 'li' && (cs.display !== 'list-item' || parentListStyleType === 'none')) ||
         ((tag === 'ul' || tag === 'ol') && (cs.listStyleType || '').toLowerCase() === 'none')
     );
-    if (
-        [
-            'section', 'blockquote', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td',
-            'th', 'img', 'pre', 'marp-pre', 'script', 'style', 'link', 'meta',
-            'header', 'footer'
-        ].includes(tag) &&
-        !isPresentationalListNode
-    ) {
+    if (NON_DECORATED_BLOCK_TAGS.has(tag) && !isPresentationalListNode) {
         return false;
     }
     return !cs.display.startsWith('inline');
@@ -60,41 +72,23 @@ export function shouldDecomposeDecoratedBlock(el) {
     ) {
         return true;
     }
-    const hasUnsupportedDescendant = Array.from(el.querySelectorAll('*')).some(
-        (node) => !!isUnsupported(node)
-    );
-    if (hasUnsupportedDescendant) return true;
-    const hasDecoratedDescendant = Array.from(el.querySelectorAll('*')).some((node) => {
+    const descendants = el.querySelectorAll('*');
+    for (const node of descendants) {
+        if (isUnsupported(node)) return true;
         const tag = (node.localName || node.tagName).toLowerCase();
-        if (['table', 'img', 'pre', 'marp-pre'].includes(tag)) return true;
+        if (DECOMPOSE_TRIGGER_TAGS.has(tag)) return true;
         const decoration = extractDecoration(node, deriveRenderContext(node));
-        return (
-            shouldExtractStandaloneDecoratedText(node, decoration) ||
+        if (shouldExtractStandaloneDecoratedText(node, decoration)) return true;
+        if (
+            isDecoratedBlockContainer(node) &&
+            hasMeaningfulDecoration(decoration) &&
             (
-                isDecoratedBlockContainer(node) &&
-                hasMeaningfulDecoration(decoration) &&
-                (
-                    extractParagraphsFromContainer(node, deriveRenderContext(node)).length > 0 ||
-                    node.children.length === 0
-                )
+                extractParagraphsFromContainer(node, deriveRenderContext(node)).length > 0 ||
+                node.children.length === 0
             )
-        );
-    });
-    if (hasDecoratedDescendant) return true;
-    return Array.from(el.children).some((child) =>
-        shouldExtractStandaloneDecoratedText(child, extractDecoration(child)) ||
-        (
-            isDecoratedBlockContainer(child) &&
-            hasMeaningfulDecoration(
-                    extractDecoration(child, deriveRenderContext(child))
-                )
-            ) ||
-            !!isUnsupported(child) ||
-            ['table', 'img', 'pre', 'marp-pre'].includes(
-                (child.localName || child.tagName).toLowerCase()
-            ) ||
-            !!child.querySelector('table, img, pre, marp-pre')
-        );
+        ) return true;
+    }
+    return false;
     }
 
     export function extractListItems(listEl, level, renderContext = null) {
@@ -161,7 +155,7 @@ export function shouldDecomposeDecoratedBlock(el) {
         const descendants = el.querySelectorAll('*');
         for (const child of descendants) {
             const childTag = (child.localName || child.tagName).toLowerCase();
-            if (['script', 'style', 'link', 'meta'].includes(childTag)) continue;
+            if (METADATA_TAGS.has(childTag)) continue;
             const childContext = deriveSubtreeRenderContext(child, el, rootContext);
             const childDecoration = extractDecoration(child, childContext);
             if (
@@ -170,7 +164,7 @@ export function shouldDecomposeDecoratedBlock(el) {
                     childDecoration.backgroundGradient,
                 ) ||
                 hasMeaningfulDecoration(childDecoration) ||
-                ['img', 'table', 'svg', 'canvas', 'video', 'iframe'].includes(childTag)
+                VISUAL_CONTENT_TAGS.has(childTag)
             ) {
                 return true;
             }
@@ -260,7 +254,7 @@ export function shouldDecomposeDecoratedBlock(el) {
 
     export function isUnsupported(el) {
         const tag = (el.localName || el.tagName).toLowerCase();
-        if (['svg', 'math', 'canvas'].includes(tag)) {
+        if (UNSUPPORTED_ELEMENT_TAGS.has(tag)) {
             return {
                 reason: 'Unsupported element: ' + tag,
                 tagName: tag,
