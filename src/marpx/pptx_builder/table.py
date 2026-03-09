@@ -6,11 +6,11 @@ from lxml import etree
 from pptx.oxml.ns import qn
 from pptx.util import Emu
 
-from marpx.gradient_utils import css_angle_to_ooxml_angle, parse_linear_gradient
+from marpx.gradient_utils import parse_linear_gradient
 from marpx.models import SlideElement, TableCell
 from marpx.utils import px_to_emu
 
-from ._helpers import _set_fill_color, _set_srgb_alpha
+from ._helpers import _build_gradient_fill_xml, _set_fill_color, _set_srgb_alpha
 from .decoration import _add_decoration_shape
 from .text import _add_paragraph_runs
 
@@ -63,22 +63,7 @@ def _set_cell_gradient_fill(pptx_cell, css_gradient: str) -> None:
         if child.tag in {qn("a:solidFill"), qn("a:gradFill")}:
             tc_pr.remove(child)
 
-    grad_fill = etree.SubElement(tc_pr, qn("a:gradFill"))
-    grad_fill.set("rotWithShape", "1")
-    gs_lst = etree.SubElement(grad_fill, qn("a:gsLst"))
-    for stop in parsed.stops:
-        gs = etree.SubElement(gs_lst, qn("a:gs"))
-        gs.set("pos", str(int(round(stop.position * 100000))))
-        srgb = etree.SubElement(gs, qn("a:srgbClr"))
-        srgb.set("val", f"{stop.color.r:02X}{stop.color.g:02X}{stop.color.b:02X}")
-        if stop.color.a < 1.0:
-            etree.SubElement(srgb, qn("a:alpha")).set(
-                "val", str(int(round(stop.color.a * 100000)))
-            )
-
-    lin = etree.SubElement(grad_fill, qn("a:lin"))
-    lin.set("ang", str(css_angle_to_ooxml_angle(parsed.angle_deg)))
-    lin.set("scaled", "0")
+    _build_gradient_fill_xml(tc_pr, parsed)
 
 
 def _configure_table_border_line(line, width_emu: int) -> None:
