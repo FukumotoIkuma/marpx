@@ -13,12 +13,14 @@ from marpx.models import (
     CodeBlockElement,
     ElementType,
     ListElement,
+    MathRun,
     SlideElement,
     TextElement,
     TextRun,
     TextStyle,
 )
 from marpx.utils.gradient import parse_linear_gradient
+from marpx.utils.math import latex_to_inline_omml
 from marpx.utils.common import (
     blend_alpha,
     px_to_emu,
@@ -155,9 +157,39 @@ def _set_run_gradient_fill(r_pr, css_gradient: str) -> None:
         insert_before.addprevious(grad_fill)
 
 
-def _add_paragraph_runs(pptx_para, runs: list[TextRun]) -> None:
+_MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+_A14_NS = "http://schemas.microsoft.com/office/drawing/2010/main"
+
+
+def _add_inline_math_run(pptx_para, math_run: MathRun) -> None:
+    """Inject an inline OMML math expression into a paragraph."""
+    omml_elem = latex_to_inline_omml(math_run.latex_source)
+    if omml_elem is None:
+        # Graceful fallback: render LaTeX source as plain text
+        r = pptx_para.add_run()
+        r.text = math_run.latex_source
+        return
+    # Wrap in mc:AlternateContent for PowerPoint compatibility
+    nsmap_mc = {"mc": _MC_NS, "a14": _A14_NS}
+    alt_content = etree.SubElement(
+        pptx_para._element, f"{{{_MC_NS}}}AlternateContent", nsmap=nsmap_mc
+    )
+    choice = etree.SubElement(alt_content, f"{{{_MC_NS}}}Choice")
+    choice.set("Requires", "a14")
+    choice.append(omml_elem)
+    fallback = etree.SubElement(alt_content, f"{{{_MC_NS}}}Fallback")
+    fallback_r = etree.SubElement(fallback, qn("a:r"))
+    fallback_t = etree.SubElement(fallback_r, qn("a:t"))
+    fallback_t.text = math_run.latex_source
+
+
+def _add_paragraph_runs(pptx_para, runs: list[TextRun | MathRun]) -> None:
     """Add text runs to a python-pptx paragraph."""
-    for i, text_run in enumerate(runs):
+    for i, run in enumerate(runs):
+        if isinstance(run, MathRun):
+            _add_inline_math_run(pptx_para, run)
+            continue
+        text_run = run
         if i == 0:
             r = pptx_para.runs[0] if pptx_para.runs else pptx_para.add_run()
         else:
@@ -308,7 +340,9 @@ def _populate_text_frame(
             and len(element.paragraphs) == 1
         ):
             para = payload["paragraph"]
-            if para is not None and all("\n" not in run.text for run in para.runs):
+            if para is not None and all(
+                "\n" not in run.text for run in para.runs if isinstance(run, TextRun)
+            ):
                 suppress_line_spacing = True
 
     payload_index = 0
