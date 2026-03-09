@@ -3,6 +3,7 @@
     import { extractPseudoRuns } from './pseudo.js';
     import { extractDecoration } from './decoration.js';
     import { normalizeInlineText } from './entry.js';
+    import { detectVisualLineBreaks, insertLineBreaksIntoRuns } from './line-breaks.js';
 
     export function _buildTextRun(text, styleEl, linkUrl = null, options = {}) {
         const {
@@ -26,6 +27,7 @@
             includeRootPseudo = false,
             isStandaloneDecoratedFn = null,
             includeMathRuns = false,
+            detectVisualBreaks = false,
             renderContext = null,
         } = options;
         const runs = [];
@@ -141,6 +143,22 @@
         visit(el, el, null, rootContext);
         if (includeRootPseudo) {
             pushRootPseudo('::after');
+        }
+
+        // Detect CSS visual line breaks and insert \n into runs.
+        // Skip if the element contains <br> tags – those already produce
+        // '\n' runs, and visual detection would cause double breaks (Bug 2).
+        if (detectVisualBreaks && runs.length > 0) {
+            const hasBrTags = el.querySelector('br') !== null;
+            const hasExistingBreaks = runs.some(
+                (r) => r.text && r.text.includes('\n'),
+            );
+            if (!hasBrTags && !hasExistingBreaks) {
+                const lineTexts = detectVisualLineBreaks(el);
+                if (lineTexts.length > 1) {
+                    insertLineBreaksIntoRuns(runs, lineTexts);
+                }
+            }
         }
 
         return trimBoundary ? trimBoundaryWhitespace(runs) : runs;

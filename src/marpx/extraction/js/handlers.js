@@ -12,9 +12,8 @@ import {
     resolveEffectiveZIndex,
 } from './entry.js';
 import {
-    extractTextRuns,
     extractExactTextRuns,
-    extractTextRunsWithPseudo,
+    extractInlineRuns,
 } from './runs.js';
 import {
     shouldExtractStandaloneDecoratedText,
@@ -263,7 +262,10 @@ export function handleHeading(el, slideRect, slideData, tag, renderContext) {
     slideData.elements.push(
         buildTextElement(el, slideRect, 'heading', {
             headingLevel: level,
-            runs: extractTextRuns(el, renderContext),
+            runs: extractInlineRuns(el, {
+                detectVisualBreaks: true,
+                renderContext,
+            }),
             renderContext,
         })
     );
@@ -301,7 +303,11 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
                 ? extractTextRunsWithHiddenDecorated(
                     el, renderContext, mathEls.length > 0, _isInlineStandaloneUnsupported,
                 )
-                : extractTextRunsWithPseudo(el, renderContext, false),
+                : extractInlineRuns(el, {
+                    includeRootPseudo: true,
+                    detectVisualBreaks: true,
+                    renderContext,
+                }),
             renderContext,
         })
     );

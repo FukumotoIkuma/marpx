@@ -2513,3 +2513,95 @@ style: |
         assert len(unsupported) >= 1, (
             "Mixed negligible + significant filter should trigger fallback"
         )
+
+
+class TestVisualLineBreaks:
+    """Tests for visual line break detection in headings and paragraphs."""
+
+    @pytest.mark.integration
+    def test_heading_visual_line_break_detected(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        """A long heading with large font should wrap and produce a visual line break."""
+        md_path = tmp_path / "visual-line-break.md"
+        md_path.write_text(
+            """---
+marp: true
+style: |
+  h1 { font-size: 100px; }
+---
+
+# AAAA BBBB CCCC DDDD
+""",
+            encoding="utf-8",
+        )
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        headings = [e for e in slide.elements if e.element_type == ElementType.HEADING]
+        assert len(headings) >= 1, "Should have at least one heading element"
+        heading = headings[0]
+        full_text = "".join(
+            run.text for para in heading.paragraphs for run in para.runs
+        )
+        assert "\n" in full_text, (
+            f"Expected visual line break in wrapped heading, got: {full_text!r}"
+        )
+
+    @pytest.mark.integration
+    def test_short_heading_no_false_line_break(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        """A short heading that fits on one line should NOT have a line break."""
+        md_path = tmp_path / "no-line-break.md"
+        md_path.write_text(
+            """---
+marp: true
+---
+
+# Hello
+""",
+            encoding="utf-8",
+        )
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        headings = [e for e in slide.elements if e.element_type == ElementType.HEADING]
+        assert len(headings) >= 1, "Should have at least one heading element"
+        heading = headings[0]
+        full_text = "".join(
+            run.text for para in heading.paragraphs for run in para.runs
+        )
+        assert "\n" not in full_text, (
+            f"Short heading should not contain line breaks, got: {full_text!r}"
+        )
+
+    @pytest.mark.integration
+    def test_br_tag_not_duplicated(self, tmp_path: Path, tmp_output_dir: Path) -> None:
+        """An explicit <br> tag should produce exactly one line break, not two."""
+        md_path = tmp_path / "br-tag.md"
+        md_path.write_text(
+            """---
+marp: true
+---
+
+<p>Line one<br/>Line two</p>
+""",
+            encoding="utf-8",
+        )
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+        paragraphs = [
+            e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
+        ]
+        assert len(paragraphs) >= 1, "Should have at least one paragraph element"
+        para_elem = paragraphs[0]
+        full_text = "".join(
+            run.text for para in para_elem.paragraphs for run in para.runs
+        )
+        newline_count = full_text.count("\n")
+        assert newline_count == 1, (
+            f"Expected exactly 1 line break between 'Line one' and 'Line two', "
+            f"got {newline_count} in: {full_text!r}"
+        )
