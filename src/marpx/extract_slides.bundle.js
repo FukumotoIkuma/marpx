@@ -1410,33 +1410,39 @@ function extractTextRunsWithHiddenDecorated(el, renderContext = null, includeMat
 }
 
 // blocks.js
+var NON_DECORATED_BLOCK_TAGS = /* @__PURE__ */ new Set([
+  "section",
+  "blockquote",
+  "ul",
+  "ol",
+  "li",
+  "table",
+  "thead",
+  "tbody",
+  "tr",
+  "td",
+  "th",
+  "img",
+  "pre",
+  "marp-pre",
+  "script",
+  "style",
+  "link",
+  "meta",
+  "header",
+  "footer"
+]);
+var DECOMPOSE_TRIGGER_TAGS = /* @__PURE__ */ new Set(["table", "img", "pre", "marp-pre"]);
+var DECOMPOSE_TRIGGER_SELECTOR = "table, img, pre, marp-pre";
+var METADATA_TAGS = /* @__PURE__ */ new Set(["script", "style", "link", "meta"]);
+var VISUAL_CONTENT_TAGS = /* @__PURE__ */ new Set(["img", "table", "svg", "canvas", "video", "iframe"]);
+var UNSUPPORTED_ELEMENT_TAGS = /* @__PURE__ */ new Set(["svg", "math", "canvas"]);
 function isDecoratedBlockContainer(el) {
   const tag = (el.localName || el.tagName).toLowerCase();
   const cs = window.getComputedStyle(el);
   const parentListStyleType = el.parentElement ? (window.getComputedStyle(el.parentElement).listStyleType || "").toLowerCase() : "";
   const isPresentationalListNode = tag === "li" && (cs.display !== "list-item" || parentListStyleType === "none") || (tag === "ul" || tag === "ol") && (cs.listStyleType || "").toLowerCase() === "none";
-  if ([
-    "section",
-    "blockquote",
-    "ul",
-    "ol",
-    "li",
-    "table",
-    "thead",
-    "tbody",
-    "tr",
-    "td",
-    "th",
-    "img",
-    "pre",
-    "marp-pre",
-    "script",
-    "style",
-    "link",
-    "meta",
-    "header",
-    "footer"
-  ].includes(tag) && !isPresentationalListNode) {
+  if (NON_DECORATED_BLOCK_TAGS.has(tag) && !isPresentationalListNode) {
     return false;
   }
   return !cs.display.startsWith("inline");
@@ -1457,23 +1463,21 @@ function shouldDecomposeDecoratedBlock(el) {
   if ((display === "grid" || display === "inline-grid") && el.children.length > 1) {
     return true;
   }
-  const hasUnsupportedDescendant = Array.from(el.querySelectorAll("*")).some(
-    (node) => !!isUnsupported(node)
-  );
-  if (hasUnsupportedDescendant) return true;
-  const hasDecoratedDescendant = Array.from(el.querySelectorAll("*")).some((node) => {
+  const descendants = el.querySelectorAll("*");
+  for (const node of descendants) {
+    if (isUnsupported(node)) return true;
     const tag = (node.localName || node.tagName).toLowerCase();
-    if (["table", "img", "pre", "marp-pre"].includes(tag)) return true;
+    if (DECOMPOSE_TRIGGER_TAGS.has(tag)) return true;
     const decoration = extractDecoration(node, deriveRenderContext(node));
-    return shouldExtractStandaloneDecoratedText(node, decoration) || isDecoratedBlockContainer(node) && hasMeaningfulDecoration(decoration) && (extractParagraphsFromContainer(node, deriveRenderContext(node)).length > 0 || node.children.length === 0);
-  });
-  if (hasDecoratedDescendant) return true;
+    if (shouldExtractStandaloneDecoratedText(node, decoration)) return true;
+    if (isDecoratedBlockContainer(node) && hasMeaningfulDecoration(decoration) && (extractParagraphsFromContainer(node, deriveRenderContext(node)).length > 0 || node.children.length === 0)) return true;
+  }
   return Array.from(el.children).some(
     (child) => shouldExtractStandaloneDecoratedText(child, extractDecoration(child)) || isDecoratedBlockContainer(child) && hasMeaningfulDecoration(
       extractDecoration(child, deriveRenderContext(child))
-    ) || !!isUnsupported(child) || ["table", "img", "pre", "marp-pre"].includes(
+    ) || !!isUnsupported(child) || DECOMPOSE_TRIGGER_TAGS.has(
       (child.localName || child.tagName).toLowerCase()
-    ) || !!child.querySelector("table, img, pre, marp-pre")
+    ) || !!child.querySelector(DECOMPOSE_TRIGGER_SELECTOR)
   );
 }
 function extractListItems(listEl, level, renderContext = null) {
@@ -1529,13 +1533,13 @@ function _descendantNeedsClipping(el, rootContext) {
   const descendants = el.querySelectorAll("*");
   for (const child of descendants) {
     const childTag = (child.localName || child.tagName).toLowerCase();
-    if (["script", "style", "link", "meta"].includes(childTag)) continue;
+    if (METADATA_TAGS.has(childTag)) continue;
     const childContext = deriveSubtreeRenderContext(child, el, rootContext);
     const childDecoration = extractDecoration(child, childContext);
     if (_hasVisibleBackground(
       childDecoration.backgroundColor,
       childDecoration.backgroundGradient
-    ) || hasMeaningfulDecoration(childDecoration) || ["img", "table", "svg", "canvas", "video", "iframe"].includes(childTag)) {
+    ) || hasMeaningfulDecoration(childDecoration) || VISUAL_CONTENT_TAGS.has(childTag)) {
       return true;
     }
   }
@@ -1615,7 +1619,7 @@ function _findSingleImageChild(el) {
 }
 function isUnsupported(el) {
   const tag = (el.localName || el.tagName).toLowerCase();
-  if (["svg", "math", "canvas"].includes(tag)) {
+  if (UNSUPPORTED_ELEMENT_TAGS.has(tag)) {
     return {
       reason: "Unsupported element: " + tag,
       tagName: tag,
