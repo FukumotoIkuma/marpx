@@ -1202,6 +1202,14 @@ function buildTextRunFromNode(node, styleEl, renderContext) {
   if (!run || !run.text.trim()) return null;
   return run;
 }
+function shouldFlushInlineRuns(child, childDecoration) {
+  const tag = child.tagName.toLowerCase();
+  if (tag === "ul" || tag === "ol") return true;
+  if (shouldExtractStandaloneDecoratedText(child, childDecoration)) return true;
+  if (isInlineLikeElement(child) && tag === "br") return true;
+  if (!isInlineLikeElement(child) && !hasUnsupportedBlockDescendants(child)) return true;
+  return false;
+}
 function extractListItemContent(item, listEl, level, currentOrder, renderContext = null) {
   const itemCs = window.getComputedStyle(item);
   const itemContext = renderContext ? deriveRenderContext(item, renderContext, itemCs) : deriveRenderContext(item, null, itemCs);
@@ -1315,23 +1323,20 @@ function extractParagraphsFromContainer(el, renderContext = null) {
     const tag = child.tagName.toLowerCase();
     const childContext = deriveRenderContext(child, containerContext);
     const childDecoration = extractDecoration(child, childContext);
-    if (tag === "ul" || tag === "ol") {
+    if (shouldFlushInlineRuns(child, childDecoration)) {
       flushInlineParagraph();
+    }
+    if (tag === "ul" || tag === "ol") {
       pushListParagraphs(child, 0, childContext);
     } else if (shouldExtractStandaloneDecoratedText(child, childDecoration)) {
-      flushInlineParagraph();
+    } else if (tag === "br") {
     } else if (isInlineLikeElement(child)) {
-      if (tag === "br") {
-        flushInlineParagraph();
-      } else {
-        const inlineChildContext = deriveRenderContext(child, containerContext);
-        inlineRuns.push(...extractInlineRuns(child, {
-          includeRootPseudo: true,
-          renderContext: inlineChildContext
-        }));
-      }
+      const inlineChildContext = deriveRenderContext(child, containerContext);
+      inlineRuns.push(...extractInlineRuns(child, {
+        includeRootPseudo: true,
+        renderContext: inlineChildContext
+      }));
     } else if (!hasUnsupportedBlockDescendants(child)) {
-      flushInlineParagraph();
       pushParagraphFromNode(child);
     }
   }

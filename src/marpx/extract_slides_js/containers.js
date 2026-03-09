@@ -203,29 +203,26 @@ export function extractParagraphsFromContainer(el, renderContext = null) {
         const childContext = deriveRenderContext(child, containerContext);
         const childDecoration = extractDecoration(child, childContext);
 
-        // Use shouldFlushInlineRuns() to determine if accumulated inline runs
-        // need to be flushed before processing this element
-        if (tag === 'ul' || tag === 'ol') {
-            // Flush: list elements are block-level structures
+        // Centralized flush decision: flush accumulated inline runs before
+        // any block-level or paragraph-breaking element
+        if (shouldFlushInlineRuns(child, childDecoration)) {
             flushInlineParagraph();
+        }
+
+        // Element-specific actions (flush already handled above)
+        if (tag === 'ul' || tag === 'ol') {
             pushListParagraphs(child, 0, childContext);
         } else if (shouldExtractStandaloneDecoratedText(child, childDecoration)) {
-            // Flush: standalone decorated text is extracted separately
-            flushInlineParagraph();
+            // Standalone decorated text — no further action needed
+        } else if (tag === 'br') {
+            // Line break — paragraph break already flushed above
         } else if (isInlineLikeElement(child)) {
-            if (tag === 'br') {
-                // Flush: <br> forces a paragraph break
-                flushInlineParagraph();
-            } else {
-                const inlineChildContext = deriveRenderContext(child, containerContext);
-                inlineRuns.push(...extractInlineRuns(child, {
-                    includeRootPseudo: true,
-                    renderContext: inlineChildContext,
-                }));
-            }
+            const inlineChildContext = deriveRenderContext(child, containerContext);
+            inlineRuns.push(...extractInlineRuns(child, {
+                includeRootPseudo: true,
+                renderContext: inlineChildContext,
+            }));
         } else if (!hasUnsupportedBlockDescendants(child)) {
-            // Flush: non-inline block element becomes its own paragraph
-            flushInlineParagraph();
             pushParagraphFromNode(child);
         }
     }
