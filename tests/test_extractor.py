@@ -11,7 +11,7 @@ import pytest
 
 from marpx.extraction.extractor import extract_presentation_sync
 from marpx.extraction.marp_renderer import render_to_html
-from marpx.models import ElementType, MathRun
+from marpx.models import ElementType, MathRun, TextShadow
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -2604,4 +2604,104 @@ marp: true
         assert newline_count == 1, (
             f"Expected exactly 1 line break between 'Line one' and 'Line two', "
             f"got {newline_count} in: {full_text!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Text-shadow extraction
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def text_shadow_html(session_output_dir: Path) -> Path:
+    """Render text-shadow-features.md to HTML."""
+    return render_to_html(
+        FIXTURES_DIR / "text-shadow-features.md", output_dir=session_output_dir
+    )
+
+
+@pytest.fixture(scope="module")
+def text_shadow_pres(text_shadow_html: Path):
+    """Extract presentation from text-shadow fixture."""
+    return extract_presentation_sync(text_shadow_html)
+
+
+@pytest.mark.integration
+class TestTextShadowExtraction:
+    """Tests for CSS text-shadow extraction from DOM into TextStyle.text_shadows."""
+
+    def test_glow_text_shadow_extracted(self, text_shadow_pres) -> None:
+        """Slide 1 heading with double cyan glow should yield 2 text_shadows."""
+        slide = text_shadow_pres.slides[0]
+        heading = next(
+            e for e in slide.elements if e.element_type == ElementType.HEADING
+        )
+        run = heading.paragraphs[0].runs[0]
+        assert run.style.text_shadows is not None, (
+            "Expected text_shadows to be populated for glow span"
+        )
+        assert len(run.style.text_shadows) == 2, (
+            f"Expected 2 shadow entries for double glow, "
+            f"got {len(run.style.text_shadows)}"
+        )
+        for shadow in run.style.text_shadows:
+            assert isinstance(shadow, TextShadow)
+            # Glow effect uses 0 offset
+            assert abs(shadow.offset_x_px) < 1.0, (
+                f"Glow shadow offset_x should be ~0, got {shadow.offset_x_px}"
+            )
+            assert abs(shadow.offset_y_px) < 1.0, (
+                f"Glow shadow offset_y should be ~0, got {shadow.offset_y_px}"
+            )
+            # Glow blur must be significant (20px and 40px)
+            assert shadow.blur_radius_px > 0, (
+                f"Glow shadow blur_radius should be > 0, got {shadow.blur_radius_px}"
+            )
+            # Cyan color: R~0, G~255, B~255
+            assert shadow.color.r < 50, (
+                f"Cyan shadow R channel should be near 0, got {shadow.color.r}"
+            )
+            assert shadow.color.g > 200, (
+                f"Cyan shadow G channel should be near 255, got {shadow.color.g}"
+            )
+            assert shadow.color.b > 200, (
+                f"Cyan shadow B channel should be near 255, got {shadow.color.b}"
+            )
+
+    def test_drop_shadow_extracted(self, text_shadow_pres) -> None:
+        """Slide 2 heading with drop-shadow should yield 1 text_shadow with offset."""
+        slide = text_shadow_pres.slides[1]
+        heading = next(
+            e for e in slide.elements if e.element_type == ElementType.HEADING
+        )
+        run = heading.paragraphs[0].runs[0]
+        assert run.style.text_shadows is not None, (
+            "Expected text_shadows to be populated for drop-shadow span"
+        )
+        assert len(run.style.text_shadows) == 1, (
+            f"Expected 1 shadow entry for drop-shadow, "
+            f"got {len(run.style.text_shadows)}"
+        )
+        shadow = run.style.text_shadows[0]
+        assert isinstance(shadow, TextShadow)
+        assert abs(shadow.offset_x_px - 3.0) < 1.0, (
+            f"Drop-shadow offset_x should be ~3px, got {shadow.offset_x_px}"
+        )
+        assert abs(shadow.offset_y_px - 3.0) < 1.0, (
+            f"Drop-shadow offset_y should be ~3px, got {shadow.offset_y_px}"
+        )
+        assert abs(shadow.blur_radius_px - 5.0) < 1.0, (
+            f"Drop-shadow blur_radius should be ~5px, got {shadow.blur_radius_px}"
+        )
+
+    def test_no_shadow_returns_none(self, text_shadow_pres) -> None:
+        """Slide 3 heading with text-shadow: none should have text_shadows as None."""
+        slide = text_shadow_pres.slides[2]
+        heading = next(
+            e for e in slide.elements if e.element_type == ElementType.HEADING
+        )
+        run = heading.paragraphs[0].runs[0]
+        assert run.style.text_shadows is None, (
+            f"Expected text_shadows to be None for no-shadow span, "
+            f"got {run.style.text_shadows!r}"
         )
