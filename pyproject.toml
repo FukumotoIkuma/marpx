@@ -28,7 +28,6 @@ dependencies = [
     "rich",
     "numpy>=2.4.3",
     "latex2mathml",
-    "latex2mathml",
 ]
 
 [project.urls]
