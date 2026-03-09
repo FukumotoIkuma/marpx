@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pptx.enum.text import MSO_VERTICAL_ANCHOR
+from pptx.enum.text import MSO_AUTO_SIZE, MSO_VERTICAL_ANCHOR
 from pptx.util import Emu
 
 from marpx.models import ListElement, SlideElement, TextElement
@@ -88,6 +88,7 @@ def _add_grouped_textbox(slide, elements: list[TextElement | ListElement]) -> No
     )
     tf = txbox.text_frame
     tf.word_wrap = True
+    tf.auto_size = MSO_AUTO_SIZE.NONE
     tf.vertical_anchor = MSO_VERTICAL_ANCHOR.TOP
     _set_text_frame_margins_zero(tf)
     _populate_text_frame(tf, elements)
