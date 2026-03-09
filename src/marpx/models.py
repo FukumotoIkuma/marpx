@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
-from typing import Union
+from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, Field
 
@@ -65,13 +65,24 @@ class TextStyle(BaseModel):
 class TextRun(BaseModel):
     """A run of text with uniform style."""
 
+    run_type: Literal["text"] = "text"
     text: str
     style: TextStyle = Field(default_factory=TextStyle)
     link_url: str | None = None
 
 
+class MathRun(BaseModel):
+    """An inline math expression within a paragraph."""
+
+    run_type: Literal["math"] = "math"
+    latex_source: str
+    style: TextStyle = Field(default_factory=TextStyle)
+
+
 class Paragraph(BaseModel):
-    runs: list[TextRun] = Field(default_factory=list)
+    runs: list[Annotated[TextRun | MathRun, Field(discriminator="run_type")]] = Field(
+        default_factory=list
+    )
     alignment: str = "left"  # left, center, right, justify
     line_height_px: float | None = None
     space_before_px: float = 0.0
@@ -85,7 +96,9 @@ class Paragraph(BaseModel):
 class ListItem(BaseModel):
     """A list item with nesting level."""
 
-    runs: list[TextRun] = Field(default_factory=list)
+    runs: list[Annotated[TextRun | MathRun, Field(discriminator="run_type")]] = Field(
+        default_factory=list
+    )
     level: int = 0  # 0-based nesting depth
     order_number: int | None = None  # for ordered lists
     list_style_type: str | None = None
