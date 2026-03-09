@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN
+from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
 from pptx.util import Emu, Pt
 
 from marpx.utils.common import px_to_emu
@@ -18,6 +18,7 @@ def _add_header(pptx_slide, header_text: str, slide_width_emu: int) -> None:
     txbox = pptx_slide.shapes.add_textbox(margin, margin, width, height)
     tf = txbox.text_frame
     tf.word_wrap = True
+    tf.auto_size = MSO_AUTO_SIZE.NONE
     p = tf.paragraphs[0]
     p.alignment = PP_ALIGN.LEFT
     run = p.add_run()
@@ -37,6 +38,7 @@ def _add_footer(
 
     txbox = pptx_slide.shapes.add_textbox(margin, top, width, height)
     tf = txbox.text_frame
+    tf.auto_size = MSO_AUTO_SIZE.NONE
     p = tf.paragraphs[0]
     p.alignment = PP_ALIGN.LEFT
     run = p.add_run()
@@ -61,6 +63,7 @@ def _add_page_number(
 
     txbox = pptx_slide.shapes.add_textbox(left, top, width, height)
     tf = txbox.text_frame
+    tf.auto_size = MSO_AUTO_SIZE.NONE
     p = tf.paragraphs[0]
     p.alignment = PP_ALIGN.RIGHT
     run = p.add_run()
