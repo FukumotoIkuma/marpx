@@ -18,9 +18,6 @@ const NON_DECORATED_BLOCK_TAGS = new Set([
 /** Tags that force decomposition of a decorated block when found as descendants. */
 const DECOMPOSE_TRIGGER_TAGS = new Set(['table', 'img', 'pre', 'marp-pre']);
 
-/** CSS selector matching DECOMPOSE_TRIGGER_TAGS (for querySelector). */
-const DECOMPOSE_TRIGGER_SELECTOR = [...DECOMPOSE_TRIGGER_TAGS].join(', ');
-
 /** Tags that are metadata/invisible and should be skipped during clipping checks. */
 const METADATA_TAGS = new Set(['script', 'style', 'link', 'meta']);
 
