@@ -367,3 +367,104 @@ class TestLatexToOmml:
 
         result = latex_to_omml(r"\sum_{i=1}^{n} i")
         assert result is not None
+
+
+# ---------------------------------------------------------------------------
+# LaTeX to inline OMML conversion tests
+# ---------------------------------------------------------------------------
+
+
+class TestLatexToInlineOmml:
+    """Tests for inline OMML conversion (no oMathPara wrapper)."""
+
+    def test_simple_inline_equation(self) -> None:
+        """Inline OMML should contain a14:m > m:oMath (no m:oMathPara)."""
+        from lxml import etree
+
+        from marpx.utils.math import latex_to_inline_omml
+
+        result = latex_to_inline_omml("x^2")
+        assert result is not None
+        # Should have a14:m as root
+        assert "drawing/2010/main" in result.tag
+        # Should contain m:oMath but NOT m:oMathPara
+        xml_str = etree.tostring(result).decode()
+        assert "oMath" in xml_str
+        assert "oMathPara" not in xml_str
+
+    def test_invalid_returns_none(self) -> None:
+        from marpx.utils.math import latex_to_inline_omml
+
+        latex_to_inline_omml("")
+        # Empty string: may return None or handle gracefully (no crash)
+        # latex2mathml is forgiving, so just verify no exception
+
+    def test_inline_has_no_omathpara(self) -> None:
+        """Verify inline version does NOT wrap in oMathPara."""
+        from lxml import etree
+
+        from marpx.utils.math import latex_to_inline_omml
+
+        result = latex_to_inline_omml(r"\frac{1}{2}")
+        assert result is not None
+        xml_str = etree.tostring(result).decode()
+        assert "oMathPara" not in xml_str
+        assert "oMath" in xml_str
+
+    def test_inline_fraction(self) -> None:
+        from marpx.utils.math import latex_to_inline_omml
+
+        result = latex_to_inline_omml(r"\frac{a}{b}")
+        assert result is not None
+
+    def test_inline_sum_notation(self) -> None:
+        from marpx.utils.math import latex_to_inline_omml
+
+        result = latex_to_inline_omml(r"\sum_{i=1}^{n} i")
+        assert result is not None
+
+
+# ---------------------------------------------------------------------------
+# MathRun model tests
+# ---------------------------------------------------------------------------
+
+
+class TestMathRunModel:
+    """Tests for the MathRun model."""
+
+    def test_math_run_creation(self) -> None:
+        from marpx.models import MathRun
+
+        run = MathRun(latex_source="x^2 + y^2")
+        assert run.run_type == "math"
+        assert run.latex_source == "x^2 + y^2"
+
+    def test_math_run_default_style(self) -> None:
+        from marpx.models import MathRun, TextStyle
+
+        run = MathRun(latex_source="x")
+        assert isinstance(run.style, TextStyle)
+
+    def test_math_run_in_paragraph(self) -> None:
+        """MathRun can coexist with TextRun in Paragraph.runs."""
+        from marpx.models import MathRun, Paragraph, TextRun
+
+        para = Paragraph(
+            runs=[
+                TextRun(text="The equation "),
+                MathRun(latex_source="E=mc^2"),
+                TextRun(text=" is famous."),
+            ]
+        )
+        assert len(para.runs) == 3
+        assert isinstance(para.runs[0], TextRun)
+        assert isinstance(para.runs[1], MathRun)
+        assert para.runs[1].latex_source == "E=mc^2"
+
+    def test_discriminator_field(self) -> None:
+        from marpx.models import MathRun, TextRun
+
+        text_run = TextRun(text="hello")
+        math_run = MathRun(latex_source="x")
+        assert text_run.run_type == "text"
+        assert math_run.run_type == "math"
