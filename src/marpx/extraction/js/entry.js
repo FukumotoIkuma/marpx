@@ -268,3 +268,33 @@ export function buildTextElement(el, sectionRect, type, extra = {}) {
     export function normalizeInlineText(text) {
         return text.replace(/\s+/g, ' ');
     }
+
+/**
+ * Find LaTeX source from a preceding marpx-math-source sibling element.
+ * Used for block math where the data-latex attribute is on a sibling, not a wrapper.
+ */
+export function findLatexSourceFromSibling(el) {
+    // Direct sibling check (Scenario A: both at same level)
+    const prev = el.previousElementSibling;
+    if (prev && (prev.localName || prev.tagName).toLowerCase() === 'marpx-math-source'
+        && prev.hasAttribute('data-latex')) {
+        return prev.getAttribute('data-latex');
+    }
+    // Parent sibling check (Scenario B: el is in <p>, source is sibling of <p>)
+    const parent = el.parentElement;
+    if (parent) {
+        const parentPrev = parent.previousElementSibling;
+        if (parentPrev && (parentPrev.localName || parentPrev.tagName).toLowerCase() === 'marpx-math-source'
+            && parentPrev.hasAttribute('data-latex')) {
+            return parentPrev.getAttribute('data-latex');
+        }
+        // Scenario C: source is inside a preceding sibling's children
+        if (parentPrev) {
+            const source = parentPrev.querySelector && parentPrev.querySelector('marpx-math-source[data-latex]');
+            if (source) {
+                return source.getAttribute('data-latex');
+            }
+        }
+    }
+    return null;
+}

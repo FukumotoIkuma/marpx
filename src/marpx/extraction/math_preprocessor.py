@@ -85,9 +85,11 @@ def preprocess_math_latex(markdown: str) -> str:
                     after = inner_match.group(2)
                     escaped = html.escape(latex_content, quote=True)
                     result.append(
-                        f'{indent}<marpx-math data-latex="{escaped}">'
-                        f"$${latex_content}$$</marpx-math>{after}"
+                        f'{indent}<marpx-math-source data-latex="{escaped}"'
+                        f' style="display:none"></marpx-math-source>'
                     )
+                    result.append("")  # blank line to end HTML block context
+                    result.append(f"{indent}$${latex_content}$${after}")
                     i += 1
                     continue
 
@@ -108,10 +110,13 @@ def preprocess_math_latex(markdown: str) -> str:
             if dm_match:
                 latex_content = dm_match.group(1).strip()
                 escaped = html.escape(latex_content, quote=True)
-                result.append(f'{indent}<marpx-math data-latex="{escaped}">')
+                result.append(
+                    f'{indent}<marpx-math-source data-latex="{escaped}"'
+                    f' style="display:none"></marpx-math-source>'
+                )
+                result.append("")
                 for ml in math_lines:
                     result.append(ml)
-                result.append("</marpx-math>")
                 i = j + 1
                 continue
             else:

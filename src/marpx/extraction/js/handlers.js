@@ -10,6 +10,7 @@ import {
     getProjectedCorners,
     resolveVerticalAlign,
     resolveEffectiveZIndex,
+    findLatexSourceFromSibling,
 } from './entry.js';
 import {
     extractExactTextRuns,
@@ -89,6 +90,11 @@ function _classifyParagraphDescendants(el, renderContext) {
         for (const child of node.children) {
             const tag = (child.localName || child.tagName).toLowerCase();
 
+            // Skip hidden marpx-math-source elements (block math LaTeX carrier)
+            if (tag === 'marpx-math-source') {
+                continue;
+            }
+
             // Priority 1: Math container — claim entire subtree
             if (tag === 'mjx-container' || (child.classList && child.classList.contains('MathJax'))) {
                 mathEls.push(child);
@@ -148,9 +154,14 @@ export function handleMath(el, slideRect, slideData, tag, parentContext = null) 
     const svg = el.querySelector('svg');
     const renderContext = _resolveRenderContext(el, parentContext);
 
-    // Extract LaTeX source from data-latex attribute on wrapper element
+    // Extract LaTeX source from data-latex attribute on wrapper or preceding sibling
+    let latexSource = null;
     const latexWrapper = el.closest('[data-latex]');
-    const latexSource = latexWrapper ? latexWrapper.getAttribute('data-latex') : null;
+    if (latexWrapper) {
+        latexSource = latexWrapper.getAttribute('data-latex');
+    } else {
+        latexSource = findLatexSourceFromSibling(el);
+    }
 
     slideData.elements.push({
         type: 'math',
@@ -289,7 +300,10 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
             .filter(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim())
             .length;
         const directMath = mathEls.filter(m => m.parentElement === el);
-        if (nonMathText === 0 && el.children.length === directMath.length) {
+        const mathSourceCount = Array.from(el.children)
+            .filter(c => (c.localName || c.tagName).toLowerCase() === 'marpx-math-source')
+            .length;
+        if (nonMathText === 0 && el.children.length === directMath.length + mathSourceCount) {
             handleMath(el, slideRect, slideData, 'mjx-container', renderContext);
             return;
         }
@@ -478,7 +492,7 @@ export function handleTable(el, slideRect, slideData, renderContext, decoration)
     });
 }
 
-const SKIP_TAGS = new Set(['script', 'style', 'link', 'meta', 'header', 'footer']);
+const SKIP_TAGS = new Set(['script', 'style', 'link', 'meta', 'header', 'footer', 'marpx-math-source']);
 const HEADING_RE = /^h[1-6]$/;
 
 /**

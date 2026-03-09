@@ -2,7 +2,7 @@
     import { styleToRunStyle } from './style.js';
     import { extractPseudoRuns } from './pseudo.js';
     import { extractDecoration } from './decoration.js';
-    import { normalizeInlineText } from './entry.js';
+    import { normalizeInlineText, findLatexSourceFromSibling } from './entry.js';
     import { detectVisualLineBreaks, insertLineBreaksIntoRuns } from './line-breaks.js';
 
     export function _buildTextRun(text, styleEl, linkUrl = null, options = {}) {
@@ -87,9 +87,12 @@
 
             if (includeMathRuns && node.tagName === 'MJX-CONTAINER') {
                 const latexWrapper = node.closest('[data-latex]');
-                const latexSource = latexWrapper
+                let latexSource = latexWrapper
                     ? latexWrapper.getAttribute('data-latex')
                     : (node.getAttribute('data-latex') || null);
+                if (!latexSource) {
+                    latexSource = findLatexSourceFromSibling(node);
+                }
                 const mathRun = {
                     runType: 'math',
                     latexSource: latexSource,
