@@ -2001,6 +2001,7 @@ function handleTable(el, slideRect, slideData, renderContext, decoration) {
   });
 }
 var SKIP_TAGS = /* @__PURE__ */ new Set(["script", "style", "link", "meta", "header", "footer"]);
+var HEADING_RE = /^h[1-6]$/;
 var preContextDispatch = [
   {
     // Skip non-renderable elements
@@ -2053,7 +2054,7 @@ var postContextDispatch = [
   },
   {
     // Headings (h1-h6)
-    match: (_el, ctx) => /^h[1-6]$/.test(ctx.tag),
+    match: (_el, ctx) => HEADING_RE.test(ctx.tag),
     handler: (el, slideRect, slideData, ctx) => {
       handleHeading(el, slideRect, slideData, ctx.tag, ctx.renderContext);
       return true;

@@ -439,6 +439,7 @@ export function handleTable(el, slideRect, slideData, renderContext, decoration)
 }
 
 const SKIP_TAGS = new Set(['script', 'style', 'link', 'meta', 'header', 'footer']);
+const HEADING_RE = /^h[1-6]$/;
 
 /**
  * Pre-context dispatch table: entries evaluated BEFORE deriving renderContext.
@@ -503,7 +504,7 @@ const postContextDispatch = [
     },
     {
         // Headings (h1-h6)
-        match: (_el, ctx) => /^h[1-6]$/.test(ctx.tag),
+        match: (_el, ctx) => HEADING_RE.test(ctx.tag),
         handler: (el, slideRect, slideData, ctx) => {
             handleHeading(el, slideRect, slideData, ctx.tag, ctx.renderContext);
             return true;
