@@ -1712,15 +1712,34 @@ function _isInlineStandaloneUnsupported(el) {
   if (el.querySelector("table, img, pre, marp-pre, blockquote, ul, ol")) return false;
   return !!isUnsupported(el);
 }
-function _collectTopLevelInlineUnsupported(root) {
-  const matches = Array.from(root.querySelectorAll("*")).filter(
-    (node) => _isInlineStandaloneUnsupported(node)
-  );
-  return matches.filter(
-    (node) => !matches.some(
-      (other) => other !== node && other.contains(node)
-    )
-  );
+function _classifyParagraphDescendants(el, renderContext) {
+  const mathEls = [];
+  const decoratedEls = [];
+  const unsupportedEls = [];
+  function walk(node) {
+    for (const child of node.children) {
+      const tag = (child.localName || child.tagName).toLowerCase();
+      if (tag === "mjx-container" || child.classList && child.classList.contains("MathJax")) {
+        mathEls.push(child);
+        continue;
+      }
+      if (child.parentElement === el) {
+        const childCtx = deriveRenderContext(child, renderContext);
+        const childDec = extractDecoration(child, childCtx);
+        if (shouldExtractStandaloneDecoratedText(child, childDec)) {
+          decoratedEls.push(child);
+          continue;
+        }
+      }
+      if (_isInlineStandaloneUnsupported(child)) {
+        unsupportedEls.push(child);
+        continue;
+      }
+      walk(child);
+    }
+  }
+  walk(el);
+  return { mathEls, decoratedEls, unsupportedEls };
 }
 function _resolveRenderContext(el, parentContext) {
   return parentContext ? deriveRenderContext(el, parentContext) : deriveRenderContext(el);
@@ -1846,44 +1865,34 @@ function handleParagraph(el, slideRect, slideData, renderContext) {
     }
     return;
   }
-  const mathContainers = el.querySelectorAll("mjx-container");
-  if (mathContainers.length > 0) {
+  const { mathEls, decoratedEls, unsupportedEls } = _classifyParagraphDescendants(el, renderContext);
+  if (mathEls.length > 0 && decoratedEls.length === 0 && unsupportedEls.length === 0) {
     const nonMathText = Array.from(el.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim()).length;
-    if (nonMathText === 0 && el.children.length === mathContainers.length) {
+    const directMath = mathEls.filter((m) => m.parentElement === el);
+    if (nonMathText === 0 && el.children.length === directMath.length) {
       handleMath(el, slideRect, slideData, "mjx-container", renderContext);
       return;
     }
   }
-  const decoratedChildren = Array.from(el.children).filter(
-    (child) => shouldExtractStandaloneDecoratedText(
-      child,
-      extractDecoration(child, deriveRenderContext(child, renderContext))
-    )
-  );
-  const unsupportedInlineChildren = _collectTopLevelInlineUnsupported(el);
+  const hasStandalone = mathEls.length > 0 || decoratedEls.length > 0 || unsupportedEls.length > 0;
   slideData.elements.push(
     buildTextElement(el, slideRect, "paragraph", {
-      runs: decoratedChildren.length > 0 ? extractTextRunsWithHiddenDecorated(
+      runs: hasStandalone ? extractTextRunsWithHiddenDecorated(
         el,
         renderContext,
-        mathContainers.length > 0,
+        mathEls.length > 0,
         _isInlineStandaloneUnsupported
-      ) : unsupportedInlineChildren.length > 0 ? extractTextRunsWithHiddenDecorated(
-        el,
-        renderContext,
-        mathContainers.length > 0,
-        _isInlineStandaloneUnsupported
-      ) : extractTextRunsWithPseudo(el, renderContext, mathContainers.length > 0),
+      ) : extractTextRunsWithPseudo(el, renderContext, false),
       renderContext
     })
   );
-  for (const mathEl of mathContainers) {
+  for (const mathEl of mathEls) {
     handleMath(mathEl, slideRect, slideData, "mjx-container", renderContext);
   }
-  for (const child of decoratedChildren) {
+  for (const child of decoratedEls) {
     processElement(child, slideRect, slideData, renderContext);
   }
-  for (const child of unsupportedInlineChildren) {
+  for (const child of unsupportedEls) {
     processElement(child, slideRect, slideData, renderContext);
   }
 }

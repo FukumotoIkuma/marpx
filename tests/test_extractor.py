@@ -974,6 +974,42 @@ Inline: $E = mc^2$ and $\\sum_{i=1}^{n} i$
         assert len(placeholder_runs) == 2
         assert all(run.text for run in placeholder_runs)
 
+    def test_inline_math_does_not_produce_duplicate_unsupported_elements(
+        self, tmp_path: Path, tmp_output_dir: Path
+    ) -> None:
+        md_path = tmp_path / "inline-math-no-dup.md"
+        md_path.write_text(
+            """---
+marp: true
+math: mathjax
+---
+
+# Slide
+
+Inline: $E = mc^2$ and $\\sum_{i=1}^{n} i$
+""",
+            encoding="utf-8",
+        )
+
+        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
+        pres = extract_presentation_sync(html_path)
+        slide = pres.slides[0]
+
+        math_elements = [
+            e for e in slide.elements if e.element_type == ElementType.MATH
+        ]
+        assert len(math_elements) == 2
+
+        unsupported_elements = [
+            e for e in slide.elements if e.element_type == ElementType.UNSUPPORTED
+        ]
+        assert len(unsupported_elements) == 0
+
+        paragraph_elements = [
+            e for e in slide.elements if e.element_type == ElementType.PARAGRAPH
+        ]
+        assert len(paragraph_elements) == 1
+
     def test_absolute_block_pseudo_elements_are_extracted(
         self, tmp_path: Path, tmp_output_dir: Path
     ) -> None:
