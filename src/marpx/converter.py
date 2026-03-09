@@ -7,7 +7,12 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from marpx.capabilities import Capability, classify_element, classify_slide, should_fallback_slide
+from marpx.capabilities import (
+    Capability,
+    classify_element,
+    classify_slide,
+    should_fallback_slide,
+)
 from marpx.marp_renderer import render_to_html
 from marpx.extractor import close_sync_browser, extract_presentation_sync
 from marpx.fallback_renderer import render_fallbacks_sync

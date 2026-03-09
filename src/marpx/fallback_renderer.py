@@ -51,11 +51,7 @@ def _needs_subtree_fallback(element: SlideElement) -> bool:
 def _is_inline_svg_element(element: SlideElement) -> bool:
     """Return True when the fallback element carries inline SVG markup."""
     info = element.unsupported_info
-    return bool(
-        _needs_subtree_fallback(element)
-        and info
-        and info.svg_markup
-    )
+    return bool(_needs_subtree_fallback(element) and info and info.svg_markup)
 
 
 def _write_inline_svg_fallback(
@@ -300,9 +296,7 @@ async def render_fallbacks(
         await _wait_for_mathjax(page)
 
         for slide_idx, slide in enumerate(presentation.slides):
-            has_unsupported = any(
-                _needs_subtree_fallback(el) for el in slide.elements
-            )
+            has_unsupported = any(_needs_subtree_fallback(el) for el in slide.elements)
 
             if not has_unsupported and not slide.is_fallback:
                 continue
