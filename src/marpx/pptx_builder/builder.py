@@ -19,6 +19,7 @@ from marpx.models import (
     TextElement,
     UnsupportedElement,
 )
+from marpx.capabilities import Capability
 from marpx.pipeline import SlideRenderInfo
 from marpx.utils import px_to_emu
 
@@ -147,6 +148,9 @@ def build_pptx(
 
             # Add elements sorted by z-index, grouping adjacent plain text content
             skipped_count = 0
+            _element_to_idx = {
+                id(el): idx for idx, el in enumerate(slide_data.elements)
+            }
             sorted_elements = sorted(slide_data.elements, key=lambda e: e.z_index)
             for group in _group_adjacent_text_elements(sorted_elements):
                 if len(group) > 1 and all(
@@ -157,14 +161,16 @@ def build_pptx(
 
                 element = group[0]
                 # Look up element render info for capability-driven dispatch
-                el_idx = slide_data.elements.index(element)
-                el_info = s_info.element_info.get(el_idx)
+                el_idx = _element_to_idx.get(id(element))
+                el_info = (
+                    s_info.element_info.get(el_idx) if el_idx is not None else None
+                )
 
                 try:
                     # Check if this element should be rendered as fallback
                     if (
                         el_info is not None
-                        and el_info.capability.value == "subtree_fallback"
+                        and el_info.capability == Capability.SUBTREE_FALLBACK
                     ):
                         _add_fallback_image(
                             pptx_slide, element, el_info.fallback_image_path
