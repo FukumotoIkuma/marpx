@@ -4,6 +4,10 @@
  * When CSS causes text to wrap (e.g., large headings), the DOM still reports
  * a single text string.  This module detects where visual line breaks occur
  * by walking text nodes word-by-word and checking for y-coordinate changes.
+ *
+ * Returns the text content of each visual line so that callers can insert
+ * line breaks in normalized (whitespace-collapsed) run text without offset
+ * mismatch issues.
  */
 
 const Y_THRESHOLD = 2; // px – accounts for sub-pixel rendering
@@ -11,9 +15,13 @@ const Y_THRESHOLD = 2; // px – accounts for sub-pixel rendering
 /**
  * Detect visual line breaks inside an element's text content.
  *
+ * Returns the text content of each visual line as an array of strings.
+ * The text for each line is obtained by reading the Range contents,
+ * so it reflects the raw DOM text (callers must normalize afterwards).
+ *
  * @param {Element} element - The element whose text may wrap visually.
- * @returns {number[]} An array of *global* character offsets where the
- *   browser wrapped to a new line.  Empty if no wrapping occurred.
+ * @returns {string[]} An array of line texts.  Empty array if no wrapping
+ *   occurred (single line or empty).
  */
 export function detectVisualLineBreaks(element) {
     // Quick exit: check if the whole element spans multiple lines.
@@ -27,8 +35,8 @@ export function detectVisualLineBreaks(element) {
         NodeFilter.SHOW_TEXT,
     );
 
-    let globalOffset = 0;
-    const breakPositions = [];
+    // Collect all words with their y-coordinates
+    const words = []; // { text: string, top: number }
     let lastTop = null;
 
     while (treeWalker.nextNode()) {
@@ -38,13 +46,19 @@ export function detectVisualLineBreaks(element) {
 
         let i = 0;
         while (i < text.length) {
-            // Skip leading whitespace attached to the current position
-            while (i < text.length && text[i] === ' ') i++;
+            // Skip leading whitespace
+            const wsMatch = text.substring(i).match(/^\s+/);
+            if (wsMatch) {
+                // Include whitespace as part of the word sequence
+                // (it will be normalized later)
+                i += wsMatch[0].length;
+            }
             if (i >= text.length) break;
 
-            // Find end of current word
-            let wordEnd = text.indexOf(' ', i);
-            if (wordEnd === -1) wordEnd = text.length;
+            // Find end of current word (use regex for Unicode whitespace)
+            const remaining = text.substring(i);
+            const wbMatch = remaining.match(/\s/);
+            let wordEnd = wbMatch ? i + wbMatch.index : text.length;
 
             // Measure the word's bounding rect
             const wordRange = document.createRange();
@@ -53,89 +67,152 @@ export function detectVisualLineBreaks(element) {
             const wordRect = wordRange.getBoundingClientRect();
 
             if (wordRect.height > 0) {
-                if (lastTop !== null && wordRect.top - lastTop > Y_THRESHOLD) {
-                    // Line break detected just before this word.
-                    // The break position is the global offset of the whitespace
-                    // before the current word (or the start of the word itself).
-                    const breakPos = globalOffset + i;
-                    // Walk back to the space that caused the wrap
-                    if (breakPos > 0) {
-                        breakPositions.push(breakPos);
-                    }
-                }
+                const wordText = text.substring(i, wordEnd);
+                const isNewLine =
+                    lastTop !== null &&
+                    wordRect.top - lastTop > Y_THRESHOLD;
+                words.push({ text: wordText, newLine: isNewLine });
                 lastTop = wordRect.top;
             }
 
             i = wordEnd;
         }
-
-        globalOffset += text.length;
     }
 
-    return breakPositions;
+    if (words.length === 0) return [];
+
+    // Check if any wrapping actually occurred
+    const hasWrapping = words.some((w) => w.newLine);
+    if (!hasWrapping) return [];
+
+    // Build line texts
+    const lines = [];
+    let currentLine = '';
+    for (const word of words) {
+        if (word.newLine && currentLine.length > 0) {
+            lines.push(currentLine);
+            currentLine = word.text;
+        } else {
+            if (currentLine.length > 0) {
+                currentLine += ' ' + word.text;
+            } else {
+                currentLine = word.text;
+            }
+        }
+    }
+    if (currentLine.length > 0) {
+        lines.push(currentLine);
+    }
+
+    return lines.length > 1 ? lines : [];
 }
 
 /**
- * Insert `\n` into the collected runs at the detected break positions.
+ * Insert `\n` into the collected runs at visual line boundaries.
  *
- * Each break position is a global character offset across all runs.
- * When a break falls on a space character, that space is replaced with `\n`.
- * Otherwise `\n` is inserted at the position.
+ * Uses the line texts returned by `detectVisualLineBreaks` to find where
+ * to insert `\n` in the normalized run text.  This avoids the raw-DOM vs
+ * normalized-text offset mismatch.
  *
  * @param {Array<{text: string}>} runs - The text runs (mutated in place).
- * @param {number[]} breakPositions - Sorted global offsets.
+ * @param {string[]} lineTexts - Array of visual line texts from
+ *   `detectVisualLineBreaks`.
  */
-export function insertLineBreaksIntoRuns(runs, breakPositions) {
-    if (!breakPositions || breakPositions.length === 0) return;
+export function insertLineBreaksIntoRuns(runs, lineTexts) {
+    if (!lineTexts || lineTexts.length <= 1) return;
 
-    // Build a set for O(1) lookup and track which we've consumed.
-    let bpIdx = 0;
-    let cumOffset = 0;
+    // Concatenate all run texts (skipping math runs) to get full normalized text
+    const textRuns = [];
+    for (let i = 0; i < runs.length; i++) {
+        if (runs[i].runType === 'math' || !runs[i].text) continue;
+        textRuns.push({ index: i, run: runs[i] });
+    }
 
-    for (let r = 0; r < runs.length && bpIdx < breakPositions.length; r++) {
-        const run = runs[r];
-        // Skip non-text runs (e.g., math runs)
-        if (run.runType === 'math' || !run.text) {
-            continue;
-        }
+    if (textRuns.length === 0) return;
 
-        const runStart = cumOffset;
-        const runEnd = cumOffset + run.text.length;
+    const fullText = textRuns.map((tr) => tr.run.text).join('');
 
-        // Collect all break positions that fall within this run
-        const localBreaks = [];
-        while (
-            bpIdx < breakPositions.length &&
-            breakPositions[bpIdx] < runEnd
-        ) {
-            const localPos = breakPositions[bpIdx] - runStart;
-            if (localPos >= 0 && localPos <= run.text.length) {
-                localBreaks.push(localPos);
+    // Normalize the line texts (collapse whitespace) and join with \n
+    const normalizedLines = lineTexts.map((l) => l.replace(/\s+/g, ' ').trim());
+    const joinedLines = normalizedLines.join('\n');
+
+    // Now we need to match the joined lines against fullText.
+    // The fullText may have spaces where line breaks should be inserted.
+    // Strategy: walk through fullText and joinedLines simultaneously.
+    // Build a new full text with \n inserted at the right positions.
+    let newFullText = '';
+    let fi = 0; // index into fullText
+    let ji = 0; // index into joinedLines
+
+    while (fi < fullText.length && ji < joinedLines.length) {
+        if (joinedLines[ji] === '\n') {
+            // Line break in joined lines – skip any space in fullText
+            if (fi > 0 && fullText[fi] === ' ') {
+                fi++; // consume the space that becomes a line break
             }
-            bpIdx++;
+            newFullText += '\n';
+            ji++;
+        } else if (fullText[fi] === joinedLines[ji]) {
+            newFullText += fullText[fi];
+            fi++;
+            ji++;
+        } else if (fullText[fi] === ' ' && joinedLines[ji] !== ' ') {
+            // Extra space in fullText not in joinedLines – might be at a
+            // boundary; keep it
+            newFullText += fullText[fi];
+            fi++;
+        } else {
+            // Mismatch – just keep the original character
+            newFullText += fullText[fi];
+            fi++;
+            ji++;
         }
+    }
+    // Append any remaining text from fullText
+    while (fi < fullText.length) {
+        newFullText += fullText[fi];
+        fi++;
+    }
 
-        if (localBreaks.length > 0) {
-            // Apply breaks from end to start so positions stay valid
-            let newText = run.text;
-            for (let i = localBreaks.length - 1; i >= 0; i--) {
-                let pos = localBreaks[i];
-                // If the break position lands on a space, replace it
-                if (pos > 0 && newText[pos - 1] === ' ') {
-                    newText =
-                        newText.slice(0, pos - 1) + '\n' + newText.slice(pos);
-                } else if (pos < newText.length && newText[pos] === ' ') {
-                    newText =
-                        newText.slice(0, pos) + '\n' + newText.slice(pos + 1);
+    // If nothing changed, bail out
+    if (newFullText === fullText) return;
+
+    // Distribute newFullText back into the runs, preserving run boundaries
+    let pos = 0;
+    for (const tr of textRuns) {
+        const runLen = tr.run.text.length;
+        // Count how many chars from newFullText correspond to this run.
+        // We need to figure out the new length: the original run length plus
+        // any \n inserted minus any spaces consumed.
+        // Simpler: walk newFullText consuming characters that match the
+        // original run text.
+        let newRunText = '';
+        let origConsumed = 0;
+        while (origConsumed < runLen && pos < newFullText.length) {
+            const ch = newFullText[pos];
+            if (ch === '\n') {
+                // Check if this \n replaces a space in the original
+                if (
+                    origConsumed < runLen &&
+                    tr.run.text[origConsumed] === ' '
+                ) {
+                    // Replace the space with \n
+                    newRunText += '\n';
+                    origConsumed++;
+                    pos++;
+                } else if (origConsumed < runLen) {
+                    // Insert \n without consuming original chars
+                    newRunText += '\n';
+                    pos++;
                 } else {
-                    // Insert \n at the position (no space to replace)
-                    newText =
-                        newText.slice(0, pos) + '\n' + newText.slice(pos);
+                    break;
                 }
+            } else {
+                newRunText += ch;
+                origConsumed++;
+                pos++;
             }
-            run.text = newText;
         }
-
-        cumOffset = runEnd;
+        tr.run.text = newRunText;
     }
 }

@@ -1025,8 +1025,7 @@ function detectVisualLineBreaks(element) {
     element,
     NodeFilter.SHOW_TEXT
   );
-  let globalOffset = 0;
-  const breakPositions = [];
+  const words = [];
   let lastTop = null;
   while (treeWalker.nextNode()) {
     const textNode = treeWalker.currentNode;
@@ -1034,63 +1033,113 @@ function detectVisualLineBreaks(element) {
     if (!text || text.length === 0) continue;
     let i = 0;
     while (i < text.length) {
-      while (i < text.length && text[i] === " ") i++;
+      const wsMatch = text.substring(i).match(/^\s+/);
+      if (wsMatch) {
+        i += wsMatch[0].length;
+      }
       if (i >= text.length) break;
-      let wordEnd = text.indexOf(" ", i);
-      if (wordEnd === -1) wordEnd = text.length;
+      const remaining = text.substring(i);
+      const wbMatch = remaining.match(/\s/);
+      let wordEnd = wbMatch ? i + wbMatch.index : text.length;
       const wordRange = document.createRange();
       wordRange.setStart(textNode, i);
       wordRange.setEnd(textNode, wordEnd);
       const wordRect = wordRange.getBoundingClientRect();
       if (wordRect.height > 0) {
-        if (lastTop !== null && wordRect.top - lastTop > Y_THRESHOLD) {
-          const breakPos = globalOffset + i;
-          if (breakPos > 0) {
-            breakPositions.push(breakPos);
-          }
-        }
+        const wordText = text.substring(i, wordEnd);
+        const isNewLine = lastTop !== null && wordRect.top - lastTop > Y_THRESHOLD;
+        words.push({ text: wordText, newLine: isNewLine });
         lastTop = wordRect.top;
       }
       i = wordEnd;
     }
-    globalOffset += text.length;
   }
-  return breakPositions;
+  if (words.length === 0) return [];
+  const hasWrapping = words.some((w) => w.newLine);
+  if (!hasWrapping) return [];
+  const lines = [];
+  let currentLine = "";
+  for (const word of words) {
+    if (word.newLine && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = word.text;
+    } else {
+      if (currentLine.length > 0) {
+        currentLine += " " + word.text;
+      } else {
+        currentLine = word.text;
+      }
+    }
+  }
+  if (currentLine.length > 0) {
+    lines.push(currentLine);
+  }
+  return lines.length > 1 ? lines : [];
 }
-function insertLineBreaksIntoRuns(runs, breakPositions) {
-  if (!breakPositions || breakPositions.length === 0) return;
-  let bpIdx = 0;
-  let cumOffset = 0;
-  for (let r = 0; r < runs.length && bpIdx < breakPositions.length; r++) {
-    const run = runs[r];
-    if (run.runType === "math" || !run.text) {
-      continue;
-    }
-    const runStart = cumOffset;
-    const runEnd = cumOffset + run.text.length;
-    const localBreaks = [];
-    while (bpIdx < breakPositions.length && breakPositions[bpIdx] < runEnd) {
-      const localPos = breakPositions[bpIdx] - runStart;
-      if (localPos >= 0 && localPos <= run.text.length) {
-        localBreaks.push(localPos);
+function insertLineBreaksIntoRuns(runs, lineTexts) {
+  if (!lineTexts || lineTexts.length <= 1) return;
+  const textRuns = [];
+  for (let i = 0; i < runs.length; i++) {
+    if (runs[i].runType === "math" || !runs[i].text) continue;
+    textRuns.push({ index: i, run: runs[i] });
+  }
+  if (textRuns.length === 0) return;
+  const fullText = textRuns.map((tr) => tr.run.text).join("");
+  const normalizedLines = lineTexts.map((l) => l.replace(/\s+/g, " ").trim());
+  const joinedLines = normalizedLines.join("\n");
+  let newFullText = "";
+  let fi = 0;
+  let ji = 0;
+  while (fi < fullText.length && ji < joinedLines.length) {
+    if (joinedLines[ji] === "\n") {
+      if (fi > 0 && fullText[fi] === " ") {
+        fi++;
       }
-      bpIdx++;
+      newFullText += "\n";
+      ji++;
+    } else if (fullText[fi] === joinedLines[ji]) {
+      newFullText += fullText[fi];
+      fi++;
+      ji++;
+    } else if (fullText[fi] === " " && joinedLines[ji] !== " ") {
+      newFullText += fullText[fi];
+      fi++;
+    } else {
+      newFullText += fullText[fi];
+      fi++;
+      ji++;
     }
-    if (localBreaks.length > 0) {
-      let newText = run.text;
-      for (let i = localBreaks.length - 1; i >= 0; i--) {
-        let pos = localBreaks[i];
-        if (pos > 0 && newText[pos - 1] === " ") {
-          newText = newText.slice(0, pos - 1) + "\n" + newText.slice(pos);
-        } else if (pos < newText.length && newText[pos] === " ") {
-          newText = newText.slice(0, pos) + "\n" + newText.slice(pos + 1);
+  }
+  while (fi < fullText.length) {
+    newFullText += fullText[fi];
+    fi++;
+  }
+  if (newFullText === fullText) return;
+  let pos = 0;
+  for (const tr of textRuns) {
+    const runLen = tr.run.text.length;
+    let newRunText = "";
+    let origConsumed = 0;
+    while (origConsumed < runLen && pos < newFullText.length) {
+      const ch = newFullText[pos];
+      if (ch === "\n") {
+        if (origConsumed < runLen && tr.run.text[origConsumed] === " ") {
+          newRunText += "\n";
+          origConsumed++;
+          pos++;
+        } else if (origConsumed < runLen) {
+          newRunText += "\n";
+          pos++;
         } else {
-          newText = newText.slice(0, pos) + "\n" + newText.slice(pos);
+          break;
         }
+      } else {
+        newRunText += ch;
+        origConsumed++;
+        pos++;
       }
-      run.text = newText;
     }
-    cumOffset = runEnd;
+    tr.run.text = newRunText;
   }
 }
 
@@ -1204,9 +1253,15 @@ function extractInlineRuns(el, options = {}) {
     pushRootPseudo("::after");
   }
   if (detectVisualBreaks && runs.length > 0) {
-    const breakPositions = detectVisualLineBreaks(el);
-    if (breakPositions.length > 0) {
-      insertLineBreaksIntoRuns(runs, breakPositions);
+    const hasBrTags = el.querySelector("br") !== null;
+    const hasExistingBreaks = runs.some(
+      (r) => r.text && r.text.includes("\n")
+    );
+    if (!hasBrTags && !hasExistingBreaks) {
+      const lineTexts = detectVisualLineBreaks(el);
+      if (lineTexts.length > 1) {
+        insertLineBreaksIntoRuns(runs, lineTexts);
+      }
     }
   }
   return trimBoundary ? trimBoundaryWhitespace(runs) : runs;

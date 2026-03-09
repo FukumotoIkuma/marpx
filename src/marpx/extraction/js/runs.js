@@ -145,11 +145,19 @@
             pushRootPseudo('::after');
         }
 
-        // Detect CSS visual line breaks and insert \n into runs
+        // Detect CSS visual line breaks and insert \n into runs.
+        // Skip if the element contains <br> tags – those already produce
+        // '\n' runs, and visual detection would cause double breaks (Bug 2).
         if (detectVisualBreaks && runs.length > 0) {
-            const breakPositions = detectVisualLineBreaks(el);
-            if (breakPositions.length > 0) {
-                insertLineBreaksIntoRuns(runs, breakPositions);
+            const hasBrTags = el.querySelector('br') !== null;
+            const hasExistingBreaks = runs.some(
+                (r) => r.text && r.text.includes('\n'),
+            );
+            if (!hasBrTags && !hasExistingBreaks) {
+                const lineTexts = detectVisualLineBreaks(el);
+                if (lineTexts.length > 1) {
+                    insertLineBreaksIntoRuns(runs, lineTexts);
+                }
             }
         }
 
