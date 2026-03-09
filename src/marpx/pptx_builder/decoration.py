@@ -11,7 +11,14 @@ from pptx.oxml.ns import qn
 from pptx.util import Emu
 
 from marpx.gradient_utils import css_angle_to_ooxml_angle, parse_linear_gradient
-from marpx.models import Box, BoxDecoration, BoxShadow, RGBAColor, SlideElement
+from marpx.models import (
+    Box,
+    BoxDecoration,
+    BoxShadow,
+    ClipPath,
+    RGBAColor,
+    SlideElement,
+)
 from marpx.utils import px_to_emu
 from .scene3d import fit_scene3d_rotations
 
@@ -143,6 +150,83 @@ def _create_outer_shadow_shapes(
             )
 
 
+def _create_polygon_shape(
+    slide,
+    box: Box,
+    clip_path: ClipPath,
+):
+    """Create a freeform polygon shape from clip-path points.
+
+    Points are percentage values (0-100) relative to the element bounding box.
+    """
+    left_emu = px_to_emu(box.x)
+    top_emu = px_to_emu(box.y)
+    w_emu = px_to_emu(box.width)
+    h_emu = px_to_emu(box.height)
+
+    points = clip_path.points
+    if len(points) < 3:
+        logger.warning(
+            "Polygon clip-path has fewer than 3 points, falling back to rectangle"
+        )
+        return None
+
+    # Create a rectangle shape first, then replace its geometry with custom polygon
+    shape = slide.shapes.add_shape(
+        MSO_AUTO_SHAPE_TYPE.RECTANGLE,
+        Emu(left_emu),
+        Emu(top_emu),
+        Emu(w_emu),
+        Emu(h_emu),
+    )
+
+    sp_pr = shape._element.spPr
+
+    # Remove preset geometry
+    prst_geom = sp_pr.find(qn("a:prstGeom"))
+    if prst_geom is not None:
+        sp_pr.remove(prst_geom)
+
+    # Build custom geometry with polygon path
+    cust_geom = etree.SubElement(sp_pr, qn("a:custGeom"))
+    # Add required empty child elements per OOXML spec
+    etree.SubElement(cust_geom, qn("a:avLst"))
+    etree.SubElement(cust_geom, qn("a:gdLst"))
+    etree.SubElement(cust_geom, qn("a:ahLst"))
+    etree.SubElement(cust_geom, qn("a:cxnLst"))
+    rect = etree.SubElement(cust_geom, qn("a:rect"))
+    rect.set("l", "0")
+    rect.set("t", "0")
+    rect.set("r", str(w_emu))
+    rect.set("b", str(h_emu))
+
+    path_lst = etree.SubElement(cust_geom, qn("a:pathLst"))
+    path = etree.SubElement(
+        path_lst,
+        qn("a:path"),
+        attrib={"w": str(w_emu), "h": str(h_emu)},
+    )
+
+    # Move to first point
+    first = points[0]
+    x0 = int(round(first.x / 100.0 * w_emu))
+    y0 = int(round(first.y / 100.0 * h_emu))
+    move_to = etree.SubElement(path, qn("a:moveTo"))
+    etree.SubElement(move_to, qn("a:pt"), attrib={"x": str(x0), "y": str(y0)})
+
+    # Line segments to remaining points
+    for pt in points[1:]:
+        px = int(round(pt.x / 100.0 * w_emu))
+        py = int(round(pt.y / 100.0 * h_emu))
+        ln_to = etree.SubElement(path, qn("a:lnTo"))
+        etree.SubElement(ln_to, qn("a:pt"), attrib={"x": str(px), "y": str(py)})
+
+    # Close the path
+    etree.SubElement(path, qn("a:close"))
+
+    return shape
+
+
 def _create_background_shape(
     slide,
     box: Box,
@@ -150,6 +234,25 @@ def _create_background_shape(
     shape_type,
 ):
     """Create the main background shape and apply its fill (solid color or gradient)."""
+    # Use polygon shape if clip_path is present
+    if decoration.clip_path and decoration.clip_path.type == "polygon":
+        bg_shape = _create_polygon_shape(slide, box, decoration.clip_path)
+        if bg_shape is not None:
+            _remove_theme_style(bg_shape)
+            # Apply fill to polygon shape
+            if decoration.background_gradient and _set_shape_gradient_fill(
+                bg_shape, decoration.background_gradient
+            ):
+                pass  # gradient applied
+            elif decoration.background_color and decoration.opacity > 0:
+                fill_color = _with_opacity(
+                    decoration.background_color, decoration.opacity
+                )
+                _set_fill_color(bg_shape.fill, fill_color)
+            else:
+                bg_shape.fill.background()
+            return bg_shape
+
     left = Emu(px_to_emu(box.x))
     top = Emu(px_to_emu(box.y))
     width = Emu(px_to_emu(box.width))

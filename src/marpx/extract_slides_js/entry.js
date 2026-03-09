@@ -121,7 +121,7 @@ export function buildTextElement(el, sectionRect, type, extra = {}) {
         return {
             type: type,
             box: getBox(el, sectionRect, ctx),
-            zIndex: getZIndex(el),
+            zIndex: (ctx.baseZIndex || 0) + getZIndex(el),
             alignment: resolveHorizontalAlign(styles) || 'left',
             verticalAlign: resolveVerticalAlign(styles),
             rotationDeg: ctx.effectiveRotationDeg,

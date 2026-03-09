@@ -87,12 +87,12 @@ function _collectTopLevelInlineUnsupported(root) {
     );
 }
 
-export function handleUnsupported(el, slideRect, slideData, unsup) {
-    const renderContext = deriveRenderContext(el);
+export function handleUnsupported(el, slideRect, slideData, unsup, parentContext = null) {
+    const renderContext = parentContext ? deriveRenderContext(el, parentContext) : deriveRenderContext(el);
     slideData.elements.push({
         type: 'unsupported',
         box: getBox(el, slideRect, renderContext),
-        zIndex: getZIndex(el),
+        zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
         rotationDeg: renderContext.effectiveRotationDeg,
         rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
         rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
@@ -102,13 +102,13 @@ export function handleUnsupported(el, slideRect, slideData, unsup) {
     });
 }
 
-export function handleMath(el, slideRect, slideData, tag) {
+export function handleMath(el, slideRect, slideData, tag, parentContext = null) {
     const svg = el.querySelector('svg');
-    const renderContext = deriveRenderContext(el);
+    const renderContext = parentContext ? deriveRenderContext(el, parentContext) : deriveRenderContext(el);
     slideData.elements.push({
         type: 'math',
         box: getBox(el, slideRect, renderContext),
-        zIndex: getZIndex(el),
+        zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
         rotationDeg: renderContext.effectiveRotationDeg,
         rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
         rotation3dYDeg: renderContext.effectiveRotation3dYDeg,
@@ -131,7 +131,7 @@ export function handleDecoratedStandalone(el, slideRect, slideData, decoration, 
     slideData.elements.push({
         type: 'decorated_block',
         box: getBox(el, slideRect, renderContext),
-        zIndex: getZIndex(el),
+        zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
         paragraphs,
         decoration: decoration,
         verticalAlign: resolveVerticalAlign(cs),
@@ -157,7 +157,7 @@ export function handleImageWithDecoration(
         slideData.elements.push({
             type: 'image',
             box: box,
-            zIndex: getZIndex(el),
+            zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
             imageSrc: singleImageChild.src,
             imageNaturalWidthPx: singleImageChild.naturalWidth || null,
             imageNaturalHeightPx: singleImageChild.naturalHeight || null,
@@ -177,6 +177,7 @@ export function handleImageWithDecoration(
 export function handleDecoratedBlock(el, slideRect, slideData, decoration, renderContext) {
     const cs = window.getComputedStyle(el);
     const decomposeDecoratedBlock = shouldDecomposeDecoratedBlock(el);
+    const containerEffectiveZ = (renderContext.baseZIndex || 0) + getZIndex(el);
     const paragraphs = decomposeDecoratedBlock
         ? []
         : _stripContainerBackgroundFromParagraphs(
@@ -187,7 +188,7 @@ export function handleDecoratedBlock(el, slideRect, slideData, decoration, rende
         type: 'decorated_block',
         box: getBox(el, slideRect, renderContext),
         contentBox: getContentBox(el, slideRect, renderContext),
-        zIndex: getZIndex(el),
+        zIndex: containerEffectiveZ,
         paragraphs,
         decoration: decoration,
         verticalAlign: resolveVerticalAlign(cs),
@@ -198,8 +199,9 @@ export function handleDecoratedBlock(el, slideRect, slideData, decoration, rende
         projectedCorners: getProjectedCorners(el, slideRect, renderContext),
     });
     if (decomposeDecoratedBlock) {
+        const childContext = { ...renderContext, baseZIndex: containerEffectiveZ + 1 };
         for (const child of el.children) {
-            processElement(child, slideRect, slideData, renderContext);
+            processElement(child, slideRect, slideData, childContext);
         }
     }
 }
@@ -233,7 +235,7 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
 
         if (nonMathText === 0 && el.children.length === mathContainers.length) {
             // Pure math paragraph - extract as math
-            handleMath(el, slideRect, slideData, 'mjx-container');
+            handleMath(el, slideRect, slideData, 'mjx-container', renderContext);
             return;
         }
         // Mixed content: reserve inline width in the paragraph and extract
@@ -269,7 +271,7 @@ export function handleParagraph(el, slideRect, slideData, renderContext) {
         })
     );
     for (const mathEl of mathContainers) {
-        handleMath(mathEl, slideRect, slideData, 'mjx-container');
+        handleMath(mathEl, slideRect, slideData, 'mjx-container', renderContext);
     }
     for (const child of decoratedChildren) {
         processElement(child, slideRect, slideData, renderContext);
@@ -317,7 +319,7 @@ export function handleBlockquote(el, slideRect, slideData, decoration, renderCon
         type: 'blockquote',
         box: getBox(el, slideRect, renderContext),
         contentBox: hasDecoration ? getContentBox(el, slideRect, renderContext) : null,
-        zIndex: getZIndex(el),
+        zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
         paragraphs,
         decoration: hasDecoration ? decoration : null,
         verticalAlign: resolveVerticalAlign(cs),
@@ -338,7 +340,7 @@ export function handleList(el, slideRect, slideData, tag, renderContext) {
     slideData.elements.push({
         type: tag === 'ul' ? 'unordered_list' : 'ordered_list',
         box: getBox(el, slideRect, renderContext),
-        zIndex: getZIndex(el),
+        zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
         listItems: extractListItems(el, 0, renderContext),
         rotationDeg: renderContext.effectiveRotationDeg,
         rotation3dXDeg: renderContext.effectiveRotation3dXDeg,
@@ -368,7 +370,7 @@ export function handleCodeBlock(el, slideRect, slideData, renderContext) {
             type: 'code_block',
             box: getBox(el, slideRect, renderContext),
             contentBox: hasDecoration ? getContentBox(el, slideRect, renderContext) : null,
-            zIndex: getZIndex(el),
+            zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
             paragraphs: buildParagraphsFromRuns(
                 extractExactTextRuns(codeEl, deriveRenderContext(codeEl, renderContext)),
                 alignment,
@@ -397,7 +399,7 @@ export function handleImage(el, slideRect, slideData, decoration, renderContext)
         slideData.elements.push({
             type: 'image',
             box: box,
-            zIndex: getZIndex(el),
+            zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
             imageSrc: el.src,
             imageNaturalWidthPx: el.naturalWidth || null,
             imageNaturalHeightPx: el.naturalHeight || null,
@@ -419,7 +421,7 @@ export function handleTable(el, slideRect, slideData, renderContext, decoration)
     slideData.elements.push({
         type: 'table',
         box: getBox(el, slideRect, renderContext),
-        zIndex: getZIndex(el),
+        zIndex: (renderContext.baseZIndex || 0) + getZIndex(el),
         tableRows: extractTable(el, slideRect, renderContext),
         decoration: hasMeaningfulDecoration(decoration) ? decoration : null,
         rotationDeg: renderContext.effectiveRotationDeg,
@@ -444,13 +446,13 @@ export function processElement(el, slideRect, slideData, parentContext = null) {
     // Check for unsupported
     const unsup = isUnsupported(el);
     if (unsup) {
-        handleUnsupported(el, slideRect, slideData, unsup);
+        handleUnsupported(el, slideRect, slideData, unsup, parentContext);
         return; // Don't descend into unsupported subtrees
     }
 
     // Math containers (MathJax)
     if (tag === 'mjx-container' || (el.classList && el.classList.contains('MathJax'))) {
-        handleMath(el, slideRect, slideData, tag);
+        handleMath(el, slideRect, slideData, tag, parentContext);
         return; // Don't descend into MathJax SVG
     }
 

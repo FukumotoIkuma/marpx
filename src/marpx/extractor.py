@@ -17,6 +17,7 @@ from marpx.models import (
     BoxDecoration,
     BoxShadow,
     BoxPadding,
+    ClipPath,
     ElementType,
     ListItem,
     Paragraph,
@@ -132,7 +133,7 @@ def _build_decoration(raw: dict | None) -> BoxDecoration | None:
         if parsed_bg.a > 0:
             background_color = parsed_bg
     raw_padding = raw.get("padding", {})
-    return BoxDecoration(
+    decoration = BoxDecoration(
         background_color=background_color,
         background_gradient=raw.get("backgroundGradient"),
         border_top=_build_border_side(raw.get("borderTop")),
@@ -159,6 +160,14 @@ def _build_decoration(raw: dict | None) -> BoxDecoration | None:
         ],
         opacity=raw.get("opacity", 1.0),
     )
+
+    clip_path_raw = raw.get("clipPath")
+    if clip_path_raw and clip_path_raw.get("type") == "polygon":
+        points = [Point(x=p["x"], y=p["y"]) for p in clip_path_raw.get("points", [])]
+        if points:
+            decoration.clip_path = ClipPath(type="polygon", points=points)
+
+    return decoration
 
 
 def _build_slide_element(raw: dict) -> SlideElement:
