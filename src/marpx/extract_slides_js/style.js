@@ -56,22 +56,38 @@ export function getUnsupportedStyleReason(cs) {
     return null;
 }
 
-function _splitTopLevelCommas(value) {
+const _WHITESPACE_RE = /\s/;
+
+function _splitTopLevelBy(value, delimiter) {
+    const isSpace = delimiter === ' ';
     const parts = [];
     let current = '';
     let depth = 0;
     for (const char of value) {
         if (char === '(') depth += 1;
         if (char === ')') depth = Math.max(depth - 1, 0);
-        if (char === ',' && depth === 0) {
-            parts.push(current.trim());
+        const isDelimiter = isSpace ? _WHITESPACE_RE.test(char) : char === delimiter;
+        if (isDelimiter && depth === 0) {
+            if (isSpace) {
+                if (current) parts.push(current);
+            } else {
+                parts.push(current.trim());
+            }
             current = '';
             continue;
         }
         current += char;
     }
-    if (current.trim()) parts.push(current.trim());
+    if (isSpace) {
+        if (current) parts.push(current);
+    } else {
+        if (current.trim()) parts.push(current.trim());
+    }
     return parts;
+}
+
+function _splitTopLevelCommas(value) {
+    return _splitTopLevelBy(value, ',');
 }
 
 function _extractRepresentativeGradientColor(backgroundImage) {
@@ -116,23 +132,7 @@ function _applyOpacityToGradient(backgroundImage, opacity) {
 }
 
 function _splitTopLevelSpaces(value) {
-    const parts = [];
-    let current = '';
-    let depth = 0;
-    for (const char of value) {
-        if (char === '(') depth += 1;
-        if (char === ')') depth = Math.max(depth - 1, 0);
-        if (/\s/.test(char) && depth === 0) {
-            if (current) {
-                parts.push(current);
-                current = '';
-            }
-            continue;
-        }
-        current += char;
-    }
-    if (current) parts.push(current);
-    return parts;
+    return _splitTopLevelBy(value, ' ');
 }
 
 function _isCssLengthToken(token) {
