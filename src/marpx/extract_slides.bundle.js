@@ -1182,6 +1182,32 @@ function getParagraphMetrics(el, fallbackCs = null, renderContext = null) {
 }
 
 // containers.js
+function isInlineLikeElement(child) {
+  const display = window.getComputedStyle(child).display;
+  return display.startsWith("inline") || display === "contents" || child.tagName === "BR";
+}
+function hasUnsupportedBlockDescendants(child) {
+  const tag = child.tagName.toLowerCase();
+  if (tag === "table" || tag === "img" || tag === "pre" || tag === "marp-pre" || tag === "blockquote") {
+    return true;
+  }
+  return !!child.querySelector("table, img, pre, marp-pre, blockquote");
+}
+function buildTextRunFromNode(node, styleEl, renderContext) {
+  const run = _buildTextRun(node.textContent || "", styleEl, null, {
+    renderContext
+  });
+  if (!run || !run.text.trim()) return null;
+  return run;
+}
+function shouldFlushInlineRuns(child, childDecoration) {
+  const tag = child.tagName.toLowerCase();
+  if (tag === "ul" || tag === "ol") return true;
+  if (shouldExtractStandaloneDecoratedText(child, childDecoration)) return true;
+  if (isInlineLikeElement(child) && tag === "br") return true;
+  if (!isInlineLikeElement(child) && !hasUnsupportedBlockDescendants(child)) return true;
+  return false;
+}
 function extractListItemContent(item, listEl, level, currentOrder, renderContext = null) {
   const itemCs = window.getComputedStyle(item);
   const itemContext = renderContext ? deriveRenderContext(item, renderContext, itemCs) : deriveRenderContext(item, null, itemCs);
@@ -1252,24 +1278,6 @@ function extractParagraphsFromContainer(el, renderContext = null) {
       resolveHorizontalAlign(window.getComputedStyle(child)) || alignment
     );
   }
-  function buildTextRunFromNode(node, styleEl) {
-    const run = _buildTextRun(node.textContent || "", styleEl, null, {
-      renderContext: containerContext
-    });
-    if (!run || !run.text.trim()) return null;
-    return run;
-  }
-  function isInlineLikeElement(child) {
-    const display = window.getComputedStyle(child).display;
-    return display.startsWith("inline") || display === "contents" || child.tagName === "BR";
-  }
-  function hasUnsupportedBlockDescendants(child) {
-    const tag = child.tagName.toLowerCase();
-    if (tag === "table" || tag === "img" || tag === "pre" || tag === "marp-pre" || tag === "blockquote") {
-      return true;
-    }
-    return !!child.querySelector("table, img, pre, marp-pre, blockquote");
-  }
   function pushListParagraphs(listEl, level, listContext) {
     const listItems = Array.from(listEl.children).filter((child) => child.tagName === "LI");
     let orderedIndex = listEl.tagName === "OL" ? listEl.start || 1 : 1;
@@ -1303,7 +1311,7 @@ function extractParagraphsFromContainer(el, renderContext = null) {
   }
   for (const child of el.childNodes) {
     if (child.nodeType === Node.TEXT_NODE) {
-      const run = buildTextRunFromNode(child, el);
+      const run = buildTextRunFromNode(child, el, containerContext);
       if (run) {
         inlineRuns.push(run);
       }
@@ -1313,23 +1321,20 @@ function extractParagraphsFromContainer(el, renderContext = null) {
     const tag = child.tagName.toLowerCase();
     const childContext = deriveRenderContext(child, containerContext);
     const childDecoration = extractDecoration(child, childContext);
-    if (tag === "ul" || tag === "ol") {
+    if (shouldFlushInlineRuns(child, childDecoration)) {
       flushInlineParagraph();
+    }
+    if (tag === "ul" || tag === "ol") {
       pushListParagraphs(child, 0, childContext);
     } else if (shouldExtractStandaloneDecoratedText(child, childDecoration)) {
-      flushInlineParagraph();
+    } else if (tag === "br") {
     } else if (isInlineLikeElement(child)) {
-      if (tag === "br") {
-        flushInlineParagraph();
-      } else {
-        const inlineChildContext = deriveRenderContext(child, containerContext);
-        inlineRuns.push(...extractInlineRuns(child, {
-          includeRootPseudo: true,
-          renderContext: inlineChildContext
-        }));
-      }
+      const inlineChildContext = deriveRenderContext(child, containerContext);
+      inlineRuns.push(...extractInlineRuns(child, {
+        includeRootPseudo: true,
+        renderContext: inlineChildContext
+      }));
     } else if (!hasUnsupportedBlockDescendants(child)) {
-      flushInlineParagraph();
       pushParagraphFromNode(child);
     }
   }
