@@ -226,6 +226,7 @@ function deriveRenderContext(el, parentCtx = null, computedStyle = null) {
   ctx.effectiveRotation3dYDeg = effectiveRotation3dYDeg;
   ctx.effectiveRotation3dZDeg = effectiveRotation3dZDeg;
   if (!computedStyle) {
+    Object.freeze(ctx);
     _contextCache.set(el, ctx);
   }
   return ctx;

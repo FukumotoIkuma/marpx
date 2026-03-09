@@ -224,6 +224,7 @@ export function deriveRenderContext(el, parentCtx = null, computedStyle = null) 
     // Store in cache (no-parentCtx path only, and only when no
     // caller-supplied computedStyle that might differ from the live one).
     if (!computedStyle) {
+        Object.freeze(ctx);
         _contextCache.set(el, ctx);
     }
 
