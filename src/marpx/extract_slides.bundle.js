@@ -284,6 +284,7 @@ function getUnsupportedStyleReason(cs) {
   }
   return null;
 }
+var _WHITESPACE_RE = /\s/;
 function _splitTopLevelBy(value, delimiter) {
   const isSpace = delimiter === " ";
   const parts = [];
@@ -292,7 +293,7 @@ function _splitTopLevelBy(value, delimiter) {
   for (const char of value) {
     if (char === "(") depth += 1;
     if (char === ")") depth = Math.max(depth - 1, 0);
-    const isDelimiter = isSpace ? /\s/.test(char) : char === delimiter;
+    const isDelimiter = isSpace ? _WHITESPACE_RE.test(char) : char === delimiter;
     if (isDelimiter && depth === 0) {
       if (isSpace) {
         if (current) parts.push(current);
