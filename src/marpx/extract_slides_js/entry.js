@@ -121,7 +121,7 @@ export function buildTextElement(el, sectionRect, type, extra = {}) {
         return {
             type: type,
             box: getBox(el, sectionRect, ctx),
-            zIndex: (ctx.baseZIndex || 0) + getZIndex(el),
+            zIndex: resolveEffectiveZIndex(el, ctx),
             alignment: resolveHorizontalAlign(styles) || 'left',
             verticalAlign: resolveVerticalAlign(styles),
             rotationDeg: ctx.effectiveRotationDeg,
@@ -140,6 +140,10 @@ export function buildTextElement(el, sectionRect, type, extra = {}) {
         const raw = window.getComputedStyle(el).zIndex;
         const parsed = parseInt(raw, 10);
         return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    export function resolveEffectiveZIndex(el, ctx) {
+        return (ctx.baseZIndex || 0) + getZIndex(el);
     }
 
     export function getBox(el, sectionRect, renderContext = null) {
