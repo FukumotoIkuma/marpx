@@ -490,6 +490,36 @@ function _parseBoxShadow(boxShadow, fallbackColor, ctx) {
     };
   }).filter((shadow) => shadow !== null);
 }
+function _parseTextShadow(textShadow, fallbackColor, ctx) {
+  if (!textShadow || textShadow === "none") return [];
+  return _splitTopLevelCommas(textShadow).map((shadowValue) => {
+    const tokens = _splitTopLevelSpaces(shadowValue);
+    if (tokens.length < 2) return null;
+    const lengthTokens = [];
+    const colorTokens = [];
+    for (const token of tokens) {
+      if (_isCssLengthToken(token)) {
+        lengthTokens.push(token);
+        continue;
+      }
+      colorTokens.push(token);
+    }
+    if (lengthTokens.length < 2) return null;
+    const color = applyOpacityToColor(
+      _resolveCssColorToken(
+        colorTokens.join(" ").trim(),
+        fallbackColor
+      ),
+      ctx.effectiveOpacity
+    );
+    return {
+      offsetXPx: _scaleX(parseFloat(lengthTokens[0]) || 0, ctx),
+      offsetYPx: _scaleY(parseFloat(lengthTokens[1]) || 0, ctx),
+      blurRadiusPx: _scaleText(parseFloat(lengthTokens[2]) || 0, ctx),
+      color
+    };
+  }).filter((shadow) => shadow !== null);
+}
 function _resolveRunTextColor(cs, ctx) {
   const textFill = _parseCssColor(cs.webkitTextFillColor || "");
   const backgroundClip = (cs.webkitBackgroundClip || cs.backgroundClip || "").toLowerCase();
@@ -530,6 +560,7 @@ function styleToRunStyle(cs, el = null, renderContext = null) {
   const textDecoration = _resolveEffectiveTextDecoration(el, cs);
   const ctx = renderContext || deriveRenderContext(el, null, cs);
   const textGradient = _extractTextGradient(cs, ctx);
+  const textShadow = _parseTextShadow(cs.textShadow, cs.color, ctx);
   return {
     fontFamily: cs.fontFamily,
     fontSizePx: _scaleText(parseFloat(cs.fontSize), ctx),
@@ -539,7 +570,8 @@ function styleToRunStyle(cs, el = null, renderContext = null) {
     strike: textDecoration.has("line-through"),
     color: _resolveRunTextColor(cs, ctx),
     backgroundColor: applyOpacityToColor(_runBackgroundColor(el, cs), ctx.effectiveOpacity),
-    textGradient
+    textGradient,
+    textShadow: textShadow.length > 0 ? textShadow : null
   };
 }
 
