@@ -280,10 +280,6 @@ function getUnsupportedStyleReason(cs) {
   if (filter && filter !== "none") {
     return "CSS filter";
   }
-  const clipPath = cs.clipPath || "";
-  if (clipPath && clipPath !== "none") {
-    return "CSS clip-path";
-  }
   return null;
 }
 function _splitTopLevelCommas(value) {

@@ -2332,26 +2332,3 @@ class TestSectionPseudoElements:
         for elem in decorated:
             assert elem.box.width > 0, "Pseudo-element width should be > 0"
             assert elem.box.height > 0, "Pseudo-element height should be > 0"
-
-
-class TestClipPathUnsupported:
-    """Elements with CSS clip-path should be flagged as UNSUPPORTED."""
-
-    def test_clip_path_element_is_unsupported(
-        self, tmp_path: Path, tmp_output_dir: Path
-    ) -> None:
-        """A div with clip-path: polygon(...) should be marked UNSUPPORTED."""
-        md_path = FIXTURES_DIR / "clip-path.md"
-        html_path = render_to_html(md_path, output_dir=tmp_output_dir)
-        pres = extract_presentation_sync(html_path)
-        slide = pres.slides[0]
-        unsupported = [
-            e
-            for e in slide.elements
-            if e.element_type == ElementType.UNSUPPORTED
-            and e.unsupported_info
-            and "clip-path" in (e.unsupported_info.reason or "")
-        ]
-        assert len(unsupported) >= 1, (
-            "Expected at least one UNSUPPORTED element with clip-path reason"
-        )
