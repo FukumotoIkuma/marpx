@@ -14,8 +14,10 @@ from marpx.capabilities import (
     should_fallback_slide,
 )
 from marpx.marp_renderer import render_to_html
-from marpx.extractor import close_sync_browser, extract_presentation_sync
+from marpx.extractor import SyncBrowserManager, extract_presentation_sync
 from marpx.fallback_renderer import render_fallbacks_sync
+from marpx.models import Presentation
+from marpx.pipeline import ElementRenderInfo, SlideRenderInfo
 from marpx.pptx_builder.builder import build_pptx
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,62 @@ logger = logging.getLogger(__name__)
 
 class ConversionError(Exception):
     """Raised when the conversion pipeline fails."""
+
+
+def _classify_presentation(
+    presentation: Presentation,
+    prefer_editable: bool,
+) -> dict[int, SlideRenderInfo]:
+    """Classify all elements in the presentation and return render info.
+
+    This is the ONLY place that creates render info -- no mutation of models.
+
+    Returns:
+        Mapping of slide index to its SlideRenderInfo.
+    """
+    render_info: dict[int, SlideRenderInfo] = {}
+
+    for slide_idx, slide in enumerate(presentation.slides):
+        slide_info = SlideRenderInfo()
+        decisions = classify_slide(slide)
+
+        native_count = sum(
+            1 for d in decisions.values() if d.capability == Capability.NATIVE
+        )
+        fallback_count = len(decisions) - native_count
+        logger.info(
+            "Slide %d: %d native, %d fallback elements",
+            slide.slide_number,
+            native_count,
+            fallback_count,
+        )
+
+        for i, element in enumerate(slide.elements):
+            decision = decisions.get(i) or classify_element(element)
+            slide_info.element_info[i] = ElementRenderInfo(
+                capability=decision.capability,
+            )
+            if decision.reason:
+                logger.debug(
+                    "Slide %d, element %d (%s): %s — %s",
+                    slide.slide_number,
+                    i,
+                    element.element_type.value,
+                    decision.capability.value,
+                    decision.reason,
+                )
+
+        if should_fallback_slide(slide):
+            logger.info(
+                "Slide %d: marked for full-slide fallback",
+                slide.slide_number,
+            )
+            if not prefer_editable:
+                slide_info.is_fallback = True
+
+        render_info[slide_idx] = slide_info
+
+    return render_info
 
 
 def convert(
@@ -76,65 +134,28 @@ def convert(
 
         # Step 2: Extract presentation data from HTML
         logger.info("Step 2: Extracting slide data with Playwright...")
-        presentation = extract_presentation_sync(html_path)
+        with SyncBrowserManager() as browser:
+            presentation = extract_presentation_sync(html_path, browser=browser)
         logger.info(
             "Extracted %d slides, default size: %.0fx%.0f",
             len(presentation.slides),
             presentation.default_width_px,
             presentation.default_height_px,
         )
-        # Fallback rendering uses asyncio + async Playwright; close the shared
-        # sync extractor browser first to avoid event-loop conflicts.
-        close_sync_browser()
 
-        # Step 2.5: Classify element capabilities and write back to each element
-        for slide in presentation.slides:
-            decisions = classify_slide(slide)
-            native_count = sum(
-                1 for d in decisions.values() if d.capability == Capability.NATIVE
-            )
-            fallback_count = len(decisions) - native_count
-            logger.info(
-                "Slide %d: %d native, %d fallback elements",
-                slide.slide_number,
-                native_count,
-                fallback_count,
-            )
-
-            # Write capability string back to each SlideElement so that
-            # downstream components (builder, fallback_renderer) share a
-            # single authoritative classification instead of re-deriving it.
-            for i, element in enumerate(slide.elements):
-                decision = decisions.get(i) or classify_element(element)
-                element.capability = decision.capability.value
-                if decision.reason:
-                    logger.debug(
-                        "Slide %d, element %d (%s): %s — %s",
-                        slide.slide_number,
-                        i,
-                        element.element_type.value,
-                        decision.capability.value,
-                        decision.reason,
-                    )
-
-            if should_fallback_slide(slide):
-                logger.info(
-                    "Slide %d: marked for full-slide fallback",
-                    slide.slide_number,
-                )
-                if not prefer_editable:
-                    slide.is_fallback = True
+        # Step 2.5: Classify element capabilities
+        slide_render_info = _classify_presentation(presentation, prefer_editable)
 
         # Step 3: Render fallback images for unsupported content
         logger.info("Step 3: Rendering fallback images...")
         fallback_dir = temp_dir / "fallbacks"
-        presentation = render_fallbacks_sync(
-            html_path, presentation, fallback_dir, fallback_mode
+        render_fallbacks_sync(
+            html_path, presentation, fallback_dir, fallback_mode, slide_render_info
         )
 
         # Step 4: Build PPTX
         logger.info("Step 4: Building PPTX...")
-        result = build_pptx(presentation, output_path)
+        result = build_pptx(presentation, output_path, slide_render_info)
         logger.info("PPTX generated: %s", result)
 
         return result

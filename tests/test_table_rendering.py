@@ -19,6 +19,7 @@ from marpx.models import (
     Slide,
     SlideElement,
     TableCell,
+    TableElement,
     TableRow,
     TextRun,
 )
@@ -50,7 +51,7 @@ def _make_simple_table(
             for cell_text in row
         ]
         table_rows.append(TableRow(cells=cells))
-    return SlideElement(
+    return TableElement(
         element_type=ElementType.TABLE,
         box=Box(x=50, y=100, width=600, height=300),
         table_rows=table_rows,
@@ -115,7 +116,7 @@ class TestBasicTable:
         body_cell = TableCell(
             paragraphs=[Paragraph(runs=[TextRun(text="Data")])],
         )
-        el = SlideElement(
+        el = TableElement(
             element_type=ElementType.TABLE,
             box=Box(x=50, y=100, width=600, height=200),
             table_rows=[
@@ -146,7 +147,7 @@ class TestColspanRowspan:
         )
         left = TableCell(paragraphs=[Paragraph(runs=[TextRun(text="Left")])])
         right = TableCell(paragraphs=[Paragraph(runs=[TextRun(text="Right")])])
-        el = SlideElement(
+        el = TableElement(
             element_type=ElementType.TABLE,
             box=Box(x=50, y=100, width=600, height=200),
             table_rows=[
@@ -170,7 +171,7 @@ class TestColspanRowspan:
             TableCell(paragraphs=[Paragraph(runs=[TextRun(text=str(i))])])
             for i in range(3)
         ]
-        el = SlideElement(
+        el = TableElement(
             element_type=ElementType.TABLE,
             box=Box(x=50, y=100, width=700, height=200),
             table_rows=[
@@ -192,7 +193,7 @@ class TestColspanRowspan:
         )
         top_right = TableCell(paragraphs=[Paragraph(runs=[TextRun(text="TR")])])
         bottom_right = TableCell(paragraphs=[Paragraph(runs=[TextRun(text="BR")])])
-        el = SlideElement(
+        el = TableElement(
             element_type=ElementType.TABLE,
             box=Box(x=50, y=100, width=400, height=300),
             table_rows=[
@@ -214,7 +215,7 @@ class TestColspanRowspan:
         )
         side_top = TableCell(paragraphs=[Paragraph(runs=[TextRun(text="S1")])])
         side_bottom = TableCell(paragraphs=[Paragraph(runs=[TextRun(text="S2")])])
-        el = SlideElement(
+        el = TableElement(
             element_type=ElementType.TABLE,
             box=Box(x=50, y=100, width=400, height=300),
             table_rows=[
@@ -266,7 +267,7 @@ class TestTableDimensions:
             TableCell(paragraphs=[Paragraph(runs=[TextRun(text=str(i))])])
             for i in range(3)
         ]
-        el = SlideElement(
+        el = TableElement(
             element_type=ElementType.TABLE,
             box=Box(x=50, y=100, width=700, height=200),
             table_rows=[

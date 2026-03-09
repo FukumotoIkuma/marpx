@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import atexit
 import logging
 from pathlib import Path
 
@@ -18,7 +17,10 @@ from marpx.models import (
     BoxShadow,
     BoxPadding,
     ClipPath,
+    CodeBlockElement,
     ElementType,
+    ImageElement,
+    ListElement,
     ListItem,
     Paragraph,
     Point,
@@ -26,9 +28,12 @@ from marpx.models import (
     Slide,
     SlideElement,
     TableCell,
+    TableElement,
     TableRow,
+    TextElement,
     TextRun,
     TextStyle,
+    UnsupportedElement,
     UnsupportedInfo,
 )
 from marpx.fonts import safe_font_family
@@ -43,13 +48,32 @@ from marpx.utils import (
 logger = logging.getLogger(__name__)
 _JS_DIR = Path(__file__).parent
 _EXTRACT_NOTES_JS = (_JS_DIR / "extract_notes.js").read_text(encoding="utf-8")
-_SYNC_PLAYWRIGHT = None
-_SYNC_BROWSER = None
 
 TEXTBOX_MERGE_TYPES: tuple[ElementType, ...] = (
     ElementType.PARAGRAPH,
     ElementType.BLOCKQUOTE,
 )
+
+
+class SyncBrowserManager:
+    """Context manager for a sync Playwright browser with exception-safe cleanup."""
+
+    def __enter__(self):
+        self._pw = sync_playwright().start()
+        self._browser = self._pw.chromium.launch()
+        return self._browser
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            if self._browser:
+                self._browser.close()
+        finally:
+            self._browser = None
+            try:
+                if self._pw:
+                    self._pw.stop()
+            finally:
+                self._pw = None
 
 
 def _build_text_style(raw_style: dict) -> TextStyle:
@@ -243,7 +267,7 @@ def _build_table_rows(raw: dict) -> list[TableRow]:
 
 
 def _build_slide_element(raw: dict) -> SlideElement:
-    """Convert raw JS element dict to SlideElement model."""
+    """Convert raw JS element dict to the appropriate SlideElement subclass."""
     etype = ElementType(raw["type"])
     common = _build_common_kwargs(raw)
 
@@ -253,7 +277,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
             if "paragraphs" in raw
             else _build_paragraphs([raw])
         )
-        return SlideElement.make_heading(
+        return TextElement.make_heading(
             **common,
             paragraphs=paragraphs,
             heading_level=raw.get("headingLevel", 1),
@@ -266,7 +290,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
             if "paragraphs" in raw
             else _build_paragraphs([raw])
         )
-        return SlideElement.make_paragraph(
+        return TextElement.make_paragraph(
             **common,
             element_type=etype,
             paragraphs=paragraphs,
@@ -274,14 +298,14 @@ def _build_slide_element(raw: dict) -> SlideElement:
         )
 
     if etype == ElementType.DECORATED_BLOCK:
-        return SlideElement.make_decorated_block(
+        return TextElement.make_decorated_block(
             **common,
             paragraphs=_build_paragraphs(raw.get("paragraphs", [])),
             decoration=_build_decoration(raw.get("decoration")),
         )
 
     if etype in (ElementType.UNORDERED_LIST, ElementType.ORDERED_LIST):
-        return SlideElement.make_list(
+        return ListElement.make_list(
             **common,
             element_type=etype,
             list_items=_build_list_items(raw),
@@ -293,7 +317,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
             if raw.get("codeBackground")
             else None
         )
-        return SlideElement.make_code_block(
+        return CodeBlockElement.make_code_block(
             **common,
             paragraphs=_build_paragraphs(raw.get("paragraphs", [])),
             code_language=raw.get("codeLanguage"),
@@ -302,7 +326,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
         )
 
     if etype == ElementType.IMAGE:
-        return SlideElement.make_image(
+        return ImageElement.make_image(
             **common,
             image_src=raw.get("imageSrc"),
             image_natural_width_px=raw.get("imageNaturalWidthPx"),
@@ -314,7 +338,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
         )
 
     if etype == ElementType.TABLE:
-        return SlideElement.make_table(
+        return TableElement.make_table(
             **common,
             table_rows=_build_table_rows(raw),
             decoration=_build_decoration(raw.get("decoration")),
@@ -322,7 +346,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
 
     if etype == ElementType.MATH:
         info = raw.get("unsupportedInfo", {})
-        return SlideElement.make_math(
+        return UnsupportedElement.make_math(
             **common,
             unsupported_info=UnsupportedInfo(
                 reason=info.get("reason", "Math expression"),
@@ -333,7 +357,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
 
     if etype == ElementType.UNSUPPORTED:
         info = raw.get("unsupportedInfo", {})
-        return SlideElement.make_unsupported(
+        return UnsupportedElement.make_unsupported(
             **common,
             unsupported_info=UnsupportedInfo(
                 reason=info.get("reason", "Unknown"),
@@ -343,8 +367,12 @@ def _build_slide_element(raw: dict) -> SlideElement:
         )
 
     # Fallback for any future element types not yet handled
-    logger.warning("Unhandled element type %r; returning bare SlideElement", etype)
-    return SlideElement(element_type=etype, **common)
+    logger.warning("Unhandled element type %r; returning UnsupportedElement", etype)
+    return UnsupportedElement(
+        element_type=etype,
+        **common,
+        unsupported_info=UnsupportedInfo(reason=f"Unhandled element type: {etype}"),
+    )
 
 
 def _build_presentation_from_raw(
@@ -377,7 +405,7 @@ def _build_presentation_from_raw(
                 )
             )
 
-        elements = []
+        elements: list[SlideElement] = []
         for raw_el in raw_slide.get("elements", []):
             try:
                 elements.append(_build_slide_element(raw_el))
@@ -418,38 +446,12 @@ def _build_presentation_from_raw(
     )
 
 
-def _close_sync_browser() -> None:
-    """Close the shared sync Playwright browser if it exists."""
-    global _SYNC_BROWSER, _SYNC_PLAYWRIGHT
-    if _SYNC_BROWSER is not None:
-        _SYNC_BROWSER.close()
-        _SYNC_BROWSER = None
-    if _SYNC_PLAYWRIGHT is not None:
-        _SYNC_PLAYWRIGHT.stop()
-        _SYNC_PLAYWRIGHT = None
-
-
-def close_sync_browser() -> None:
-    """Public wrapper to close the shared sync Playwright browser."""
-    _close_sync_browser()
-
-
-def _get_sync_browser():
-    """Return a shared sync Chromium browser for repeated sync extraction calls."""
-    global _SYNC_BROWSER, _SYNC_PLAYWRIGHT
-    if _SYNC_BROWSER is None:
-        _SYNC_PLAYWRIGHT = sync_playwright().start()
-        _SYNC_BROWSER = _SYNC_PLAYWRIGHT.chromium.launch()
-    return _SYNC_BROWSER
-
-
-atexit.register(_close_sync_browser)
-
-
 def _should_merge_same_type_paragraphs(
     first: SlideElement, second: SlideElement
 ) -> bool:
     """Return True when adjacent extracted text elements should merge."""
+    if not (isinstance(first, TextElement) and isinstance(second, TextElement)):
+        return False
     return (
         first.element_type == second.element_type
         and first.element_type in TEXTBOX_MERGE_TYPES
@@ -460,7 +462,9 @@ def _should_merge_same_type_paragraphs(
     )
 
 
-def _merge_same_type_paragraphs(elements: list[SlideElement]) -> list[SlideElement]:
+def _merge_same_type_paragraphs(
+    elements: list[SlideElement],
+) -> list[SlideElement]:
     """Merge adjacent paragraph-like elements into a single textbox element.
 
     This keeps multiple Markdown paragraphs in one PowerPoint textbox while
@@ -474,6 +478,8 @@ def _merge_same_type_paragraphs(elements: list[SlideElement]) -> list[SlideEleme
 
     for element in elements[1:]:
         if _should_merge_same_type_paragraphs(current, element):
+            # Both are TextElement at this point (checked in _should_merge)
+            assert isinstance(current, TextElement) and isinstance(element, TextElement)
             current.paragraphs.extend(element.paragraphs)
             current.box = union_boxes([current.box, element.box])
             continue
@@ -519,12 +525,20 @@ async def extract_presentation(html_path: str | Path) -> Presentation:
     return _build_presentation_from_raw(raw_slides, raw_notes)
 
 
-def extract_presentation_sync(html_path: str | Path) -> Presentation:
-    """Synchronous wrapper for extract_presentation."""
+def extract_presentation_sync(html_path: str | Path, browser=None) -> Presentation:
+    """Synchronous extraction of presentation data.
+
+    Args:
+        html_path: Path to the Marp-generated HTML file.
+        browser: A Playwright Browser instance. Required.
+    """
+    if browser is None:
+        raise ValueError(
+            "browser parameter is required. Use SyncBrowserManager as context manager."
+        )
     html_path = Path(html_path).resolve()
     file_url = html_path.as_uri()
     extract_js = load_extract_bundle()
-    browser = _get_sync_browser()
     page = browser.new_page()
     try:
         page.goto(file_url, wait_until="networkidle")

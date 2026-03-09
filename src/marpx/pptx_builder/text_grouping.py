@@ -5,7 +5,7 @@ from __future__ import annotations
 from pptx.enum.text import MSO_VERTICAL_ANCHOR
 from pptx.util import Emu
 
-from marpx.models import SlideElement
+from marpx.models import ListElement, SlideElement, TextElement
 from marpx.utils import (
     boxes_have_horizontal_overlap,
     boxes_have_mergeable_vertical_gap,
@@ -23,6 +23,8 @@ from .text import (
 
 def _is_groupable_text_element(element: SlideElement) -> bool:
     """Return True when the element should be grouped into a shared textbox."""
+    if not isinstance(element, (TextElement, ListElement)):
+        return False
     return (
         element.element_type in GROUPABLE_TEXT_TYPES
         and element.decoration is None
@@ -75,7 +77,7 @@ def _group_adjacent_text_elements(
     return groups
 
 
-def _add_grouped_textbox(slide, elements: list[SlideElement]) -> None:
+def _add_grouped_textbox(slide, elements: list[TextElement | ListElement]) -> None:
     """Render multiple adjacent text-like elements into one textbox."""
     box = union_boxes([element.box for element in elements])
     txbox = slide.shapes.add_textbox(

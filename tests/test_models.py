@@ -8,17 +8,22 @@ from pydantic import ValidationError
 from marpx.models import (
     Background,
     Box,
+    CodeBlockElement,
     ElementType,
+    ImageElement,
+    ListElement,
     ListItem,
     Paragraph,
     Presentation,
     RGBAColor,
     Slide,
-    SlideElement,
     TableCell,
+    TableElement,
     TableRow,
+    TextElement,
     TextRun,
     TextStyle,
+    UnsupportedElement,
     UnsupportedInfo,
 )
 
@@ -103,7 +108,7 @@ class TestSlideElement:
     """Tests for SlideElement construction with various types."""
 
     def test_heading_element(self) -> None:
-        el = SlideElement(
+        el = TextElement(
             element_type=ElementType.HEADING,
             box=Box(x=0, y=0, width=100, height=50),
             heading_level=1,
@@ -114,7 +119,7 @@ class TestSlideElement:
         assert el.paragraphs[0].runs[0].text == "Title"
 
     def test_paragraph_element(self) -> None:
-        el = SlideElement(
+        el = TextElement(
             element_type=ElementType.PARAGRAPH,
             box=Box(x=0, y=0, width=100, height=30),
             paragraphs=[Paragraph(runs=[TextRun(text="Hello")])],
@@ -122,7 +127,7 @@ class TestSlideElement:
         assert el.element_type == ElementType.PARAGRAPH
 
     def test_list_element(self) -> None:
-        el = SlideElement(
+        el = ListElement(
             element_type=ElementType.UNORDERED_LIST,
             box=Box(x=0, y=0, width=200, height=100),
             list_items=[
@@ -134,7 +139,7 @@ class TestSlideElement:
         assert el.list_items[1].level == 1
 
     def test_table_element(self) -> None:
-        el = SlideElement(
+        el = TableElement(
             element_type=ElementType.TABLE,
             box=Box(x=0, y=0, width=400, height=200),
             table_rows=[
@@ -150,7 +155,7 @@ class TestSlideElement:
         assert len(el.table_rows[0].cells) == 2
 
     def test_code_block_element(self) -> None:
-        el = SlideElement(
+        el = CodeBlockElement(
             element_type=ElementType.CODE_BLOCK,
             box=Box(x=0, y=0, width=300, height=150),
             code_language="python",
@@ -160,7 +165,7 @@ class TestSlideElement:
         assert el.code_background is not None
 
     def test_unsupported_element(self) -> None:
-        el = SlideElement(
+        el = UnsupportedElement(
             element_type=ElementType.UNSUPPORTED,
             box=Box(x=0, y=0, width=100, height=100),
             unsupported_info=UnsupportedInfo(reason="SVG", tag_name="svg"),
@@ -170,7 +175,7 @@ class TestSlideElement:
         assert el.unsupported_info.tag_name == "svg"
 
     def test_image_element(self) -> None:
-        el = SlideElement(
+        el = ImageElement(
             element_type=ElementType.IMAGE,
             box=Box(x=10, y=10, width=300, height=200),
             image_src="https://example.com/img.png",
@@ -178,7 +183,7 @@ class TestSlideElement:
         assert el.image_src == "https://example.com/img.png"
 
     def test_default_empty_lists(self) -> None:
-        el = SlideElement(
+        el = TextElement(
             element_type=ElementType.PARAGRAPH,
             box=Box(x=0, y=0, width=100, height=50),
         )

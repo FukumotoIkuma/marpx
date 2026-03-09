@@ -13,9 +13,15 @@ from marpx.capabilities import (
 )
 from marpx.models import (
     Box,
+    CodeBlockElement,
     ElementType,
+    ImageElement,
+    ListElement,
     Slide,
     SlideElement,
+    TableElement,
+    TextElement,
+    UnsupportedElement,
     UnsupportedInfo,
 )
 
@@ -24,22 +30,39 @@ from marpx.models import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Map element types to the appropriate subclass constructor.
+_ELEMENT_FACTORIES: dict[ElementType, type] = {
+    ElementType.HEADING: TextElement,
+    ElementType.PARAGRAPH: TextElement,
+    ElementType.BLOCKQUOTE: TextElement,
+    ElementType.DECORATED_BLOCK: TextElement,
+    ElementType.UNORDERED_LIST: ListElement,
+    ElementType.ORDERED_LIST: ListElement,
+    ElementType.CODE_BLOCK: CodeBlockElement,
+    ElementType.IMAGE: ImageElement,
+    ElementType.TABLE: TableElement,
+    ElementType.MATH: UnsupportedElement,
+    ElementType.UNSUPPORTED: UnsupportedElement,
+}
+
 
 def _make_element(
     element_type: ElementType,
     unsupported_info: UnsupportedInfo | None = None,
 ) -> SlideElement:
-    """Create a minimal SlideElement for testing."""
-    return SlideElement(
-        element_type=element_type,
-        box=Box(x=0, y=0, width=100, height=50),
-        unsupported_info=unsupported_info,
-    )
+    """Create a minimal SlideElement subclass instance for testing."""
+    cls = _ELEMENT_FACTORIES[element_type]
+    kwargs: dict = {
+        "element_type": element_type,
+        "box": Box(x=0, y=0, width=100, height=50),
+    }
+    if cls is UnsupportedElement:
+        kwargs["unsupported_info"] = unsupported_info
+    return cls(**kwargs)
 
 
 def _make_slide(
     elements: list[SlideElement] | None = None,
-    is_fallback: bool = False,
 ) -> Slide:
     """Create a minimal Slide for testing."""
     return Slide(
@@ -47,7 +70,6 @@ def _make_slide(
         height_px=720,
         elements=elements or [],
         slide_number=1,
-        is_fallback=is_fallback,
     )
 
 
@@ -179,6 +201,7 @@ class TestBuildSlideElementMath:
         }
         element = _build_slide_element(raw)
         assert element.element_type == ElementType.MATH
+        assert isinstance(element, UnsupportedElement)
         assert element.unsupported_info is not None
         assert element.unsupported_info.reason == "Math expression (MathJax)"
         assert element.unsupported_info.tag_name == "mjx-container"
@@ -192,6 +215,7 @@ class TestBuildSlideElementMath:
         }
         element = _build_slide_element(raw)
         assert element.element_type == ElementType.MATH
+        assert isinstance(element, UnsupportedElement)
         assert element.unsupported_info is not None
         assert element.unsupported_info.reason == "Math expression"
         assert element.unsupported_info.tag_name == "mjx-container"

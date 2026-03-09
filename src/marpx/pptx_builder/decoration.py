@@ -12,10 +12,12 @@ from pptx.util import Emu
 
 from marpx.gradient_utils import parse_linear_gradient
 from marpx.models import (
+    BaseSlideElement,
     Box,
     BoxDecoration,
     BoxShadow,
     ClipPath,
+    CodeBlockElement,
     RGBAColor,
     SlideElement,
 )
@@ -72,7 +74,7 @@ def _apply_scene3d(
     light_rig.set("dir", "t")
 
 
-def _resolve_scene3d_rotations(element: SlideElement) -> tuple[float, float, float]:
+def _resolve_scene3d_rotations(element: BaseSlideElement) -> tuple[float, float, float]:
     """Return fitted scene3d angles when projected corners are available."""
     has_explicit_3d_rotation = (
         abs(element.rotation_3d_x_deg) > 0.01
@@ -676,7 +678,7 @@ def _resolve_left_accent_geometry(
     )
 
 
-def _add_code_block(slide, element: SlideElement) -> None:
+def _add_code_block(slide, element: CodeBlockElement) -> None:
     """Add a code block as textbox with background."""
     from .text import (
         _apply_paragraph_layout,
@@ -724,9 +726,13 @@ def _add_code_block(slide, element: SlideElement) -> None:
             _apply_text_style(r, style)
 
 
-def _add_fallback_image(slide, element: SlideElement) -> None:
+def _add_fallback_image(
+    slide,
+    element: SlideElement,
+    fallback_image_path: str | None = None,
+) -> None:
     """Add a fallback image for unsupported content."""
-    if not element.unsupported_info or not element.unsupported_info.fallback_image_path:
+    if not fallback_image_path:
         return
 
     left = Emu(px_to_emu(element.box.x))
@@ -734,11 +740,11 @@ def _add_fallback_image(slide, element: SlideElement) -> None:
     width = Emu(px_to_emu(element.box.width))
     height = Emu(px_to_emu(element.box.height))
 
-    image_path = Path(element.unsupported_info.fallback_image_path)
+    image_path = Path(fallback_image_path)
     if image_path.exists():
         slide.shapes.add_picture(str(image_path), left, top, width, height)
     else:
         logger.warning(
             "Fallback image not found: %s",
-            element.unsupported_info.fallback_image_path,
+            fallback_image_path,
         )

@@ -8,12 +8,14 @@ from pathlib import Path
 
 from playwright.async_api import async_playwright
 
+from marpx.capabilities import Capability
 from marpx.models import (
     ElementType,
     Presentation,
     SlideElement,
-    UnsupportedInfo,
+    UnsupportedElement,
 )
+from marpx.pipeline import ElementRenderInfo, SlideRenderInfo
 from marpx.svg_utils import rasterize_svg_to_png
 
 logger = logging.getLogger(__name__)
@@ -34,24 +36,26 @@ _BESPOKE_UI_HIDE_CSS = """
 """.strip()
 
 
-def _needs_subtree_fallback(element: SlideElement) -> bool:
-    """Return True when an element requires a subtree (element-level) fallback.
-
-    Uses the capability field when set by the converter pipeline; falls back to
-    the legacy element_type check when capability is None (backward compatibility
-    for callers that construct SlideElement objects directly without running the
-    full pipeline).
-    """
-    if element.capability is not None:
-        return element.capability == "subtree_fallback"
-    # Backward-compatible legacy check
+def _needs_subtree_fallback(
+    element_idx: int,
+    element: SlideElement,
+    slide_info: SlideRenderInfo | None,
+) -> bool:
+    """Return True when an element requires a subtree (element-level) fallback."""
+    if slide_info is not None:
+        el_info = slide_info.element_info.get(element_idx)
+        if el_info is not None:
+            return el_info.capability == Capability.SUBTREE_FALLBACK
+    # Fallback to element_type check when no render info available
     return element.element_type in (ElementType.UNSUPPORTED, ElementType.MATH)
 
 
 def _is_inline_svg_element(element: SlideElement) -> bool:
     """Return True when the fallback element carries inline SVG markup."""
+    if not isinstance(element, UnsupportedElement):
+        return False
     info = element.unsupported_info
-    return bool(_needs_subtree_fallback(element) and info and info.svg_markup)
+    return bool(info and info.svg_markup)
 
 
 def _write_inline_svg_fallback(
@@ -62,9 +66,9 @@ def _write_inline_svg_fallback(
 ) -> Path:
     """Rasterize stored SVG markup directly instead of screenshotting the page."""
     output_path = output_dir / f"slide_{slide_index}_el_{element_index}_fallback.png"
-    svg_markup = (
-        element.unsupported_info.svg_markup if element.unsupported_info else ""
-    ) or ""
+    svg_markup = ""
+    if isinstance(element, UnsupportedElement) and element.unsupported_info:
+        svg_markup = element.unsupported_info.svg_markup or ""
     sized_svg = _resize_svg_markup(svg_markup, element.box.width, element.box.height)
     output_path.write_bytes(
         rasterize_svg_to_png(
@@ -250,30 +254,35 @@ async def render_fallbacks(
     presentation: Presentation,
     output_dir: str | Path,
     fallback_mode: str = "subtree",
-) -> Presentation:
+    slide_render_info: dict[int, SlideRenderInfo] | None = None,
+) -> None:
     """Render fallback images for unsupported content.
+
+    Writes fallback image paths to slide_render_info only (not to models).
 
     Args:
         html_path: Path to the Marp HTML file.
-        presentation: Extracted presentation model.
+        presentation: Extracted presentation model (read-only).
         output_dir: Directory for fallback images.
         fallback_mode: "subtree" for element-level, "slide" for slide-level fallback.
-
-    Returns:
-        Updated Presentation with fallback image paths set.
+        slide_render_info: Render info dict to write fallback paths into.
     """
+    if slide_render_info is None:
+        slide_render_info = {}
+
     html_path = Path(html_path).resolve()
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Check if any fallbacks are needed
     needs_fallback = False
-    for slide in presentation.slides:
-        if slide.is_fallback and not slide.fallback_image_path:
+    for slide_idx, slide in enumerate(presentation.slides):
+        s_info = slide_render_info.get(slide_idx)
+        if s_info and s_info.is_fallback:
             needs_fallback = True
             break
-        for el in slide.elements:
-            if _needs_subtree_fallback(el):
+        for el_idx, el in enumerate(slide.elements):
+            if _needs_subtree_fallback(el_idx, el, s_info):
                 needs_fallback = True
                 break
         if needs_fallback:
@@ -281,7 +290,7 @@ async def render_fallbacks(
 
     if not needs_fallback:
         logger.info("No unsupported elements found, skipping fallback rendering")
-        return presentation
+        return
 
     file_url = html_path.as_uri()
 
@@ -296,23 +305,29 @@ async def render_fallbacks(
         await _wait_for_mathjax(page)
 
         for slide_idx, slide in enumerate(presentation.slides):
-            has_unsupported = any(_needs_subtree_fallback(el) for el in slide.elements)
+            s_info = slide_render_info.get(slide_idx)
+            if s_info is None:
+                s_info = SlideRenderInfo()
+                slide_render_info[slide_idx] = s_info
 
-            if not has_unsupported and not slide.is_fallback:
+            has_unsupported = any(
+                _needs_subtree_fallback(el_idx, el, s_info)
+                for el_idx, el in enumerate(slide.elements)
+            )
+
+            if not has_unsupported and not s_info.is_fallback:
                 continue
 
-            if slide.is_fallback or fallback_mode == "slide":
+            if s_info.is_fallback or fallback_mode == "slide":
                 # Take screenshot of entire slide
                 await _navigate_to_slide(page, slide_idx)
                 img_path = await _screenshot_slide(page, slide_idx, output_dir)
-                slide.is_fallback = True
-                slide.fallback_image_path = str(img_path)
-                # Remove individual elements since we're using slide-level fallback
-                slide.elements = []
+                s_info.is_fallback = True
+                s_info.fallback_image_path = str(img_path)
             else:
                 # subtree mode: screenshot individual unsupported elements
                 for el_idx, element in enumerate(slide.elements):
-                    if _needs_subtree_fallback(element):
+                    if _needs_subtree_fallback(el_idx, element, s_info):
                         if _is_inline_svg_element(element):
                             img_path = _write_inline_svg_fallback(
                                 slide_idx, el_idx, element, output_dir
@@ -322,26 +337,16 @@ async def render_fallbacks(
                             img_path = await _screenshot_element(
                                 page, slide_idx, el_idx, element, output_dir
                             )
-                        if element.unsupported_info is None:
-                            tag_name = (
-                                "mjx-container"
-                                if element.element_type == ElementType.MATH
-                                else ""
+                        # Write fallback path to render info
+                        el_info = s_info.element_info.get(el_idx)
+                        if el_info is None:
+                            el_info = ElementRenderInfo(
+                                capability=Capability.SUBTREE_FALLBACK
                             )
-                            reason = (
-                                "Math expression"
-                                if element.element_type == ElementType.MATH
-                                else "Unsupported element"
-                            )
-                            element.unsupported_info = UnsupportedInfo(
-                                reason=reason,
-                                tag_name=tag_name,
-                            )
-                        element.unsupported_info.fallback_image_path = str(img_path)
+                            s_info.element_info[el_idx] = el_info
+                        el_info.fallback_image_path = str(img_path)
 
         await browser.close()
-
-    return presentation
 
 
 def render_fallbacks_sync(
@@ -349,10 +354,13 @@ def render_fallbacks_sync(
     presentation: Presentation,
     output_dir: str | Path,
     fallback_mode: str = "subtree",
-) -> Presentation:
+    slide_render_info: dict[int, SlideRenderInfo] | None = None,
+) -> None:
     """Synchronous wrapper for render_fallbacks."""
     from marpx.async_utils import run_coroutine_sync
 
-    return run_coroutine_sync(
-        render_fallbacks(html_path, presentation, output_dir, fallback_mode)
+    run_coroutine_sync(
+        render_fallbacks(
+            html_path, presentation, output_dir, fallback_mode, slide_render_info
+        )
     )

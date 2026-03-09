@@ -10,7 +10,7 @@ from pathlib import Path
 from pptx.util import Emu
 
 from marpx.image_utils import resolve_image_bytes
-from marpx.models import SlideElement
+from marpx.models import ImageElement
 from marpx.svg_utils import (
     MissingDependencyError,
     rasterize_svg_to_png,
@@ -34,7 +34,7 @@ def _is_svg_source(src: str) -> bool:
     return Path(urllib.parse.unquote(candidate)).suffix.lower() == ".svg"
 
 
-def _resolve_image_placement(element: SlideElement) -> tuple[Emu, Emu, Emu, Emu]:
+def _resolve_image_placement(element: ImageElement) -> tuple[Emu, Emu, Emu, Emu]:
     """Convert CSS image box/object-fit metadata to PPTX placement."""
     left_px = element.box.x
     top_px = element.box.y
@@ -102,14 +102,14 @@ def _resolve_image_placement(element: SlideElement) -> tuple[Emu, Emu, Emu, Emu]
     )
 
 
-def _should_round_picture_geometry(element: SlideElement) -> bool:
+def _should_round_picture_geometry(element: ImageElement) -> bool:
     """Round the picture itself only when the image is expected to fill the box."""
     if not element.decoration or element.decoration.border_radius_px <= 0:
         return False
     return (element.object_fit or "").lower() not in {"contain", "scale-down"}
 
 
-def _add_image(slide, element: SlideElement) -> None:
+def _add_image(slide, element: ImageElement) -> None:
     """Add an image to the slide."""
     if not element.image_src:
         return

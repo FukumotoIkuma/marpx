@@ -9,6 +9,7 @@ import pytest
 from pptx import Presentation as PptxPresentation
 
 from marpx.models import Presentation, Slide
+from marpx.pipeline import SlideRenderInfo
 from marpx.pptx_builder.builder import build_pptx
 
 
@@ -109,14 +110,20 @@ class TestBuildPptxNotes:
                         width_px=1280,
                         height_px=720,
                         slide_number=0,
-                        is_fallback=True,
-                        fallback_image_path=str(fallback_image),
                         notes="Fallback note",
                     ),
                 ],
             )
 
-            build_pptx(pres, out)
+            # Use slide_render_info to mark the slide as fallback
+            slide_render_info = {
+                0: SlideRenderInfo(
+                    is_fallback=True,
+                    fallback_image_path=str(fallback_image),
+                ),
+            }
+
+            build_pptx(pres, out, slide_render_info=slide_render_info)
 
             pptx = PptxPresentation(str(out))
             slide = pptx.slides[0]

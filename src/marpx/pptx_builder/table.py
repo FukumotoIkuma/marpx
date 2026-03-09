@@ -7,7 +7,7 @@ from pptx.oxml.ns import qn
 from pptx.util import Emu
 
 from marpx.gradient_utils import parse_linear_gradient
-from marpx.models import SlideElement, TableCell
+from marpx.models import TableCell, TableElement
 from marpx.utils import px_to_emu
 
 from ._helpers import (
@@ -135,7 +135,7 @@ def _set_cell_border(pptx_cell, side: str, border) -> None:
     tail_end.set("len", "med")
 
 
-def _add_table(slide, element: SlideElement) -> None:
+def _add_table(slide, element: TableElement) -> None:
     """Add a table to the slide, handling colspan and rowspan merges."""
     if not element.table_rows:
         return
