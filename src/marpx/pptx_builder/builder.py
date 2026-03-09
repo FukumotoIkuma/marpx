@@ -139,26 +139,37 @@ def build_pptx(presentation: Presentation, output_path: str | Path) -> Path:
 
                 element = group[0]
                 try:
-                    if element.element_type in (
-                        ElementType.HEADING,
-                        ElementType.PARAGRAPH,
-                        ElementType.BLOCKQUOTE,
-                        ElementType.DECORATED_BLOCK,
-                        ElementType.UNORDERED_LIST,
-                        ElementType.ORDERED_LIST,
-                    ):
-                        _add_textbox(pptx_slide, element)
-                    elif element.element_type == ElementType.IMAGE:
-                        _add_image(pptx_slide, element)
-                    elif element.element_type == ElementType.TABLE:
-                        _add_table(pptx_slide, element)
-                    elif element.element_type == ElementType.CODE_BLOCK:
-                        _add_code_block(pptx_slide, element)
-                    elif element.element_type in (
-                        ElementType.UNSUPPORTED,
-                        ElementType.MATH,
-                    ):
+                    # Capability-driven dispatch.
+                    # When capability is set (by the converter pipeline) it is
+                    # authoritative.  When capability is None the element was
+                    # not classified (e.g. created directly in tests or via an
+                    # older pipeline version), so we fall back to the legacy
+                    # element_type-based routing for backward compatibility.
+                    if element.capability == "subtree_fallback":
                         _add_fallback_image(pptx_slide, element)
+                    elif element.capability == "native" or element.capability is None:
+                        # native path (or legacy unclassified path)
+                        if element.element_type in (
+                            ElementType.HEADING,
+                            ElementType.PARAGRAPH,
+                            ElementType.BLOCKQUOTE,
+                            ElementType.DECORATED_BLOCK,
+                            ElementType.UNORDERED_LIST,
+                            ElementType.ORDERED_LIST,
+                        ):
+                            _add_textbox(pptx_slide, element)
+                        elif element.element_type == ElementType.IMAGE:
+                            _add_image(pptx_slide, element)
+                        elif element.element_type == ElementType.TABLE:
+                            _add_table(pptx_slide, element)
+                        elif element.element_type == ElementType.CODE_BLOCK:
+                            _add_code_block(pptx_slide, element)
+                        elif element.element_type in (
+                            ElementType.UNSUPPORTED,
+                            ElementType.MATH,
+                        ):
+                            # Capability was None but element_type signals fallback
+                            _add_fallback_image(pptx_slide, element)
                 except MissingDependencyError:
                     raise
                 except Exception as e:

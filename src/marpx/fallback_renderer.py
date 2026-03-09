@@ -34,14 +34,24 @@ _BESPOKE_UI_HIDE_CSS = """
 """.strip()
 
 
+def _needs_subtree_fallback(element: SlideElement) -> bool:
+    """Return True when an element requires a subtree (element-level) fallback.
+
+    Uses the capability field when set by the converter pipeline; falls back to
+    the legacy element_type check when capability is None (backward compatibility
+    for callers that construct SlideElement objects directly without running the
+    full pipeline).
+    """
+    if element.capability is not None:
+        return element.capability == "subtree_fallback"
+    # Backward-compatible legacy check
+    return element.element_type in (ElementType.UNSUPPORTED, ElementType.MATH)
+
+
 def _is_inline_svg_element(element: SlideElement) -> bool:
     """Return True when the fallback element carries inline SVG markup."""
     info = element.unsupported_info
-    return bool(
-        element.element_type in (ElementType.UNSUPPORTED, ElementType.MATH)
-        and info
-        and info.svg_markup
-    )
+    return bool(_needs_subtree_fallback(element) and info and info.svg_markup)
 
 
 def _write_inline_svg_fallback(
@@ -263,7 +273,7 @@ async def render_fallbacks(
             needs_fallback = True
             break
         for el in slide.elements:
-            if el.element_type in (ElementType.UNSUPPORTED, ElementType.MATH):
+            if _needs_subtree_fallback(el):
                 needs_fallback = True
                 break
         if needs_fallback:
@@ -286,10 +296,7 @@ async def render_fallbacks(
         await _wait_for_mathjax(page)
 
         for slide_idx, slide in enumerate(presentation.slides):
-            has_unsupported = any(
-                el.element_type in (ElementType.UNSUPPORTED, ElementType.MATH)
-                for el in slide.elements
-            )
+            has_unsupported = any(_needs_subtree_fallback(el) for el in slide.elements)
 
             if not has_unsupported and not slide.is_fallback:
                 continue
@@ -305,10 +312,7 @@ async def render_fallbacks(
             else:
                 # subtree mode: screenshot individual unsupported elements
                 for el_idx, element in enumerate(slide.elements):
-                    if element.element_type in (
-                        ElementType.UNSUPPORTED,
-                        ElementType.MATH,
-                    ):
+                    if _needs_subtree_fallback(element):
                         if _is_inline_svg_element(element):
                             img_path = _write_inline_svg_fallback(
                                 slide_idx, el_idx, element, output_dir
