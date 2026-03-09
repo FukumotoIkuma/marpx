@@ -1,5 +1,5 @@
 import { extractBackgroundImages, extractDirectives } from './backgrounds.js';
-import { extractBlockPseudoElements } from './decoration.js';
+import { extractBlockPseudoElements } from './pseudo.js';
 import { processElement } from './handlers.js';
 import { createRenderContext } from './render-context.js';
 

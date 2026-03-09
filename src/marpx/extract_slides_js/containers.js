@@ -1,6 +1,7 @@
 import { deriveRenderContext } from './render-context.js';
 import { styleToRunStyle } from './style.js';
-import { extractPseudoRuns, extractDecoration } from './decoration.js';
+import { extractPseudoRuns } from './pseudo.js';
+import { extractDecoration } from './decoration.js';
 import { _buildTextRun, extractInlineRuns, extractTextRunsWithPseudo } from './runs.js';
 import { _buildParagraph, extractParagraphsFromLines, getParagraphMetrics } from './paragraphs.js';
 import { shouldExtractStandaloneDecoratedText } from './classify.js';

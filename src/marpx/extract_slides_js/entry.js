@@ -32,10 +32,16 @@ export {
 export {
     extractDecoration,
     hasMeaningfulDecoration,
-    extractPseudoRuns,
-    extractBlockPseudoElements,
     normalizeContentValue,
 } from './decoration.js';
+
+// Re-export pseudo.js for backward compatibility
+export {
+    extractPseudoRuns,
+    extractBlockPseudoElements,
+    hasPseudoContent,
+    getInlinePseudoRuns,
+} from './pseudo.js';
 
 export function getComputedStyles(el) {
     const cs = window.getComputedStyle(el);

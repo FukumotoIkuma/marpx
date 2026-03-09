@@ -1,6 +1,7 @@
     import { deriveRenderContext } from './render-context.js';
     import { styleToRunStyle } from './style.js';
-    import { extractPseudoRuns, extractDecoration } from './decoration.js';
+    import { extractPseudoRuns } from './pseudo.js';
+    import { extractDecoration } from './decoration.js';
     import { normalizeInlineText } from './entry.js';
 
     export function _buildTextRun(text, styleEl, linkUrl = null, options = {}) {

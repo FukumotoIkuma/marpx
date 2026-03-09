@@ -564,7 +564,10 @@ function normalizeContentValue(content) {
   }
   return content;
 }
-function extractPseudoRuns(el, pseudo, renderContext = null) {
+
+// pseudo.js
+var _processedBlockPseudo = /* @__PURE__ */ new WeakSet();
+function getInlinePseudoRuns(el, pseudo, renderContext = null) {
   const cs = window.getComputedStyle(el, pseudo);
   if (["absolute", "fixed"].includes(cs.position)) return [];
   const content = normalizeContentValue(cs.content);
@@ -576,6 +579,7 @@ function extractPseudoRuns(el, pseudo, renderContext = null) {
     linkUrl: null
   }];
 }
+var extractPseudoRuns = getInlinePseudoRuns;
 function _parsePseudoZIndex(cs, fallbackZ) {
   const parsed = parseInt(cs.zIndex, 10);
   return Number.isFinite(parsed) ? parsed : fallbackZ;
@@ -653,7 +657,34 @@ function _measurePseudoRect(el, pseudo, content) {
   probe.remove();
   return rect;
 }
+function _getZIndex(el) {
+  const raw = window.getComputedStyle(el).zIndex;
+  const parsed = parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function _boxFromRect(rect, sectionRect) {
+  return {
+    x: rect.left - sectionRect.left,
+    y: rect.top - sectionRect.top,
+    width: rect.width,
+    height: rect.height
+  };
+}
+function _contentBoxFromRectAndStyle(rect, cs, sectionRect, ctx) {
+  const leftInset = _scaleX((parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0), ctx);
+  const topInset = _scaleY((parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0), ctx);
+  const rightInset = _scaleX((parseFloat(cs.borderRightWidth) || 0) + (parseFloat(cs.paddingRight) || 0), ctx);
+  const bottomInset = _scaleY((parseFloat(cs.borderBottomWidth) || 0) + (parseFloat(cs.paddingBottom) || 0), ctx);
+  return {
+    x: rect.left - sectionRect.left + leftInset,
+    y: rect.top - sectionRect.top + topInset,
+    width: Math.max(rect.width - leftInset - rightInset, 1),
+    height: Math.max(rect.height - topInset - bottomInset, 1)
+  };
+}
 function extractBlockPseudoElements(el, sectionRect, renderContext = null) {
+  if (_processedBlockPseudo.has(el)) return [];
+  _processedBlockPseudo.add(el);
   const results = [];
   const parentZ = _getZIndex(el);
   const ctx = renderContext || deriveRenderContext(el);
@@ -690,31 +721,6 @@ function extractBlockPseudoElements(el, sectionRect, renderContext = null) {
     });
   }
   return results;
-}
-function _getZIndex(el) {
-  const raw = window.getComputedStyle(el).zIndex;
-  const parsed = parseInt(raw, 10);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-function _boxFromRect(rect, sectionRect) {
-  return {
-    x: rect.left - sectionRect.left,
-    y: rect.top - sectionRect.top,
-    width: rect.width,
-    height: rect.height
-  };
-}
-function _contentBoxFromRectAndStyle(rect, cs, sectionRect, ctx) {
-  const leftInset = _scaleX((parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0), ctx);
-  const topInset = _scaleY((parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0), ctx);
-  const rightInset = _scaleX((parseFloat(cs.borderRightWidth) || 0) + (parseFloat(cs.paddingRight) || 0), ctx);
-  const bottomInset = _scaleY((parseFloat(cs.borderBottomWidth) || 0) + (parseFloat(cs.paddingBottom) || 0), ctx);
-  return {
-    x: rect.left - sectionRect.left + leftInset,
-    y: rect.top - sectionRect.top + topInset,
-    width: Math.max(rect.width - leftInset - rightInset, 1),
-    height: Math.max(rect.height - topInset - bottomInset, 1)
-  };
 }
 
 // entry.js
