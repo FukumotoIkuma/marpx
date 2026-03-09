@@ -608,6 +608,7 @@ class SlideElement(BaseModel):
             unsupported_info=unsupported_info,
         )
 
+
 class Slide(BaseModel):
     width_px: float
     height_px: float

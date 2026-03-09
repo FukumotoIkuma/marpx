@@ -289,7 +289,9 @@ def _build_slide_element(raw: dict) -> SlideElement:
 
     if etype == ElementType.CODE_BLOCK:
         code_background = (
-            parse_css_color(raw["codeBackground"]) if raw.get("codeBackground") else None
+            parse_css_color(raw["codeBackground"])
+            if raw.get("codeBackground")
+            else None
         )
         return SlideElement.make_code_block(
             **common,
