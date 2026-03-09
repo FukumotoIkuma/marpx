@@ -25,7 +25,8 @@ from marpx.utils.common import px_to_emu
 
 from ._helpers import _set_fill_color
 from .background import _add_background_image
-from .decoration import _add_code_block, _add_fallback_image
+from .code_block import _add_code_block
+from .fallback import _add_fallback_image
 from marpx.utils.gradient import render_gradient_png
 from .directives import _add_footer, _add_header, _add_page_number
 from .image import MissingDependencyError, _add_image
