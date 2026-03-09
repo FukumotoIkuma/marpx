@@ -50,6 +50,13 @@ class Point(BaseModel):
     y: float
 
 
+class TextShadow(BaseModel):
+    offset_x_px: float = 0.0
+    offset_y_px: float = 0.0
+    blur_radius_px: float = 0.0
+    color: RGBAColor = Field(default_factory=lambda: RGBAColor(r=0, g=0, b=0))
+
+
 class TextStyle(BaseModel):
     font_family: str = "Arial"
     font_size_px: float = 16.0
@@ -60,6 +67,7 @@ class TextStyle(BaseModel):
     color: RGBAColor = Field(default_factory=lambda: RGBAColor(r=0, g=0, b=0))
     background_color: RGBAColor | None = None
     text_gradient: str | None = None
+    text_shadows: list[TextShadow] | None = None
 
 
 class TextRun(BaseModel):

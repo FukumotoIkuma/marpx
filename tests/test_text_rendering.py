@@ -11,6 +11,8 @@ from pptx import Presentation as PptxPresentation
 from pptx.enum.text import MSO_VERTICAL_ANCHOR, PP_ALIGN
 from pptx.oxml.ns import qn
 
+import math
+
 from marpx.models import (
     Box,
     ElementType,
@@ -23,9 +25,11 @@ from marpx.models import (
     SlideElement,
     TextElement,
     TextRun,
+    TextShadow,
     TextStyle,
 )
 from marpx.pptx_builder.builder import build_pptx
+from marpx.utils.common import px_to_emu
 
 
 # ---------------------------------------------------------------------------
@@ -344,3 +348,158 @@ class TestListRendering:
         texts = [p.runs[0].text for p in tf.paragraphs if p.runs]
         assert "Alpha" in texts
         assert "Beta" in texts
+
+
+# ---------------------------------------------------------------------------
+# TestTextShadow
+# ---------------------------------------------------------------------------
+
+
+def _get_effect_lst(pptx: PptxPresentation):
+    """Return the a:effectLst element from the first run's rPr, or None."""
+    run = _first_run(pptx)
+    r_pr = run._r.find(qn("a:rPr"))
+    if r_pr is None:
+        return None
+    return r_pr.find(qn("a:effectLst"))
+
+
+class TestTextShadow:
+    """Verify text-shadow CSS renders as PPTX glow / outerShdw effects."""
+
+    def test_text_shadow_glow_effect(self, tmp_path: Path) -> None:
+        """Offset=0 shadow produces an a:glow element with correct rad and color."""
+        shadow = TextShadow(
+            offset_x_px=0.0,
+            offset_y_px=0.0,
+            blur_radius_px=10.0,
+            color=RGBAColor(r=0, g=255, b=255),
+        )
+        style = TextStyle(text_shadows=[shadow])
+        pres = _make_slide_with(_make_text_element("Glow", style=style))
+        pptx = _build_and_read(pres, tmp_path)
+
+        effect_lst = _get_effect_lst(pptx)
+        assert effect_lst is not None, "effectLst not found in rPr"
+
+        glow = effect_lst.find(qn("a:glow"))
+        assert glow is not None, "a:glow element not found"
+
+        expected_rad = str(px_to_emu(10.0))
+        assert glow.get("rad") == expected_rad
+
+        srgb = glow.find(qn("a:srgbClr"))
+        assert srgb is not None
+        assert srgb.get("val") == "00FFFF"
+
+    def test_text_shadow_outer_shadow(self, tmp_path: Path) -> None:
+        """Offset > 1px shadow produces an a:outerShdw with correct attributes."""
+        shadow = TextShadow(
+            offset_x_px=3.0,
+            offset_y_px=3.0,
+            blur_radius_px=5.0,
+            color=RGBAColor(r=0, g=0, b=0),
+        )
+        style = TextStyle(text_shadows=[shadow])
+        pres = _make_slide_with(_make_text_element("Shadow", style=style))
+        pptx = _build_and_read(pres, tmp_path)
+
+        effect_lst = _get_effect_lst(pptx)
+        assert effect_lst is not None
+
+        outer = effect_lst.find(qn("a:outerShdw"))
+        assert outer is not None, "a:outerShdw element not found"
+
+        expected_blur = str(px_to_emu(5.0))
+        expected_dist = str(px_to_emu(math.hypot(3.0, 3.0)))
+        angle_rad = math.atan2(3.0, 3.0)
+        expected_dir = str(int(angle_rad * 180 / math.pi * 60000) % 21600000)
+
+        assert outer.get("blurRad") == expected_blur
+        assert outer.get("dist") == expected_dist
+        assert outer.get("dir") == expected_dir
+
+    def test_text_shadow_mixed_glow_and_shadow(self, tmp_path: Path) -> None:
+        """One glow + one outer shadow both appear in effectLst."""
+        glow_shadow = TextShadow(
+            offset_x_px=0.0,
+            offset_y_px=0.0,
+            blur_radius_px=15.0,
+            color=RGBAColor(r=255, g=255, b=0),
+        )
+        outer_shadow = TextShadow(
+            offset_x_px=5.0,
+            offset_y_px=5.0,
+            blur_radius_px=8.0,
+            color=RGBAColor(r=0, g=0, b=0),
+        )
+        style = TextStyle(text_shadows=[glow_shadow, outer_shadow])
+        pres = _make_slide_with(_make_text_element("Mixed", style=style))
+        pptx = _build_and_read(pres, tmp_path)
+
+        effect_lst = _get_effect_lst(pptx)
+        assert effect_lst is not None
+
+        assert effect_lst.find(qn("a:glow")) is not None, "a:glow missing"
+        assert effect_lst.find(qn("a:outerShdw")) is not None, "a:outerShdw missing"
+
+    def test_text_shadow_glow_picks_largest_blur(self, tmp_path: Path) -> None:
+        """When multiple glow candidates exist, the largest blur radius is used."""
+        small_glow = TextShadow(
+            offset_x_px=0.0,
+            offset_y_px=0.0,
+            blur_radius_px=10.0,
+            color=RGBAColor(r=255, g=0, b=0),
+        )
+        large_glow = TextShadow(
+            offset_x_px=0.0,
+            offset_y_px=0.0,
+            blur_radius_px=20.0,
+            color=RGBAColor(r=0, g=0, b=255),
+        )
+        style = TextStyle(text_shadows=[small_glow, large_glow])
+        pres = _make_slide_with(_make_text_element("LargestGlow", style=style))
+        pptx = _build_and_read(pres, tmp_path)
+
+        effect_lst = _get_effect_lst(pptx)
+        assert effect_lst is not None
+
+        glow = effect_lst.find(qn("a:glow"))
+        assert glow is not None
+
+        expected_rad = str(px_to_emu(20.0))
+        assert glow.get("rad") == expected_rad, "Glow rad should use largest blur"
+
+    def test_text_shadow_alpha_preserved(self, tmp_path: Path) -> None:
+        """Shadow with alpha < 1.0 generates an a:alpha element with val='50000'."""
+        shadow = TextShadow(
+            offset_x_px=0.0,
+            offset_y_px=0.0,
+            blur_radius_px=8.0,
+            color=RGBAColor(r=0, g=0, b=0, a=0.5),
+        )
+        style = TextStyle(text_shadows=[shadow])
+        pres = _make_slide_with(_make_text_element("Alpha", style=style))
+        pptx = _build_and_read(pres, tmp_path)
+
+        effect_lst = _get_effect_lst(pptx)
+        assert effect_lst is not None
+
+        glow = effect_lst.find(qn("a:glow"))
+        assert glow is not None
+
+        srgb = glow.find(qn("a:srgbClr"))
+        assert srgb is not None
+
+        alpha_el = srgb.find(qn("a:alpha"))
+        assert alpha_el is not None, "a:alpha element not found"
+        assert alpha_el.get("val") == "50000"
+
+    def test_no_text_shadow_no_effect_lst(self, tmp_path: Path) -> None:
+        """TextStyle without text_shadows produces no a:effectLst in rPr."""
+        style = TextStyle()
+        pres = _make_slide_with(_make_text_element("NoShadow", style=style))
+        pptx = _build_and_read(pres, tmp_path)
+
+        effect_lst = _get_effect_lst(pptx)
+        assert effect_lst is None, "effectLst should be absent when no shadows set"
