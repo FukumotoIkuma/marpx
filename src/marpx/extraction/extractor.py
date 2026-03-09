@@ -539,6 +539,14 @@ async def extract_presentation(html_path: str | Path) -> Presentation:
         # Wait for Marp rendering
         await page.wait_for_selector("section", timeout=10000)
 
+        # Freeze CSS animations/transitions so computed styles reflect their
+        # static end-state values.  Without this, mid-flight animation values
+        # (e.g. filter: blur(0.008px)) cause elements to be misclassified as
+        # UNSUPPORTED and fall back to screenshots.
+        await page.add_style_tag(
+            content="*, *::before, *::after { animation: none !important; transition: none !important; }"
+        )
+
         # Extract all slide data in one batch
         raw_slides = await page.evaluate(extract_js)
 
@@ -570,6 +578,15 @@ def extract_presentation_sync(
     try:
         page.goto(file_url, wait_until="networkidle")
         page.wait_for_selector("section", timeout=10000)
+
+        # Freeze CSS animations/transitions so computed styles reflect their
+        # static end-state values.  Without this, mid-flight animation values
+        # (e.g. filter: blur(0.008px)) cause elements to be misclassified as
+        # UNSUPPORTED and fall back to screenshots.
+        page.add_style_tag(
+            content="*, *::before, *::after { animation: none !important; transition: none !important; }"
+        )
+
         raw_slides = page.evaluate(extract_js)
         raw_notes = page.evaluate(_EXTRACT_NOTES_JS)
     finally:
