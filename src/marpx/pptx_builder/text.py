@@ -418,11 +418,6 @@ def _apply_spacing(
 def _add_textbox(slide, element: TextElement | ListElement) -> None:
     """Add a textbox or decorated text container."""
     if element.decoration:
-        use_shape_text_frame = (
-            abs(element.rotation_3d_x_deg) > 0.01
-            or abs(element.rotation_3d_y_deg) > 0.01
-            or abs(element.rotation_3d_z_deg) > 0.01
-        )
         scene3d_x_deg, scene3d_y_deg, scene3d_z_deg = _resolve_scene3d_rotations(
             element
         )
@@ -439,13 +434,7 @@ def _add_textbox(slide, element: TextElement | ListElement) -> None:
         )
         if not has_content:
             return
-        if use_shape_text_frame:
-            text_container = bg_shape
-        else:
-            left, top, width, height = _resolve_textbox_geometry(element)
-            text_container = slide.shapes.add_textbox(left, top, width, height)
-            text_container.fill.background()
-            text_container.line.fill.background()
+        text_container = bg_shape
     else:
         left, top, width, height = _resolve_textbox_geometry(element)
         text_container = slide.shapes.add_textbox(left, top, width, height)
@@ -456,11 +445,7 @@ def _add_textbox(slide, element: TextElement | ListElement) -> None:
         element.vertical_align,
         MSO_VERTICAL_ANCHOR.TOP,
     )
-    if element.decoration and (
-        abs(element.rotation_3d_x_deg) > 0.01
-        or abs(element.rotation_3d_y_deg) > 0.01
-        or abs(element.rotation_3d_z_deg) > 0.01
-    ):
+    if element.decoration:
         _set_text_frame_margins_from_element(tf, element)
     else:
         _set_text_frame_margins_zero(tf)
