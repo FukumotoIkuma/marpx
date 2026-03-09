@@ -47,9 +47,57 @@ function _extractTextGradient(cs, ctx) {
     return null;
 }
 
+/**
+ * Determine whether a CSS filter string contains only visually negligible
+ * adjustments that can safely be ignored when converting to PPTX.
+ *
+ * Thresholds per function (identity value → allowed range):
+ *   brightness(x)  : 1.0 → [0.9, 1.1]
+ *   contrast(x)    : 1.0 → [0.9, 1.1]
+ *   saturate(x)    : 1.0 → [0.8, 1.2]
+ *   opacity(x)     : 1.0 → [0.95, 1.0]
+ *   hue-rotate(Xdeg): 0  → [-10, 10]
+ *
+ * Any other filter function (blur, drop-shadow, grayscale, sepia, invert, …)
+ * is considered non-negligible and forces fallback.
+ */
+function _isNegligibleFilter(filterStr) {
+    const filters = filterStr.match(/[\w-]+\([^)]*\)/g);
+    if (!filters) return false;
+
+    for (const f of filters) {
+        const match = f.match(/^([\w-]+)\((.+)\)$/);
+        if (!match) return false;
+        const [, name, valueStr] = match;
+        const value = parseFloat(valueStr);
+        if (Number.isNaN(value)) return false;
+
+        switch (name) {
+            case 'brightness':
+                if (value < 0.9 || value > 1.1) return false;
+                break;
+            case 'contrast':
+                if (value < 0.9 || value > 1.1) return false;
+                break;
+            case 'saturate':
+                if (value < 0.8 || value > 1.2) return false;
+                break;
+            case 'opacity':
+                if (value < 0.95) return false;
+                break;
+            case 'hue-rotate':
+                if (Math.abs(value) > 10) return false;
+                break;
+            default:
+                return false;
+        }
+    }
+    return true;
+}
+
 export function getUnsupportedStyleReason(cs) {
     const filter = cs.filter || '';
-    if (filter && filter !== 'none') {
+    if (filter && filter !== 'none' && !_isNegligibleFilter(filter)) {
         return 'CSS filter';
     }
 
