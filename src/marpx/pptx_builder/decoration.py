@@ -12,12 +12,12 @@ from pptx.util import Emu
 
 from marpx.gradient_utils import parse_linear_gradient
 from marpx.models import (
+    BaseSlideElement,
     Box,
     BoxDecoration,
     BoxShadow,
     ClipPath,
     RGBAColor,
-    SlideElement,
 )
 from marpx.utils import px_to_emu
 from .scene3d import fit_scene3d_rotations
@@ -72,7 +72,7 @@ def _apply_scene3d(
     light_rig.set("dir", "t")
 
 
-def _resolve_scene3d_rotations(element: SlideElement) -> tuple[float, float, float]:
+def _resolve_scene3d_rotations(element: BaseSlideElement) -> tuple[float, float, float]:
     """Return fitted scene3d angles when projected corners are available."""
     has_explicit_3d_rotation = (
         abs(element.rotation_3d_x_deg) > 0.01
@@ -676,7 +676,7 @@ def _resolve_left_accent_geometry(
     )
 
 
-def _add_code_block(slide, element: SlideElement) -> None:
+def _add_code_block(slide, element: BaseSlideElement) -> None:
     """Add a code block as textbox with background."""
     from .text import (
         _apply_paragraph_layout,
@@ -724,7 +724,7 @@ def _add_code_block(slide, element: SlideElement) -> None:
             _apply_text_style(r, style)
 
 
-def _add_fallback_image(slide, element: SlideElement) -> None:
+def _add_fallback_image(slide, element: BaseSlideElement) -> None:
     """Add a fallback image for unsupported content."""
     if not element.unsupported_info or not element.unsupported_info.fallback_image_path:
         return

@@ -12,13 +12,17 @@ from playwright.sync_api import sync_playwright
 from marpx.models import (
     Background,
     BackgroundImage,
+    BaseSlideElement,
     BorderSide,
     Box,
     BoxDecoration,
     BoxShadow,
     BoxPadding,
     ClipPath,
+    CodeBlockElement,
     ElementType,
+    ImageElement,
+    ListElement,
     ListItem,
     Paragraph,
     Point,
@@ -26,9 +30,12 @@ from marpx.models import (
     Slide,
     SlideElement,
     TableCell,
+    TableElement,
     TableRow,
+    TextElement,
     TextRun,
     TextStyle,
+    UnsupportedElement,
     UnsupportedInfo,
 )
 from marpx.fonts import safe_font_family
@@ -242,8 +249,8 @@ def _build_table_rows(raw: dict) -> list[TableRow]:
     return rows
 
 
-def _build_slide_element(raw: dict) -> SlideElement:
-    """Convert raw JS element dict to SlideElement model."""
+def _build_slide_element(raw: dict) -> BaseSlideElement:
+    """Convert raw JS element dict to a typed SlideElement subclass."""
     etype = ElementType(raw["type"])
     common = _build_common_kwargs(raw)
 
@@ -253,7 +260,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
             if "paragraphs" in raw
             else _build_paragraphs([raw])
         )
-        return SlideElement.make_heading(
+        return TextElement.make_heading(
             **common,
             paragraphs=paragraphs,
             heading_level=raw.get("headingLevel", 1),
@@ -266,7 +273,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
             if "paragraphs" in raw
             else _build_paragraphs([raw])
         )
-        return SlideElement.make_paragraph(
+        return TextElement.make_paragraph(
             **common,
             element_type=etype,
             paragraphs=paragraphs,
@@ -274,14 +281,14 @@ def _build_slide_element(raw: dict) -> SlideElement:
         )
 
     if etype == ElementType.DECORATED_BLOCK:
-        return SlideElement.make_decorated_block(
+        return TextElement.make_decorated_block(
             **common,
             paragraphs=_build_paragraphs(raw.get("paragraphs", [])),
             decoration=_build_decoration(raw.get("decoration")),
         )
 
     if etype in (ElementType.UNORDERED_LIST, ElementType.ORDERED_LIST):
-        return SlideElement.make_list(
+        return ListElement.make_list(
             **common,
             element_type=etype,
             list_items=_build_list_items(raw),
@@ -293,7 +300,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
             if raw.get("codeBackground")
             else None
         )
-        return SlideElement.make_code_block(
+        return CodeBlockElement.make_code_block(
             **common,
             paragraphs=_build_paragraphs(raw.get("paragraphs", [])),
             code_language=raw.get("codeLanguage"),
@@ -302,7 +309,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
         )
 
     if etype == ElementType.IMAGE:
-        return SlideElement.make_image(
+        return ImageElement.make_image(
             **common,
             image_src=raw.get("imageSrc"),
             image_natural_width_px=raw.get("imageNaturalWidthPx"),
@@ -314,7 +321,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
         )
 
     if etype == ElementType.TABLE:
-        return SlideElement.make_table(
+        return TableElement.make_table(
             **common,
             table_rows=_build_table_rows(raw),
             decoration=_build_decoration(raw.get("decoration")),
@@ -322,7 +329,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
 
     if etype == ElementType.MATH:
         info = raw.get("unsupportedInfo", {})
-        return SlideElement.make_math(
+        return UnsupportedElement.make_math(
             **common,
             unsupported_info=UnsupportedInfo(
                 reason=info.get("reason", "Math expression"),
@@ -333,7 +340,7 @@ def _build_slide_element(raw: dict) -> SlideElement:
 
     if etype == ElementType.UNSUPPORTED:
         info = raw.get("unsupportedInfo", {})
-        return SlideElement.make_unsupported(
+        return UnsupportedElement.make_unsupported(
             **common,
             unsupported_info=UnsupportedInfo(
                 reason=info.get("reason", "Unknown"),
@@ -447,7 +454,7 @@ atexit.register(_close_sync_browser)
 
 
 def _should_merge_same_type_paragraphs(
-    first: SlideElement, second: SlideElement
+    first: BaseSlideElement, second: BaseSlideElement
 ) -> bool:
     """Return True when adjacent extracted text elements should merge."""
     return (
@@ -460,7 +467,9 @@ def _should_merge_same_type_paragraphs(
     )
 
 
-def _merge_same_type_paragraphs(elements: list[SlideElement]) -> list[SlideElement]:
+def _merge_same_type_paragraphs(
+    elements: list[BaseSlideElement],
+) -> list[BaseSlideElement]:
     """Merge adjacent paragraph-like elements into a single textbox element.
 
     This keeps multiple Markdown paragraphs in one PowerPoint textbox while
@@ -469,11 +478,14 @@ def _merge_same_type_paragraphs(elements: list[SlideElement]) -> list[SlideEleme
     if not elements:
         return []
 
-    merged: list[SlideElement] = []
+    merged: list[BaseSlideElement] = []
     current = elements[0].model_copy(deep=True)
 
     for element in elements[1:]:
         if _should_merge_same_type_paragraphs(current, element):
+            # Both are TextElement at this point (PARAGRAPH/BLOCKQUOTE)
+            assert isinstance(current, TextElement)
+            assert isinstance(element, TextElement)
             current.paragraphs.extend(element.paragraphs)
             current.box = union_boxes([current.box, element.box])
             continue

@@ -11,7 +11,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import NamedTuple
 
-from marpx.models import ElementType, Slide, SlideElement
+from marpx.models import BaseSlideElement, ElementType, Slide
 
 
 class Capability(str, Enum):
@@ -53,7 +53,7 @@ _NATIVE_TYPES: frozenset[ElementType] = frozenset(
 _SLIDE_FALLBACK_THRESHOLD: float = 0.8
 
 
-def classify_element(element: SlideElement) -> CapabilityDecision:
+def classify_element(element: BaseSlideElement) -> CapabilityDecision:
     """Classify a single element's rendering capability."""
     # Native elements
     if element.element_type in _NATIVE_TYPES:

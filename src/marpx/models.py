@@ -5,8 +5,11 @@ Unit conversion to EMU happens in the PPTX builder.
 """
 
 from __future__ import annotations
+
 import logging
 from enum import Enum
+from typing import Union
+
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -182,7 +185,14 @@ class UnsupportedInfo(BaseModel):
     svg_markup: str | None = None
 
 
-class SlideElement(BaseModel):
+# ---------------------------------------------------------------------------
+# Base class for all slide elements
+# ---------------------------------------------------------------------------
+
+
+class BaseSlideElement(BaseModel):
+    """Shared fields for all slide element types."""
+
     element_type: ElementType
     box: Box
     content_box: Box | None = None
@@ -194,29 +204,6 @@ class SlideElement(BaseModel):
     rotation_3d_z_deg: float = 0.0
     projected_corners: list[Point] = Field(default_factory=list)
 
-    # Text content (for heading, paragraph, blockquote, code_block)
-    paragraphs: list[Paragraph] = Field(default_factory=list)
-    heading_level: int | None = None  # 1-6 for headings
-
-    # List content
-    list_items: list[ListItem] = Field(default_factory=list)
-
-    # Image content
-    image_src: str | None = None
-    image_data: bytes | None = None
-    image_natural_width_px: float | None = None
-    image_natural_height_px: float | None = None
-    object_fit: str | None = None
-    object_position: str | None = None
-    image_opacity: float = 1.0
-
-    # Table content
-    table_rows: list[TableRow] = Field(default_factory=list)
-
-    # Code block specific
-    code_language: str | None = None
-    code_background: RGBAColor | None = None
-
     # Generic box decoration for rendered-layout capture
     decoration: BoxDecoration | None = None
 
@@ -226,14 +213,6 @@ class SlideElement(BaseModel):
     # Capability classification result set by the converter pipeline.
     # Values: "native", "subtree_fallback", "slide_fallback", or None (unclassified).
     capability: str | None = None
-
-    # ------------------------------------------------------------------
-    # Factory classmethods
-    #
-    # Each factory accepts only the fields relevant to that element type
-    # and automatically sets element_type.  Direct SlideElement(...)
-    # construction still works for backward compatibility.
-    # ------------------------------------------------------------------
 
     @classmethod
     def _common(
@@ -266,6 +245,21 @@ class SlideElement(BaseModel):
             capability=capability,
         )
 
+
+# ---------------------------------------------------------------------------
+# Typed subclasses
+# ---------------------------------------------------------------------------
+
+
+class TextElement(BaseSlideElement):
+    """Element for HEADING, PARAGRAPH, BLOCKQUOTE, DECORATED_BLOCK."""
+
+    paragraphs: list[Paragraph] = Field(default_factory=list)
+    heading_level: int | None = None  # 1-6 for headings
+
+    # List items included for DECORATED_BLOCK that may contain inline lists
+    list_items: list[ListItem] = Field(default_factory=list)
+
     @classmethod
     def make_heading(
         cls,
@@ -283,7 +277,7 @@ class SlideElement(BaseModel):
         rotation_3d_z_deg: float = 0.0,
         projected_corners: list[Point] | None = None,
         capability: str | None = None,
-    ) -> "SlideElement":
+    ) -> TextElement:
         """Create a heading element (h1-h6)."""
         return cls(
             **cls._common(
@@ -321,7 +315,7 @@ class SlideElement(BaseModel):
         rotation_3d_z_deg: float = 0.0,
         projected_corners: list[Point] | None = None,
         capability: str | None = None,
-    ) -> "SlideElement":
+    ) -> TextElement:
         """Create a paragraph or blockquote element."""
         return cls(
             **cls._common(
@@ -357,7 +351,7 @@ class SlideElement(BaseModel):
         rotation_3d_z_deg: float = 0.0,
         projected_corners: list[Point] | None = None,
         capability: str | None = None,
-    ) -> "SlideElement":
+    ) -> TextElement:
         """Create a decorated_block element (e.g. blockquote with visual decoration)."""
         return cls(
             **cls._common(
@@ -377,6 +371,12 @@ class SlideElement(BaseModel):
             decoration=decoration,
         )
 
+
+class ListElement(BaseSlideElement):
+    """Element for ORDERED_LIST, UNORDERED_LIST."""
+
+    list_items: list[ListItem] = Field(default_factory=list)
+
     @classmethod
     def make_list(
         cls,
@@ -393,7 +393,7 @@ class SlideElement(BaseModel):
         rotation_3d_z_deg: float = 0.0,
         projected_corners: list[Point] | None = None,
         capability: str | None = None,
-    ) -> "SlideElement":
+    ) -> ListElement:
         """Create an unordered_list or ordered_list element."""
         if element_type not in (ElementType.UNORDERED_LIST, ElementType.ORDERED_LIST):
             raise ValueError(
@@ -416,45 +416,17 @@ class SlideElement(BaseModel):
             list_items=list_items,
         )
 
-    @classmethod
-    def make_code_block(
-        cls,
-        *,
-        box: Box,
-        paragraphs: list[Paragraph],
-        code_language: str | None = None,
-        code_background: RGBAColor | None = None,
-        decoration: BoxDecoration | None = None,
-        content_box: Box | None = None,
-        z_index: int = 0,
-        vertical_align: str = "top",
-        rotation_deg: float = 0.0,
-        rotation_3d_x_deg: float = 0.0,
-        rotation_3d_y_deg: float = 0.0,
-        rotation_3d_z_deg: float = 0.0,
-        projected_corners: list[Point] | None = None,
-        capability: str | None = None,
-    ) -> "SlideElement":
-        """Create a code_block element."""
-        return cls(
-            **cls._common(
-                element_type=ElementType.CODE_BLOCK,
-                box=box,
-                content_box=content_box,
-                z_index=z_index,
-                vertical_align=vertical_align,
-                rotation_deg=rotation_deg,
-                rotation_3d_x_deg=rotation_3d_x_deg,
-                rotation_3d_y_deg=rotation_3d_y_deg,
-                rotation_3d_z_deg=rotation_3d_z_deg,
-                projected_corners=projected_corners,
-                capability=capability,
-            ),
-            paragraphs=paragraphs,
-            code_language=code_language,
-            code_background=code_background,
-            decoration=decoration,
-        )
+
+class ImageElement(BaseSlideElement):
+    """Element for IMAGE."""
+
+    image_src: str | None = None
+    image_data: bytes | None = None
+    image_natural_width_px: float | None = None
+    image_natural_height_px: float | None = None
+    object_fit: str | None = None
+    object_position: str | None = None
+    image_opacity: float = 1.0
 
     @classmethod
     def make_image(
@@ -478,7 +450,7 @@ class SlideElement(BaseModel):
         rotation_3d_z_deg: float = 0.0,
         projected_corners: list[Point] | None = None,
         capability: str | None = None,
-    ) -> "SlideElement":
+    ) -> ImageElement:
         """Create an image element."""
         return cls(
             **cls._common(
@@ -504,6 +476,12 @@ class SlideElement(BaseModel):
             decoration=decoration,
         )
 
+
+class TableElement(BaseSlideElement):
+    """Element for TABLE."""
+
+    table_rows: list[TableRow] = Field(default_factory=list)
+
     @classmethod
     def make_table(
         cls,
@@ -520,7 +498,7 @@ class SlideElement(BaseModel):
         rotation_3d_z_deg: float = 0.0,
         projected_corners: list[Point] | None = None,
         capability: str | None = None,
-    ) -> "SlideElement":
+    ) -> TableElement:
         """Create a table element."""
         return cls(
             **cls._common(
@@ -540,6 +518,58 @@ class SlideElement(BaseModel):
             decoration=decoration,
         )
 
+
+class CodeBlockElement(BaseSlideElement):
+    """Element for CODE_BLOCK."""
+
+    paragraphs: list[Paragraph] = Field(default_factory=list)
+    code_language: str | None = None
+    code_background: RGBAColor | None = None
+
+    @classmethod
+    def make_code_block(
+        cls,
+        *,
+        box: Box,
+        paragraphs: list[Paragraph],
+        code_language: str | None = None,
+        code_background: RGBAColor | None = None,
+        decoration: BoxDecoration | None = None,
+        content_box: Box | None = None,
+        z_index: int = 0,
+        vertical_align: str = "top",
+        rotation_deg: float = 0.0,
+        rotation_3d_x_deg: float = 0.0,
+        rotation_3d_y_deg: float = 0.0,
+        rotation_3d_z_deg: float = 0.0,
+        projected_corners: list[Point] | None = None,
+        capability: str | None = None,
+    ) -> CodeBlockElement:
+        """Create a code_block element."""
+        return cls(
+            **cls._common(
+                element_type=ElementType.CODE_BLOCK,
+                box=box,
+                content_box=content_box,
+                z_index=z_index,
+                vertical_align=vertical_align,
+                rotation_deg=rotation_deg,
+                rotation_3d_x_deg=rotation_3d_x_deg,
+                rotation_3d_y_deg=rotation_3d_y_deg,
+                rotation_3d_z_deg=rotation_3d_z_deg,
+                projected_corners=projected_corners,
+                capability=capability,
+            ),
+            paragraphs=paragraphs,
+            code_language=code_language,
+            code_background=code_background,
+            decoration=decoration,
+        )
+
+
+class UnsupportedElement(BaseSlideElement):
+    """Element for UNSUPPORTED and MATH types."""
+
     @classmethod
     def make_math(
         cls,
@@ -555,7 +585,7 @@ class SlideElement(BaseModel):
         rotation_3d_z_deg: float = 0.0,
         projected_corners: list[Point] | None = None,
         capability: str | None = None,
-    ) -> "SlideElement":
+    ) -> UnsupportedElement:
         """Create a math element."""
         return cls(
             **cls._common(
@@ -589,7 +619,7 @@ class SlideElement(BaseModel):
         rotation_3d_z_deg: float = 0.0,
         projected_corners: list[Point] | None = None,
         capability: str | None = None,
-    ) -> "SlideElement":
+    ) -> UnsupportedElement:
         """Create an unsupported element."""
         return cls(
             **cls._common(
@@ -609,10 +639,159 @@ class SlideElement(BaseModel):
         )
 
 
+# ---------------------------------------------------------------------------
+# Discriminated union type alias
+# ---------------------------------------------------------------------------
+
+#: Union type for all slide element subclasses.
+#: Use ``SlideElement(element_type=..., ...)`` constructor for backward compat.
+SlideElementType = Union[
+    TextElement,
+    ListElement,
+    ImageElement,
+    TableElement,
+    CodeBlockElement,
+    UnsupportedElement,
+]
+
+# Mapping from ElementType to the appropriate subclass for the smart constructor.
+_ELEMENT_TYPE_TO_CLASS: dict[ElementType, type[BaseSlideElement]] = {
+    ElementType.HEADING: TextElement,
+    ElementType.PARAGRAPH: TextElement,
+    ElementType.BLOCKQUOTE: TextElement,
+    ElementType.DECORATED_BLOCK: TextElement,
+    ElementType.UNORDERED_LIST: ListElement,
+    ElementType.ORDERED_LIST: ListElement,
+    ElementType.CODE_BLOCK: CodeBlockElement,
+    ElementType.IMAGE: ImageElement,
+    ElementType.TABLE: TableElement,
+    ElementType.MATH: UnsupportedElement,
+    ElementType.UNSUPPORTED: UnsupportedElement,
+}
+
+
+def SlideElement(  # noqa: N802 — capitalized to match original class name
+    *,
+    element_type: ElementType,
+    box: Box,
+    content_box: Box | None = None,
+    z_index: int = 0,
+    vertical_align: str = "top",
+    rotation_deg: float = 0.0,
+    rotation_3d_x_deg: float = 0.0,
+    rotation_3d_y_deg: float = 0.0,
+    rotation_3d_z_deg: float = 0.0,
+    projected_corners: list[Point] | None = None,
+    decoration: BoxDecoration | None = None,
+    unsupported_info: UnsupportedInfo | None = None,
+    capability: str | None = None,
+    # Text fields
+    paragraphs: list[Paragraph] | None = None,
+    heading_level: int | None = None,
+    # List fields
+    list_items: list[ListItem] | None = None,
+    # Image fields
+    image_src: str | None = None,
+    image_data: bytes | None = None,
+    image_natural_width_px: float | None = None,
+    image_natural_height_px: float | None = None,
+    object_fit: str | None = None,
+    object_position: str | None = None,
+    image_opacity: float = 1.0,
+    # Table fields
+    table_rows: list[TableRow] | None = None,
+    # Code block fields
+    code_language: str | None = None,
+    code_background: RGBAColor | None = None,
+) -> BaseSlideElement:
+    """Smart constructor that dispatches to the appropriate subclass.
+
+    This function preserves backward compatibility so that existing code
+    using ``SlideElement(element_type=..., ...)`` continues to work.
+    """
+    cls = _ELEMENT_TYPE_TO_CLASS.get(element_type)
+    if cls is None:
+        raise ValueError(f"Unknown element type: {element_type}")
+
+    common = dict(
+        element_type=element_type,
+        box=box,
+        content_box=content_box,
+        z_index=z_index,
+        vertical_align=vertical_align,
+        rotation_deg=rotation_deg,
+        rotation_3d_x_deg=rotation_3d_x_deg,
+        rotation_3d_y_deg=rotation_3d_y_deg,
+        rotation_3d_z_deg=rotation_3d_z_deg,
+        projected_corners=projected_corners or [],
+        decoration=decoration,
+        unsupported_info=unsupported_info,
+        capability=capability,
+    )
+
+    if cls is TextElement:
+        return TextElement(
+            **common,
+            paragraphs=paragraphs or [],
+            heading_level=heading_level,
+            list_items=list_items or [],
+        )
+
+    if cls is ListElement:
+        return ListElement(
+            **common,
+            list_items=list_items or [],
+        )
+
+    if cls is ImageElement:
+        return ImageElement(
+            **common,
+            image_src=image_src,
+            image_data=image_data,
+            image_natural_width_px=image_natural_width_px,
+            image_natural_height_px=image_natural_height_px,
+            object_fit=object_fit,
+            object_position=object_position,
+            image_opacity=image_opacity,
+        )
+
+    if cls is TableElement:
+        return TableElement(
+            **common,
+            table_rows=table_rows or [],
+        )
+
+    if cls is CodeBlockElement:
+        return CodeBlockElement(
+            **common,
+            paragraphs=paragraphs or [],
+            code_language=code_language,
+            code_background=code_background,
+        )
+
+    if cls is UnsupportedElement:
+        return UnsupportedElement(**common)
+
+    raise ValueError(f"Unhandled element class: {cls}")  # pragma: no cover
+
+
+# Re-attach factory classmethods to SlideElement function for backward compatibility.
+# This allows ``SlideElement.make_heading(...)`` etc. to still work.
+SlideElement.make_heading = TextElement.make_heading  # type: ignore[attr-defined]
+SlideElement.make_paragraph = TextElement.make_paragraph  # type: ignore[attr-defined]
+SlideElement.make_decorated_block = TextElement.make_decorated_block  # type: ignore[attr-defined]
+SlideElement.make_list = ListElement.make_list  # type: ignore[attr-defined]
+SlideElement.make_code_block = CodeBlockElement.make_code_block  # type: ignore[attr-defined]
+SlideElement.make_image = ImageElement.make_image  # type: ignore[attr-defined]
+SlideElement.make_table = TableElement.make_table  # type: ignore[attr-defined]
+SlideElement.make_math = UnsupportedElement.make_math  # type: ignore[attr-defined]
+SlideElement.make_unsupported = UnsupportedElement.make_unsupported  # type: ignore[attr-defined]
+
+
 class Slide(BaseModel):
     width_px: float
     height_px: float
-    elements: list[SlideElement] = Field(default_factory=list)
+    elements: list[BaseSlideElement] = Field(default_factory=list)
     background: Background = Field(default_factory=Background)
     slide_number: int = 0
     is_fallback: bool = False  # True if entire slide is fallback image

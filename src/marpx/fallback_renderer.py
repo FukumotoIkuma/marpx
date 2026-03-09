@@ -9,9 +9,9 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 from marpx.models import (
+    BaseSlideElement,
     ElementType,
     Presentation,
-    SlideElement,
     UnsupportedInfo,
 )
 from marpx.svg_utils import rasterize_svg_to_png
@@ -34,7 +34,7 @@ _BESPOKE_UI_HIDE_CSS = """
 """.strip()
 
 
-def _needs_subtree_fallback(element: SlideElement) -> bool:
+def _needs_subtree_fallback(element: BaseSlideElement) -> bool:
     """Return True when an element requires a subtree (element-level) fallback.
 
     Uses the capability field when set by the converter pipeline; falls back to
@@ -48,7 +48,7 @@ def _needs_subtree_fallback(element: SlideElement) -> bool:
     return element.element_type in (ElementType.UNSUPPORTED, ElementType.MATH)
 
 
-def _is_inline_svg_element(element: SlideElement) -> bool:
+def _is_inline_svg_element(element: BaseSlideElement) -> bool:
     """Return True when the fallback element carries inline SVG markup."""
     info = element.unsupported_info
     return bool(_needs_subtree_fallback(element) and info and info.svg_markup)
@@ -57,7 +57,7 @@ def _is_inline_svg_element(element: SlideElement) -> bool:
 def _write_inline_svg_fallback(
     slide_index: int,
     element_index: int,
-    element: SlideElement,
+    element: BaseSlideElement,
     output_dir: Path,
 ) -> Path:
     """Rasterize stored SVG markup directly instead of screenshotting the page."""
@@ -217,7 +217,7 @@ async def _screenshot_element(
     page,
     slide_index: int,
     element_index: int,
-    element: SlideElement,
+    element: BaseSlideElement,
     output_dir: Path,
 ) -> Path:
     """Take a screenshot of a specific unsupported element region."""

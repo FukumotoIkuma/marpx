@@ -9,8 +9,8 @@ from pptx.oxml.ns import qn
 from pptx.util import Emu, Pt
 
 from marpx.models import (
+    BaseSlideElement,
     ElementType,
-    SlideElement,
     TextRun,
     TextStyle,
 )
@@ -207,7 +207,7 @@ def _configure_list_paragraph(
         buChar.set("char", _unordered_bullet_char(list_style_type))
 
 
-def _iter_text_payloads(element: SlideElement):
+def _iter_text_payloads(element: BaseSlideElement):
     """Yield paragraph payloads for a groupable text element."""
     if element.element_type in (
         ElementType.HEADING,
@@ -289,9 +289,9 @@ def _append_payload_to_text_frame(
     _add_paragraph_runs(p, para.runs)
 
 
-def _populate_text_frame(text_frame, elements: list[SlideElement]) -> None:
+def _populate_text_frame(text_frame, elements: list[BaseSlideElement]) -> None:
     """Populate a text frame from one or more text-bearing elements."""
-    payloads: list[tuple[SlideElement, dict]] = []
+    payloads: list[tuple[BaseSlideElement, dict]] = []
     for element in elements:
         for payload in _iter_text_payloads(element):
             payloads.append((element, payload))
@@ -319,7 +319,7 @@ def _populate_text_frame(text_frame, elements: list[SlideElement]) -> None:
         payload_index += 1
 
 
-def _resolve_textbox_geometry(element: SlideElement) -> tuple[Emu, Emu, Emu, Emu]:
+def _resolve_textbox_geometry(element: BaseSlideElement) -> tuple[Emu, Emu, Emu, Emu]:
     """Return the element's content box when available, else its outer box."""
     if element.content_box is not None:
         source_box = element.content_box
@@ -339,7 +339,7 @@ def _resolve_textbox_geometry(element: SlideElement) -> tuple[Emu, Emu, Emu, Emu
     )
 
 
-def _derive_content_box_from_decoration(element: SlideElement):
+def _derive_content_box_from_decoration(element: BaseSlideElement):
     """Derive a content box from an outer box plus extracted border/padding."""
     decoration = element.decoration
     assert decoration is not None
@@ -366,7 +366,7 @@ def _set_text_frame_margins_zero(text_frame) -> None:
     text_frame.margin_left = zero
 
 
-def _set_text_frame_margins_from_element(text_frame, element: SlideElement) -> None:
+def _set_text_frame_margins_from_element(text_frame, element: BaseSlideElement) -> None:
     """Apply content-box insets as text-frame margins on the element's outer box."""
     if element.content_box is not None:
         content_box = element.content_box
@@ -417,7 +417,7 @@ def _apply_spacing(
         pptx_para.space_after = Pt(px_to_pt(space_after_px))
 
 
-def _add_textbox(slide, element: SlideElement) -> None:
+def _add_textbox(slide, element: BaseSlideElement) -> None:
     """Add a textbox or decorated text container."""
     if element.decoration:
         use_shape_text_frame = (

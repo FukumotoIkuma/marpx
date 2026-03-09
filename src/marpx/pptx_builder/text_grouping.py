@@ -5,7 +5,7 @@ from __future__ import annotations
 from pptx.enum.text import MSO_VERTICAL_ANCHOR
 from pptx.util import Emu
 
-from marpx.models import SlideElement
+from marpx.models import BaseSlideElement
 from marpx.utils import (
     boxes_have_horizontal_overlap,
     boxes_have_mergeable_vertical_gap,
@@ -21,7 +21,7 @@ from .text import (
 )
 
 
-def _is_groupable_text_element(element: SlideElement) -> bool:
+def _is_groupable_text_element(element: BaseSlideElement) -> bool:
     """Return True when the element should be grouped into a shared textbox."""
     return (
         element.element_type in GROUPABLE_TEXT_TYPES
@@ -33,7 +33,9 @@ def _is_groupable_text_element(element: SlideElement) -> bool:
     )
 
 
-def _text_elements_should_merge(first: SlideElement, second: SlideElement) -> bool:
+def _text_elements_should_merge(
+    first: BaseSlideElement, second: BaseSlideElement
+) -> bool:
     """Heuristic for merging adjacent text-capable elements into one textbox."""
     if not (_is_groupable_text_element(first) and _is_groupable_text_element(second)):
         return False
@@ -52,11 +54,11 @@ def _text_elements_should_merge(first: SlideElement, second: SlideElement) -> bo
 
 
 def _group_adjacent_text_elements(
-    elements: list[SlideElement],
-) -> list[list[SlideElement]]:
+    elements: list[BaseSlideElement],
+) -> list[list[BaseSlideElement]]:
     """Group adjacent text elements that should share one text frame."""
-    groups: list[list[SlideElement]] = []
-    current_group: list[SlideElement] = []
+    groups: list[list[BaseSlideElement]] = []
+    current_group: list[BaseSlideElement] = []
 
     for element in elements:
         if not current_group:
@@ -75,7 +77,7 @@ def _group_adjacent_text_elements(
     return groups
 
 
-def _add_grouped_textbox(slide, elements: list[SlideElement]) -> None:
+def _add_grouped_textbox(slide, elements: list[BaseSlideElement]) -> None:
     """Render multiple adjacent text-like elements into one textbox."""
     box = union_boxes([element.box for element in elements])
     txbox = slide.shapes.add_textbox(
