@@ -141,6 +141,3 @@ export function normalizeContentValue(content) {
     }
     return content;
 }
-
-// Re-export pseudo-element functions from pseudo.js for backward compatibility
-export { extractPseudoRuns, extractBlockPseudoElements } from './pseudo.js';

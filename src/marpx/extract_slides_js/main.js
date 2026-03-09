@@ -1,5 +1,5 @@
 import { extractBackgroundImages, extractDirectives } from './backgrounds.js';
-import { extractBlockPseudoElements } from './pseudo.js';
+import { extractBlockPseudoElements, resetProcessedPseudoElements } from './pseudo.js';
 import { processElement } from './handlers.js';
 import { createRenderContext } from './render-context.js';
 
@@ -34,6 +34,9 @@ export function extractSlides() {
             // Skip - we process these when we find the 'content' section
             continue;
         }
+
+        // Reset pseudo-element tracking for each new slide
+        resetProcessedPseudoElements();
 
         const sectionRect = section.getBoundingClientRect();
         const slideRoot = section.closest('svg') || section;

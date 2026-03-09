@@ -567,6 +567,9 @@ function normalizeContentValue(content) {
 
 // pseudo.js
 var _processedBlockPseudo = /* @__PURE__ */ new WeakSet();
+function resetProcessedPseudoElements() {
+  _processedBlockPseudo = /* @__PURE__ */ new WeakSet();
+}
 function getInlinePseudoRuns(el, pseudo, renderContext = null) {
   const cs = window.getComputedStyle(el, pseudo);
   if (["absolute", "fixed"].includes(cs.position)) return [];
@@ -2175,6 +2178,7 @@ function extractSlides() {
     if (advBg === "background" || advBg === "pseudo") {
       continue;
     }
+    resetProcessedPseudoElements();
     const sectionRect = section.getBoundingClientRect();
     const slideRoot = section.closest("svg") || section;
     const slideRect = slideRoot.getBoundingClientRect();

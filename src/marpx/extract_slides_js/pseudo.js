@@ -1,7 +1,6 @@
-import { deriveRenderContext, _scaleX, _scaleY, _scaleText } from './render-context.js';
+import { deriveRenderContext, _scaleX, _scaleY } from './render-context.js';
 import {
     styleToRunStyle,
-    applyOpacityToColor,
     getUnsupportedStyleReason,
 } from './style.js';
 import {
@@ -15,19 +14,15 @@ import {
  * extracted. Prevents double-processing when both main.js (slide-level) and
  * handlers.js (element-level) call extractBlockPseudoElements on the same node.
  */
-const _processedBlockPseudo = new WeakSet();
+let _processedBlockPseudo = new WeakSet();
 
 /**
- * Quick check whether an element has visible pseudo-element content on the
- * given side (::before or ::after) without performing full extraction.
- *
- * @param {Element} el    - The DOM element to check.
- * @param {string}  side  - The pseudo-element selector, e.g. '::before' or '::after'.
- * @returns {boolean} True if the pseudo-element has non-empty content.
+ * Resets the processed pseudo-elements tracking set.
+ * Must be called at the start of each slide extraction to prevent
+ * stale references from previous slides blocking extraction.
  */
-export function hasPseudoContent(el, side) {
-    const cs = window.getComputedStyle(el, side);
-    return !!normalizeContentValue(cs.content);
+export function resetProcessedPseudoElements() {
+    _processedBlockPseudo = new WeakSet();
 }
 
 /**
