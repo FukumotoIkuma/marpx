@@ -7,7 +7,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from marpx.capabilities import Capability, classify_slide, should_fallback_slide
+from marpx.capabilities import Capability, classify_element, classify_slide, should_fallback_slide
 from marpx.marp_renderer import render_to_html
 from marpx.extractor import close_sync_browser, extract_presentation_sync
 from marpx.fallback_renderer import render_fallbacks_sync
@@ -82,7 +82,7 @@ def convert(
         # sync extractor browser first to avoid event-loop conflicts.
         close_sync_browser()
 
-        # Step 2.5: Classify element capabilities
+        # Step 2.5: Classify element capabilities and write back to each element
         for slide in presentation.slides:
             decisions = classify_slide(slide)
             native_count = sum(
@@ -95,6 +95,14 @@ def convert(
                 native_count,
                 fallback_count,
             )
+
+            # Write capability string back to each SlideElement so that
+            # downstream components (builder, fallback_renderer) share a
+            # single authoritative classification instead of re-deriving it.
+            for i, element in enumerate(slide.elements):
+                decision = decisions.get(i) or classify_element(element)
+                element.capability = decision.capability.value
+
             if should_fallback_slide(slide):
                 logger.info(
                     "Slide %d: marked for full-slide fallback",

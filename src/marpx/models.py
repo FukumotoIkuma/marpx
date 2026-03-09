@@ -220,6 +220,10 @@ class SlideElement(BaseModel):
     # Unsupported info
     unsupported_info: UnsupportedInfo | None = None
 
+    # Capability classification result set by the converter pipeline.
+    # Values: "native", "subtree_fallback", "slide_fallback", or None (unclassified).
+    capability: str | None = None
+
 
 class Slide(BaseModel):
     width_px: float
