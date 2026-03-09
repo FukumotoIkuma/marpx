@@ -1,3 +1,21 @@
+/**
+ * WeakMap cache for deriveRenderContext results when called without parentCtx.
+ * Keyed by DOM element. Only the no-parentCtx (full ancestor walk) path is
+ * cached, since the parentCtx path is already O(1) — it doesn't walk ancestors.
+ *
+ * Using a mutable holder so clearRenderContextCache() can replace the WeakMap
+ * (WeakMap lacks a .clear() method in all environments).
+ */
+let _contextCache = new WeakMap();
+
+/**
+ * Clear the render context cache. Call at the start of each slide extraction
+ * to prevent stale cache entries across slides that share the same DOM.
+ */
+export function clearRenderContextCache() {
+    _contextCache = new WeakMap();
+}
+
 function _parseOpacity(raw) {
     const parsed = parseFloat(raw || '1');
     if (!Number.isFinite(parsed)) return 1;
@@ -148,6 +166,14 @@ export function _scaleText(value, ctx) {
 
 export function deriveRenderContext(el, parentCtx = null, computedStyle = null) {
     if (!el) return parentCtx || createRenderContext();
+
+    // Cache hit: only for the no-parentCtx path (full ancestor walk).
+    // When parentCtx is provided the computation is already O(1), so
+    // caching adds overhead without benefit.
+    if (!parentCtx && !computedStyle && _contextCache.has(el)) {
+        return _contextCache.get(el);
+    }
+
     const cs = computedStyle || window.getComputedStyle(el);
     const ownOpacity = _parseOpacity(cs.opacity);
     const ownTransform = _parseTransformScale(cs.transform);
@@ -194,6 +220,14 @@ export function deriveRenderContext(el, parentCtx = null, computedStyle = null) 
     ctx.effectiveRotation3dXDeg = effectiveRotation3dXDeg;
     ctx.effectiveRotation3dYDeg = effectiveRotation3dYDeg;
     ctx.effectiveRotation3dZDeg = effectiveRotation3dZDeg;
+
+    // Store in cache (no-parentCtx path only, and only when no
+    // caller-supplied computedStyle that might differ from the live one).
+    if (!computedStyle) {
+        Object.freeze(ctx);
+        _contextCache.set(el, ctx);
+    }
+
     return ctx;
 }
 

@@ -1,7 +1,7 @@
 import { extractBackgroundImages, extractDirectives } from './backgrounds.js';
 import { extractBlockPseudoElements } from './decoration.js';
 import { processElement } from './handlers.js';
-import { createRenderContext } from './render-context.js';
+import { createRenderContext, clearRenderContextCache } from './render-context.js';
 
 export function extractSlides() {
     const sections = document.querySelectorAll('section[id]');
@@ -34,6 +34,10 @@ export function extractSlides() {
             // Skip - we process these when we find the 'content' section
             continue;
         }
+
+        // Clear memoized render contexts from the previous slide to prevent
+        // stale cached values when the DOM is shared across slides.
+        clearRenderContextCache();
 
         const sectionRect = section.getBoundingClientRect();
         const slideRoot = section.closest('svg') || section;
