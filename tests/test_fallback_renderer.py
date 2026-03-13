@@ -174,7 +174,7 @@ def test_render_fallbacks_rasterizes_inline_svg_without_screenshot(
     assert b'height="100.000px"' in captured["svg"]
     assert captured["width_px"] == 200
     assert captured["height_px"] == 100
-    assert captured["scale"] == 2.0
+    assert captured["scale"] == 4.0
     assert any(".bespoke-marp-osc" in content for content in style_tags)
     # Verify fallback image path is recorded in slide_render_info
     el_info = slide_render_info[0].element_info[0]

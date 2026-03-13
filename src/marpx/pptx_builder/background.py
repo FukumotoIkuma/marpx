@@ -13,8 +13,9 @@ from marpx.models import BackgroundImage
 from marpx.utils.common import px_to_emu
 
 from marpx.utils.svg import rasterize_svg_to_png
+from marpx.utils.common import emu_to_px
 
-from .image import _is_svg_source
+from .image import _is_svg_source, _SVG_RASTER_SCALE
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,15 @@ def _add_background_image(
         return
 
     if _is_svg_source(bg_image.url):
-        image_bytes = rasterize_svg_to_png(bg_image.url)
+        _, _, box_w, box_h = _resolve_split_box(
+            bg_image, slide_width_emu, slide_height_emu
+        )
+        image_bytes = rasterize_svg_to_png(
+            bg_image.url,
+            width_px=emu_to_px(box_w),
+            height_px=emu_to_px(box_h),
+            scale=_SVG_RASTER_SCALE,
+        )
 
     image_stream = io.BytesIO(image_bytes)
     image_width_px: int | None = None
