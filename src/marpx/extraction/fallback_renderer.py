@@ -19,7 +19,7 @@ from marpx.pipeline import ElementRenderInfo, SlideRenderInfo
 from marpx.utils.svg import rasterize_svg_to_png
 
 logger = logging.getLogger(__name__)
-_SVG_FALLBACK_SCALE = 4.0
+_SVG_FALLBACK_SCALE = 8.0
 
 _BESPOKE_UI_HIDE_CSS = """
 .bespoke-marp-osc,
