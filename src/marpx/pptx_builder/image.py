@@ -23,6 +23,8 @@ from ._helpers import _set_blip_alpha
 
 logger = logging.getLogger(__name__)
 
+_SVG_RASTER_SCALE = 4.0
+
 
 def _is_svg_source(src: str) -> bool:
     """Return True when the source points to SVG content."""
@@ -129,7 +131,12 @@ def _add_image(slide, element: ImageElement) -> None:
         picture = None
         # SVG requires rasterization first
         if _is_svg_source(element.image_src):
-            image_bytes = rasterize_svg_to_png(element.image_src or "")
+            image_bytes = rasterize_svg_to_png(
+                element.image_src or "",
+                width_px=element.box.width,
+                height_px=element.box.height,
+                scale=_SVG_RASTER_SCALE,
+            )
             picture = slide.shapes.add_picture(
                 io.BytesIO(image_bytes), left, top, width, height
             )
