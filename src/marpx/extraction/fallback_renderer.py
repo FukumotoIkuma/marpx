@@ -19,7 +19,7 @@ from marpx.pipeline import ElementRenderInfo, SlideRenderInfo
 from marpx.utils.svg import rasterize_svg_to_png
 
 logger = logging.getLogger(__name__)
-_SVG_FALLBACK_SCALE = 2.0
+_SVG_FALLBACK_SCALE = 4.0
 
 _BESPOKE_UI_HIDE_CSS = """
 .bespoke-marp-osc,
@@ -297,8 +297,8 @@ async def render_fallbacks(
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         page = await browser.new_page(
-            device_scale_factor=2
-        )  # 2x DPI for crisp rendering
+            device_scale_factor=int(_SVG_FALLBACK_SCALE)
+        )  # high DPI for crisp rendering
         await page.goto(file_url, wait_until="networkidle")
         await page.wait_for_selector("section", timeout=10000)
         await _hide_bespoke_ui(page)
